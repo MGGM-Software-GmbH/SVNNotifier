@@ -117,6 +117,11 @@ namespace CHD.SVN_Notifier
 		/// </summary>
 		public static int UpdateWindowAction;
 
+		/// <summary>
+		/// UI language: 0 = English, 1 = German (Deutsch)
+		/// </summary>
+		public static int Language;
+
 
 		public static void Init(string fileName)
 		{
@@ -154,6 +159,8 @@ namespace CHD.SVN_Notifier
 			UpdateWindowAction = iniFile.ReadInteger("Settings", "UpdateWindowAction", 2);
 
 			ChangeLogBeforeUpdate = IsTortoiseVersion_1_5_orHigher() && iniFile.ReadBoolean("Settings", "ChangeLogBeforeUpdate", false);
+
+			Language = iniFile.ReadInteger("Settings", "Language", 0);
 		}
 
 
@@ -184,6 +191,7 @@ namespace CHD.SVN_Notifier
 			iniFile.Write("Settings", "ChangeLogBeforeUpdate", ChangeLogBeforeUpdate);
 			iniFile.Write("Settings", "UpdateAllSilently", UpdateAllSilently);
 			iniFile.Write("Settings", "UpdateWindowAction", UpdateWindowAction);
+			iniFile.Write("Settings", "Language", Language);
 		}
 
 

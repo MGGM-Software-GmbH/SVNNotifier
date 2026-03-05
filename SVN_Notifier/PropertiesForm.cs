@@ -33,6 +33,7 @@ namespace CHD.SVN_Notifier
 		public PropertiesForm(SvnItem folder)
 		{
 			InitializeComponent();
+			ApplyLocalization();
 			_Folder = folder;
 			PathTextBox.Text = folder.Path;
 			if (folder.ActiveStatusUpdateInterval < 0)
@@ -59,6 +60,21 @@ namespace CHD.SVN_Notifier
 			StatusUpdateCheckBox.Enabled = EnableCheckBox.Checked;
 		}
 
+
+		private void ApplyLocalization()
+		{
+			Text                       = Loc.PF_Title;
+			PathLabel.Text             = Loc.PF_Label_Path;
+			EnableCheckBox.Text        = Loc.PF_Chk_Enable;
+			StatusUpdateCheckBox.Text  = Loc.PF_Chk_CustomInterval;
+			FormIsActiveLabel.Text     = Loc.PF_Label_Active;
+			FormIsInactiveLabel.Text   = Loc.PF_Label_Inactive;
+			StatusHoursLabel.Text      = Loc.PF_Label_Hours;
+			StatusMinutesLabel.Text    = Loc.PF_Label_Minutes;
+			StatusSecondsLabel.Text    = Loc.PF_Label_Seconds;
+			OkButton.Text              = Loc.PF_Btn_OK;
+			CloseButton.Text           = Loc.PF_Btn_Cancel;
+		}
 
 		private void OkButton_Click(object sender, System.EventArgs e)
 		{

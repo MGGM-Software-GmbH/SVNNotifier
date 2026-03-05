@@ -297,8 +297,7 @@ namespace CHD.SVN_Notifier
 				{
 					Application.Exit();
 
-					if (Thread.CurrentThread == MainForm.statusThread)
-						Thread.CurrentThread.Abort();
+					// Thread.Abort() is not supported in .NET 5+; background thread exits with the process.
 				}
 
 				backgroundProcess = null;

@@ -65,6 +65,11 @@ namespace CHD.SVN_Notifier
 			folderProcess = sfp;
 
 			InitializeComponent();
+			ShowLogButton.Text          = Loc.ULF_Btn_ShowLog;
+			OkButton.Text               = Loc.ULF_Btn_OK;
+			CloseButton.Text            = Loc.ULF_Btn_Cancel;
+			ActionColumn.Text           = Loc.ULF_Col_Action;
+			PathColumn.Text             = Loc.ULF_Col_Path;
 
 			FillList();
 			PlaySound();

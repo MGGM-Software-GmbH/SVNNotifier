@@ -33,7 +33,7 @@ namespace CHD.SVN_Notifier
 					return Descriptions[key];
 				// Set default value.
 				var value = type.IsEnum
-					? string.Format("{0}", o)
+					? $"{o}"
 					: type.FullName;
 				// If enumeration then specify to get attribute from a field, otherwise from type.
 				var ap = type.IsEnum

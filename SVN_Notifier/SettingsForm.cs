@@ -29,6 +29,60 @@ namespace CHD.SVN_Notifier
 		public SettingsForm()
 		{
 			InitializeComponent();
+			ApplyLocalization();
+		}
+
+		private void ApplyLocalization()
+		{
+			Text = Loc.SF_Title;
+			GeneralTabPage.Text = Loc.SF_Tab_General;
+			StatusTabPage.Text  = Loc.SF_Tab_Status;
+			UpdateTabPage.Text  = Loc.SF_Tab_Update;
+
+			LocationsGroupBox.Text    = Loc.SF_Group_Locations;
+			SvnPathLabel.Text         = Loc.SF_Label_SvnPath;
+			TortoisePathLabel.Text    = Loc.SF_Label_TortoisePath;
+			SvnBrowseButton.Text      = Loc.SF_Btn_Browse;
+			TortoiseBrowseButton.Text = Loc.SF_Btn_Browse;
+
+			OtherOptionsGroupBox.Text          = Loc.SF_Group_Other;
+			DoubleClickLabel.Text              = Loc.SF_Label_DblClick;
+			HideSystemTrayLabel.Text           = Loc.SF_Label_HideTray;
+			HideOnStartupCheckBox.Text         = Loc.SF_Chk_HideOnStart;
+			ShowInTaskbarCheckBox.Text         = Loc.SF_Chk_ShowTaskbar;
+			CheckForNewVersionCheckBox.Text    = Loc.SF_Chk_CheckVersion;
+			ChangeLogBeforeUpdateCheckBox.Text = Loc.SF_Chk_ChangeLog;
+			SilentlUpdateCheckBox.Text         = Loc.SF_Chk_SilentUpdate;
+			LanguageLabel.Text                 = Loc.SF_Label_Language;
+
+			int sel = DoubleClickComboBox.SelectedIndex;
+			DoubleClickComboBox.Items.Clear();
+			DoubleClickComboBox.Items.AddRange(new object[] {
+				Loc.SF_DblClick_Open, Loc.SF_DblClick_Log, Loc.SF_DblClick_Update,
+				Loc.SF_DblClick_Commit, Loc.SF_DblClick_Check
+			});
+			if (sel >= 0 && sel < DoubleClickComboBox.Items.Count)
+				DoubleClickComboBox.SelectedIndex = sel;
+
+			StatusGroupBox.Text     = Loc.SF_Group_Status;
+			ActiveLabel.Text        = Loc.SF_Label_Active;
+			InactiveLabel.Text      = Loc.SF_Label_Inactive;
+			StatusHoursLabel.Text   = Loc.SF_Label_Hours;
+			StatusMinutesLabel.Text = Loc.SF_Label_Minutes;
+			StatusSecondsLabel.Text = Loc.SF_Label_Seconds;
+
+			PauseGroupBox.Text      = Loc.SF_Group_Pause;
+			ResumeLabel.Text        = Loc.SF_Chk_Resume;
+			StartupLabel.Text       = Loc.SF_Chk_Startup;
+			PauseHoursLabel.Text    = Loc.SF_Label_Hours;
+			PauseMinutesLabel.Text  = Loc.SF_Label_Minutes;
+			PauseSecondsLabel.Text  = Loc.SF_Label_Seconds;
+
+			DialogActionLabel.Text     = Loc.SF_Label_DialogAction;
+			RequiresTortoiseLabel.Text = Loc.SF_Label_RequiresTortoise;
+
+			OkButton.Text    = Loc.SF_Btn_OK;
+			CloseButton.Text = Loc.SF_Btn_Cancel;
 		}
 
 		private void SettingsForm_Load(object sender, System.EventArgs e)
@@ -72,6 +126,7 @@ namespace CHD.SVN_Notifier
 			CheckForNewVersionCheckBox.Checked = Config.CheckForNewVersion;
 			SilentlUpdateCheckBox.Checked = Config.UpdateAllSilently;
 			DialogActiionDropDown.SelectedIndex = Config.UpdateWindowAction;
+			LanguageComboBox.SelectedIndex = Config.Language;
 		}
 
 
@@ -110,6 +165,7 @@ namespace CHD.SVN_Notifier
 			Config.CheckForNewVersion = CheckForNewVersionCheckBox.Checked;
 			Config.UpdateAllSilently = SilentlUpdateCheckBox.Checked;
 			Config.UpdateWindowAction = DialogActiionDropDown.SelectedIndex;
+			Config.Language = LanguageComboBox.SelectedIndex >= 0 ? LanguageComboBox.SelectedIndex : 0;
 
 			Config.SaveSettings();
 			Close();

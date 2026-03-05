@@ -64,7 +64,7 @@ namespace CHD.SVN_Notifier
 			UpdateButton.Enabled = UpdateMenuItem.Enabled = CheckNowMenuItem.Enabled = false;
 			folder.Status = SvnStatus.Unknown;
 			newNonUpdatedFolders.Clear();
-			StatusLabel.Text = "Updating '" + folder.Path + "'...";
+			StatusLabel.Text = Loc.Status_Updating(folder.Path);
 			UpdateTray(true);
 			Refresh();              // Show "Unknown" folder status during updating
 
@@ -92,7 +92,7 @@ namespace CHD.SVN_Notifier
 		private void UpdateAll()
 		{
 			newNonUpdatedFolders.Clear();
-			StatusLabel.Text = "Updating all...";
+			StatusLabel.Text = Loc.Status_UpdatingAll;
 			UpdateTray(true);
 
 			BeginUpdateFolderStatuses();

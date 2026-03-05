@@ -91,7 +91,7 @@ namespace CHD.SVN_Notifier
 
 		public string Serialize()
 		{
-			return origPath + "|" + ActiveStatusUpdateInterval + "|" + IdleStatusUpdateInterval + "|" + !Enabled + "|" + (int)pathType;
+			return $"{origPath}|{ActiveStatusUpdateInterval}|{IdleStatusUpdateInterval}|{!Enabled}|{(int)pathType}";
 		}
 
 
@@ -119,7 +119,7 @@ namespace CHD.SVN_Notifier
 				{
 					string path = Environment.GetEnvironmentVariable(v);
 					if (path != null)
-						s = s.Replace("%" + v + "%", path);
+						s = s.Replace($"%{v}%", path);
 				}
 				catch
 				{
@@ -176,9 +176,7 @@ namespace CHD.SVN_Notifier
 
 		private void NotifyPropertyChanged(string propertyName = "")
 		{
-			var ev = PropertyChanged;
-			if (ev == null) return;
-			ev(this, new PropertyChangedEventArgs(propertyName));
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 		}
 
 		#endregion

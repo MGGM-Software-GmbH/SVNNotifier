@@ -1,233 +1,92 @@
-﻿<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <ProjectType>Local</ProjectType>
-    <ProductVersion>9.0.30729</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{047E30FF-665B-422C-9877-8983961F848A}</ProjectGuid>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ApplicationIcon>App.ico</ApplicationIcon>
-    <AssemblyKeyContainerName>
-    </AssemblyKeyContainerName>
-    <AssemblyName>SVN_Notifier</AssemblyName>
-    <AssemblyOriginatorKeyFile>
-    </AssemblyOriginatorKeyFile>
-    <DefaultClientScript>JScript</DefaultClientScript>
-    <DefaultHTMLPageLayout>Grid</DefaultHTMLPageLayout>
-    <DefaultTargetSchema>IE50</DefaultTargetSchema>
-    <DelaySign>false</DelaySign>
     <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>CHD.SVN_Notifier</RootNamespace>
-    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
-    <StartupObject>
-    </StartupObject>
-    <FileUpgradeFlags>
-    </FileUpgradeFlags>
-    <OldToolsVersion>3.5</OldToolsVersion>
-    <UpgradeBackupLocation>
-    </UpgradeBackupLocation>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <TargetFrameworkProfile />
+    <AssemblyName>SVN_Notifier</AssemblyName>
+    <ApplicationIcon>App.ico</ApplicationIcon>
+    <AssemblyTitle>CHD SVN Notifier</AssemblyTitle>
+    <AssemblyVersion>3.0.0.1</AssemblyVersion>
+    <FileVersion>3.0.0.1</FileVersion>
+    <Version>3.0.0.1</Version>
+    <InformationalVersion>3.0.0.1</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>CHD</Company>
+    <Product>SVN Notifier</Product>
+    <Copyright>Copyright © 2007-2026 CHD  |  v3 © 2026 MGGM-Software</Copyright>
+    <Description>Notifies you about other people's commits to Subversion repositories</Description>
+    <ProjectGuid>{047E30FF-665B-422C-9877-8983961F848A}</ProjectGuid>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <OutputPath>bin\Debug\</OutputPath>
-    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <BaseAddress>285212672</BaseAddress>
-    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
-    <ConfigurationOverrideFile>
-    </ConfigurationOverrideFile>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <DocumentationFile>
-    </DocumentationFile>
-    <DebugSymbols>true</DebugSymbols>
-    <FileAlignment>4096</FileAlignment>
-    <NoStdLib>false</NoStdLib>
-    <NoWarn>
-    </NoWarn>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <Optimize>false</Optimize>
-    <RegisterForComInterop>false</RegisterForComInterop>
-    <RemoveIntegerChecks>false</RemoveIntegerChecks>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <WarningLevel>4</WarningLevel>
     <DebugType>embedded</DebugType>
-    <ErrorReport>prompt</ErrorReport>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <OutputPath>bin\Release\</OutputPath>
-    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <BaseAddress>285212672</BaseAddress>
-    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
-    <ConfigurationOverrideFile>
-    </ConfigurationOverrideFile>
-    <DefineConstants>TRACE</DefineConstants>
-    <DocumentationFile>
-    </DocumentationFile>
-    <DebugSymbols>false</DebugSymbols>
-    <FileAlignment>4096</FileAlignment>
-    <NoStdLib>false</NoStdLib>
-    <NoWarn>
-    </NoWarn>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <Optimize>true</Optimize>
-    <RegisterForComInterop>false</RegisterForComInterop>
-    <RemoveIntegerChecks>false</RemoveIntegerChecks>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <WarningLevel>4</WarningLevel>
     <DebugType>none</DebugType>
-    <ErrorReport>prompt</ErrorReport>
+    <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="System">
-      <Name>System</Name>
-    </Reference>
-    <Reference Include="System.Data">
-      <Name>System.Data</Name>
-    </Reference>
-    <Reference Include="System.Drawing">
-      <Name>System.Drawing</Name>
-    </Reference>
-    <Reference Include="System.Windows.Forms">
-      <Name>System.Windows.Forms</Name>
-    </Reference>
-    <Reference Include="System.Xml">
-      <Name>System.XML</Name>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="AboutForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="AboutForm.Designer.cs">
+    <!-- Designer-generated files: disable nullable analysis to avoid noise -->
+    <Compile Update="AboutForm.Designer.cs">
       <DependentUpon>AboutForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Common\ControlHelper.cs" />
-    <Compile Include="Common\PathType.cs" />
-    <Compile Include="Common\Attributes.cs" />
-    <Compile Include="Common\SvnStatus.cs" />
-    <Compile Include="ErrorLogForm.Designer.cs">
+    <Compile Update="ErrorLogForm.Designer.cs">
       <DependentUpon>ErrorLogForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Properties\AssemblyInfo.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="Common\Config.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="ErrorLogForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Common\IniFile.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="MainForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="MainForm.Designer.cs">
+    <Compile Update="MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="MainForm.Tools.cs">
+    <Compile Update="MainForm.Tools.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
-      <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Properties\Resources.Designer.cs">
+    <Compile Update="SettingsForm.Designer.cs">
+      <DependentUpon>SettingsForm.cs</DependentUpon>
+    </Compile>
+    <Compile Update="PropertiesForm.Designer.cs">
+      <DependentUpon>PropertiesForm.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UpdateLogForm.Designer.cs">
+      <DependentUpon>UpdateLogForm.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <Compile Include="SettingsForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="SettingsForm.Designer.cs">
-      <DependentUpon>SettingsForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="PropertiesForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Common\SvnItem.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="Common\SvnTools.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="Common\SvnXml.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="PropertiesForm.Designer.cs">
-      <DependentUpon>PropertiesForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="UpdateLogForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UpdateLogForm.Designer.cs">
-      <DependentUpon>UpdateLogForm.cs</DependentUpon>
-    </Compile>
-    <EmbeddedResource Include="AboutForm.resx">
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="AboutForm.resx">
       <DependentUpon>AboutForm.cs</DependentUpon>
-      <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="ErrorLogForm.resx">
+    <EmbeddedResource Update="ErrorLogForm.resx">
       <DependentUpon>ErrorLogForm.cs</DependentUpon>
-      <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="MainForm.resx">
+    <EmbeddedResource Update="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
-      <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="Properties\Resources.resx">
+    <EmbeddedResource Update="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-      <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="SettingsForm.resx">
+    <EmbeddedResource Update="SettingsForm.resx">
       <DependentUpon>SettingsForm.cs</DependentUpon>
-      <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="PropertiesForm.resx">
+    <EmbeddedResource Update="PropertiesForm.resx">
       <DependentUpon>PropertiesForm.cs</DependentUpon>
-      <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="UpdateLogForm.resx">
+    <EmbeddedResource Update="UpdateLogForm.resx">
       <DependentUpon>UpdateLogForm.cs</DependentUpon>
-      <SubType>Designer</SubType>
     </EmbeddedResource>
-    <Content Include="App.ico" />
-    <Content Include="Images\About.png" />
-    <Content Include="Images\Check_Now.png" />
-    <Content Include="Images\Check_Updates.png" />
-    <Content Include="Images\Exit.png" />
-    <Content Include="Images\Export_Settings.png" />
-    <Content Include="Images\FolderStatus_Error.png" />
-    <Content Include="Images\FolderStatus_NeedUpdate.png" />
-    <Content Include="Images\FolderStatus_NeedUpdate_Modified.png" />
-    <Content Include="Images\FolderStatus_Unknown.png" />
-    <Content Include="Images\FolderStatus_UpToDate.png" />
-    <Content Include="Images\FolderStatus_UpToDate_Modified.png" />
-    <Content Include="Images\Icons\About.ico" />
-    <Content Include="Images\Icons\Errors.ico" />
-    <Content Include="Images\Icons\TrayIcon_Error.ico" />
-    <Content Include="Images\Icons\TrayIcon_NeedUpdate.ico" />
-    <Content Include="Images\Icons\TrayIcon_Unknown.ico" />
-    <Content Include="Images\Icons\TrayIcon_UpToDate.ico" />
-    <Content Include="Images\Import_Settings.png" />
-    <Content Include="Images\Program_Window.png" />
-    <Content Include="Images\Properties.png" />
-    <Content Include="Images\Settings.png" />
-    <Content Include="Resources\svn_notifier_logo.png" />
-    <Content Include="Images\Toolbar_AddFile.png" />
-    <Content Include="Images\Toolbar_AddFolder.png" />
-    <Content Include="Images\Toolbar_Commit.png" />
-    <Content Include="Images\Toolbar_OpenFolder.png" />
-    <Content Include="Images\Toolbar_Remove.png" />
-    <Content Include="Images\Toolbar_ShowChangeLogs.png" />
-    <Content Include="Images\Toolbar_ShowLogs.png" />
-    <Content Include="Images\Toolbar_Update.png" />
-    <Content Include="Images\Toolbar_Update_All.png" />
-    <Content Include="Resources\License.txt" />
   </ItemGroup>
-  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PreBuildEvent>
-    </PreBuildEvent>
-    <PostBuildEvent>
-    </PostBuildEvent>
-  </PropertyGroup>
+
 </Project>

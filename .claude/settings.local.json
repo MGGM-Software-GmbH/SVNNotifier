@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /d/Entwicklung/Anwendungen/SVNNotifier/SVN_Notifier/*.cs /d/Entwicklung/Anwendungen/SVNNotifier/SVN_Notifier/Common/*.cs)",
+      "Bash(git -C /d/Entwicklung/Anwendungen/SVNNotifier log --oneline --all)",
+      "Bash(grep -r \"System\\\\.\" /d/Entwicklung/Anwendungen/SVNNotifier/SVN_Notifier/Common/*.cs)",
+      "Bash(python3 -c \":*)",
+      "Bash(node -e \":*)",
+      "Bash(node \"D:\\\\Entwicklung\\\\Anwendungen\\\\SVNNotifier\\\\fix_strings.js\")",
+      "Bash(dotnet build SVN_Notifier.sln)",
+      "Bash(node:*)",
+      "Bash(tasklist /FI \"IMAGENAME eq SVN_Notifier.exe\")",
+      "Bash(Get-Process -Name \"SVN_Notifier\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Id, Name, Path)",
+      "Bash(powershell -Command \"Get-Process -Name ''SVN_Notifier'' -ErrorAction SilentlyContinue | Select-Object Id, Name\")"
+    ]
+  }
+}

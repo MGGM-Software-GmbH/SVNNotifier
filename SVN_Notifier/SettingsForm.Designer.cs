@@ -40,6 +40,8 @@
 			this.TortoiseBrowseButton = new System.Windows.Forms.Button();
 			this.SvnFileDialog = new System.Windows.Forms.OpenFileDialog();
 			this.TortoiseFileDialog = new System.Windows.Forms.OpenFileDialog();
+			this.LanguageLabel = new System.Windows.Forms.Label();
+			this.LanguageComboBox = new System.Windows.Forms.ComboBox();
 			this.DoubleClickComboBox = new System.Windows.Forms.ComboBox();
 			this.DoubleClickLabel = new System.Windows.Forms.Label();
 			this.HideOnStartupCheckBox = new System.Windows.Forms.CheckBox();
@@ -158,7 +160,7 @@
 			this.OkButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
 			this.OkButton.DialogResult = System.Windows.Forms.DialogResult.OK;
 			this.OkButton.FlatStyle = System.Windows.Forms.FlatStyle.System;
-			this.OkButton.Location = new System.Drawing.Point(242, 297);
+			this.OkButton.Location = new System.Drawing.Point(242, 323);
 			this.OkButton.Name = "OkButton";
 			this.OkButton.Size = new System.Drawing.Size(72, 23);
 			this.OkButton.TabIndex = 7;
@@ -170,7 +172,7 @@
 			this.CloseButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
 			this.CloseButton.DialogResult = System.Windows.Forms.DialogResult.Cancel;
 			this.CloseButton.FlatStyle = System.Windows.Forms.FlatStyle.System;
-			this.CloseButton.Location = new System.Drawing.Point(320, 297);
+			this.CloseButton.Location = new System.Drawing.Point(320, 323);
 			this.CloseButton.Name = "CloseButton";
 			this.CloseButton.Size = new System.Drawing.Size(72, 23);
 			this.CloseButton.TabIndex = 8;
@@ -333,7 +335,7 @@
 			this.MainTabControl.Multiline = true;
 			this.MainTabControl.Name = "MainTabControl";
 			this.MainTabControl.SelectedIndex = 0;
-			this.MainTabControl.Size = new System.Drawing.Size(380, 281);
+			this.MainTabControl.Size = new System.Drawing.Size(380, 307);
 			this.MainTabControl.TabIndex = 28;
 			// 
 			// GeneralTabPage
@@ -344,7 +346,7 @@
 			this.GeneralTabPage.Location = new System.Drawing.Point(4, 22);
 			this.GeneralTabPage.Name = "GeneralTabPage";
 			this.GeneralTabPage.Padding = new System.Windows.Forms.Padding(3);
-			this.GeneralTabPage.Size = new System.Drawing.Size(372, 255);
+			this.GeneralTabPage.Size = new System.Drawing.Size(372, 281);
 			this.GeneralTabPage.TabIndex = 0;
 			this.GeneralTabPage.Text = "General";
 			// 
@@ -360,9 +362,11 @@
 			this.OtherOptionsGroupBox.Controls.Add(this.HideOnStartupCheckBox);
 			this.OtherOptionsGroupBox.Controls.Add(this.DoubleClickComboBox);
 			this.OtherOptionsGroupBox.Controls.Add(this.HideSystemTrayLabel);
+			this.OtherOptionsGroupBox.Controls.Add(this.LanguageLabel);
+			this.OtherOptionsGroupBox.Controls.Add(this.LanguageComboBox);
 			this.OtherOptionsGroupBox.Location = new System.Drawing.Point(6, 112);
 			this.OtherOptionsGroupBox.Name = "OtherOptionsGroupBox";
-			this.OtherOptionsGroupBox.Size = new System.Drawing.Size(360, 137);
+			this.OtherOptionsGroupBox.Size = new System.Drawing.Size(360, 163);
 			this.OtherOptionsGroupBox.TabIndex = 22;
 			this.OtherOptionsGroupBox.TabStop = false;
 			this.OtherOptionsGroupBox.Text = "Other Options";
@@ -375,6 +379,24 @@
 			this.ShowInTaskbarCheckBox.Size = new System.Drawing.Size(102, 17);
 			this.ShowInTaskbarCheckBox.TabIndex = 20;
 			this.ShowInTaskbarCheckBox.Text = "Show in taskbar";
+			// 
+			// LanguageLabel
+			// 
+			this.LanguageLabel.AutoSize = true;
+			this.LanguageLabel.Location = new System.Drawing.Point(6, 138);
+			this.LanguageLabel.Name = "LanguageLabel";
+			this.LanguageLabel.Size = new System.Drawing.Size(60, 13);
+			this.LanguageLabel.TabIndex = 30;
+			this.LanguageLabel.Text = "Language:";
+			// 
+			// LanguageComboBox
+			// 
+			this.LanguageComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+			this.LanguageComboBox.Items.AddRange(new object[] { "English", "Deutsch" });
+			this.LanguageComboBox.Location = new System.Drawing.Point(100, 135);
+			this.LanguageComboBox.Name = "LanguageComboBox";
+			this.LanguageComboBox.Size = new System.Drawing.Size(140, 21);
+			this.LanguageComboBox.TabIndex = 31;
 			// 
 			// LocationsGroupBox
 			// 
@@ -908,7 +930,7 @@
 			this.AcceptButton = this.OkButton;
 			this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
 			this.CancelButton = this.CloseButton;
-			this.ClientSize = new System.Drawing.Size(404, 332);
+			this.ClientSize = new System.Drawing.Size(404, 358);
 			this.Controls.Add(this.MainTabControl);
 			this.Controls.Add(this.CloseButton);
 			this.Controls.Add(this.OkButton);
@@ -956,6 +978,8 @@
 		private System.Windows.Forms.GroupBox OtherOptionsGroupBox;
 		private System.Windows.Forms.GroupBox LocationsGroupBox;
 		private System.Windows.Forms.Label SvnPathLabel;
+		private System.Windows.Forms.Label LanguageLabel;
+		private System.Windows.Forms.ComboBox LanguageComboBox;
 		private System.Windows.Forms.Label TortoisePathLabel;
 		private System.Windows.Forms.TextBox SvnPathTextBox;
 		private System.Windows.Forms.TextBox TortoisePathTextBox;

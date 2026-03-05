@@ -1,112 +1,91 @@
-//
-// SVN Notifier
-// Copyright 2007 SIA Computer Hardware Design (www.chd.lv)
-//
-// This file is part of SVN Notifier.
-//
-// SVN Notifier is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 3 of the License, or
-// (at your option) any later version.
-//
-// SVN Notifier is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>
-//
-
-using System.Collections;
-using System.IO;
-using System.Xml;
+using System.Collections.Generic;
+using System.Xml.Linq;
 
 namespace CHD.SVN_Notifier
 {
 	public class SvnXml
 	{
-		private static XmlReader xmlReader;
-		private static Hashtable ht = new Hashtable ();
+		private static string _output = "";
+		private static readonly Dictionary<string, object> _data = new Dictionary<string, object>();
 
-
-		public static void Create (string output)
+		public static void Create(string output)
 		{
-			xmlReader = new XmlTextReader (new StringReader (output));
-			ht = new Hashtable ();
+			_output = output;
+			_data.Clear();
 		}
 
-
-		public static void ParseXmlForStatus ()
+		public static void ParseXmlForStatus()
 		{
-			bool skipNextReposStatus = false;
-			while (xmlReader.Read())
+			var doc = XDocument.Parse(_output);
+
+			// url element directly inside <target> (equivalent to depth==2 in the old reader)
+			var urlEl = doc.Root?
+				.Element("target")?
+				.Element("url");
+			if (urlEl != null)
+				_data["url"] = urlEl.Value;
+
+			// against revision inside <target>
+			var againstRevision = doc.Root?
+				.Element("target")?
+				.Element("against")?
+				.Attribute("revision")?.Value;
+			if (againstRevision != null)
+				_data["revision"] = againstRevision;
+
+			// Process each <entry> element
+			foreach (var entry in doc.Descendants("entry"))
 			{
-				xmlReader.MoveToElement();
-				string elementName = xmlReader.Name;
+				bool skipNextReposStatus = false;
 
-                if ((elementName == "url") && (xmlReader.Depth == 2))
-                {
-                    xmlReader.MoveToContent();
-                    ht["url"] = xmlReader.ReadElementContentAsString();
-                }
-
-				if (xmlReader.HasAttributes)
+				var wcStatus = entry.Element("wc-status");
+				if (wcStatus != null)
 				{
-					for (int i = 0; i < xmlReader.AttributeCount; i++)
+					var item = wcStatus.Attribute("item")?.Value;
+					if (item is not null
+						&& item != "normal" && item != "unversioned"
+						&& item != "none" && item != "external")
 					{
-						xmlReader.MoveToAttribute(i);
-						string attributeName = xmlReader.Name;
-						string attributeValue = xmlReader.Value;
-
-						if ((elementName == "wc-status") && (attributeName == "item") && (xmlReader.Depth == 4))
-						{
-                            if ((attributeValue != "normal") && (attributeValue != "unversioned") && (attributeValue != "none") && (attributeValue != "external"))
-								ht ["Modified"] = true;
-
-							skipNextReposStatus = (attributeValue == "conflicted");				// Because it always updated in repository
-						}
-                        else if ((elementName == "wc-status") && (attributeName == "props") && (xmlReader.Depth == 4))
-                        {
-                            if ((attributeValue != "normal") && (attributeValue != "none"))
-                                ht["Modified"] = true;
-
-                            skipNextReposStatus = (attributeValue == "conflicted");				// Is this necessary??
-                        }
-						else if ((elementName == "repos-status") && (attributeName == "item") && !skipNextReposStatus)
-						{
-							if ((attributeValue != "normal") && (attributeValue != "unversioned") && (attributeValue != "none") && (attributeValue != "external"))
-								ht ["NeedUpdate"] = true;
-						}
-                        else if ((elementName == "repos-status") && (attributeName == "props") && !skipNextReposStatus)
-                        {
-                            if ((attributeValue == "modified"))
-                                ht["NeedUpdate"] = true;
-                        }
-                        else if ((elementName == "against") && (attributeName == "revision") && (xmlReader.Depth == 3))
-						{
-							ht[attributeName] = attributeValue;
-						}
-						else if ((elementName == "commit") && (attributeName == "revision"))
-						{
-							ht[attributeName] = attributeValue;
-						}
+						_data["Modified"] = true;
 					}
-					xmlReader.MoveToElement();
+					skipNextReposStatus = (item == "conflicted");
+
+					var props = wcStatus.Attribute("props")?.Value;
+					if (props is not null && props != "normal" && props != "none")
+						_data["Modified"] = true;
+					if (props == "conflicted")
+						skipNextReposStatus = true;
+
+					// commit revision (any depth — same as original)
+					var commitRevision = wcStatus.Element("commit")?.Attribute("revision")?.Value;
+					if (commitRevision != null)
+						_data["revision"] = commitRevision;
+				}
+
+				if (!skipNextReposStatus)
+				{
+					var reposStatus = entry.Element("repos-status");
+					if (reposStatus != null)
+					{
+						var item = reposStatus.Attribute("item")?.Value;
+						if (item is not null
+							&& item != "normal" && item != "unversioned"
+							&& item != "none" && item != "external")
+						{
+							_data["NeedUpdate"] = true;
+						}
+
+						var props = reposStatus.Attribute("props")?.Value;
+						if (props == "modified")
+							_data["NeedUpdate"] = true;
+					}
 				}
 			}
 		}
 
+		public static bool ContainsKey(string key) => _data.ContainsKey(key);
 
-		public static bool ContainsKey (string key)
-		{
-			return ht.ContainsKey (key);
-		}
-
-	
-		public static string GetValue (string key)
-		{
-			return (string) ht[key];
-		}
+		public static string? GetValue(string key)
+			=> _data.TryGetValue(key, out var v) ? v as string : null;
 	}
 }

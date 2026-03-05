@@ -18,7 +18,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>
 //
 
-using System.Collections;
+using System.Collections.Generic;
 using System.Windows.Forms;
 
 namespace CHD.SVN_Notifier
@@ -29,12 +29,14 @@ namespace CHD.SVN_Notifier
 	public partial class ErrorLogForm : Form
 	{
 
-		public ErrorLogForm(Hashtable errorLog)
+		public ErrorLogForm(Dictionary<string, string> errorLog)
 		{
 			InitializeComponent();
-			foreach (DictionaryEntry de in errorLog)
+			ClearButton.Text = Loc.ELF_Btn_Clear;
+			CloseButton.Text = Loc.ELF_Btn_Close;
+			foreach (var entry in errorLog.Values)
 			{
-				LogTextBox.Text += de.Value;
+				LogTextBox.Text += entry;
 			}
 		}
 

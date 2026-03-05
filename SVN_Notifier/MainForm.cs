@@ -19,14 +19,13 @@
 //
 
 using System;
-using System.Collections;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Timers;
 using System.Windows.Forms;
@@ -35,13 +34,10 @@ namespace CHD.SVN_Notifier
 {
 	public partial class MainForm : Form
 	{
-		[DllImport("psapi")]
-		private static extern int EmptyWorkingSet(IntPtr handle);
-
-		private readonly Hashtable errorLog = new Hashtable();
+		private readonly Dictionary<string, string> errorLog = new();
 		private bool reupdateStatus;
 		private readonly ManualResetEvent updateNotInProgress = new ManualResetEvent(true);
-		private readonly Queue forcedFolders = Queue.Synchronized(new Queue());
+		private readonly ConcurrentQueue<SvnItem> forcedFolders = new();
 		private bool timerEnabledWhenSuspended = true;
 
 
@@ -62,6 +58,7 @@ namespace CHD.SVN_Notifier
 			SvnTools.ErrorAdded += OnErrorAdded;
 			AddPowerEventListener();
 			FormInit();
+			ApplyLocalization();
 		}
 
 		private void AddPowerEventListener()
@@ -163,7 +160,7 @@ namespace CHD.SVN_Notifier
 
 			if (ofd.ShowDialog() == DialogResult.OK)
 			{
-				if ((folders.Count > 0) && MessageBox.Show("All current settings will be lost.\n\nDo you really want to change the settings?", "Attention", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+				if ((folders.Count > 0) && MessageBox.Show("All current settings will be lost.\n\nDo you really want to change the settings?", Loc.Msg_Attention, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
 					return;
 
 				try
@@ -238,7 +235,7 @@ namespace CHD.SVN_Notifier
 				}
 				else
 				{
-					MessageBox.Show("This folder is not under SVN", "SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Error);
+					MessageBox.Show(Loc.Msg_FolderNotSvn, "SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Error);
 				}
 			}
 			else
@@ -272,7 +269,7 @@ namespace CHD.SVN_Notifier
 				}
 				else
 				{
-					MessageBox.Show("This file is not under SVN", "SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Error);
+					MessageBox.Show(Loc.Msg_FileNotSvn, "SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Error);
 				}
 			}
 			else
@@ -297,7 +294,7 @@ namespace CHD.SVN_Notifier
 			int selectedIndex = ItemListView.Rows.IndexOf(ItemListView.SelectedRows[0]);
 			string path = folders[selectedIndex].Path;
 
-			if (MessageBox.Show("Are you sure to remove " + path + " from list?", "SVN Notifier", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
+			if (MessageBox.Show(Loc.Msg_ConfirmRemove(path), "SVN Notifier", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
 				return;
 			folders.RemoveAt(selectedIndex);
 			UpdateListViewFolderNames();
@@ -536,9 +533,9 @@ namespace CHD.SVN_Notifier
 				if (folder.Status == SvnStatus.NeedUpdate_Modified || folder.Status == SvnStatus.UpToDate_Modified)
 					CommitButton.Enabled = true;
 				OpenButton.Enabled = Directory.Exists(folder.Path) || File.Exists(folder.Path);
-				Text = string.Format("{0} {1}", Application.ProductName, Application.ProductVersion);
+				Text = $"{Application.ProductName} {Application.ProductVersion}";
 				if (folder.RepositoryUrl != null)
-					Text += " - " + folder.RepositoryUrl;
+					Text += $" - {folder.RepositoryUrl}";
 			}
 			else
 			{
@@ -547,7 +544,7 @@ namespace CHD.SVN_Notifier
 				CommitButton.Enabled = false;
 				OpenButton.Enabled = false;
 				LogButton.Enabled = false;
-				Text = string.Format("{0} {1}", Application.ProductName, Application.ProductVersion);
+				Text = $"{Application.ProductName} {Application.ProductVersion}";
 			}
 		}
 
@@ -717,10 +714,9 @@ namespace CHD.SVN_Notifier
 		private delegate void CheckedInvokeMethod(Delegate method, object[] args);
 		private delegate void ShowUpdateErrorsMethod(SvnFolderProcess sfp);
 
-		internal static Thread statusThread;
+		internal static Thread? statusThread;
 		string firstBalloonPath;
 		private bool formIsActive;
-		private readonly IntPtr currentProcessHandle = Process.GetCurrentProcess().Handle;
 		private bool repeatInvoke;
 
 		////////////////////////////////////////////////////////////////////////////////////
@@ -782,8 +778,7 @@ namespace CHD.SVN_Notifier
 		private void ShowNewVersion()
 		{
 			if (MessageBox.Show(
-				"New stable version of SVN Notifier is available - v" + lastStableVersion + "\n" +
-				"Do you want to go to the project home page?",
+				$"New stable version of SVN Notifier is available - v{lastStableVersion}\nDo you want to go to the project home page?",
 				"SVN Notifier",
 				MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK)
 				new AboutForm().ShowDialog();
@@ -792,14 +787,14 @@ namespace CHD.SVN_Notifier
 
 		private static void ShowNoNewVersion()
 		{
-			MessageBox.Show("You are using latest version of SVN Notifier.",
+			MessageBox.Show(Loc.Msg_LatestVersion,
 				"SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Information);
 		}
 
 
 		private static void ErrorCheckingForNewVersion()
 		{
-			MessageBox.Show("Can't check for new version!",
+			MessageBox.Show(Loc.Msg_CantCheckVersion,
 				"SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Error);
 		}
 
@@ -856,6 +851,7 @@ namespace CHD.SVN_Notifier
 						reupdateStatus = false;
 
 						statusThread = new Thread(StatusUpdateThread_Run);
+						statusThread.IsBackground = true;
 						statusThread.Start();
 					}
 					else
@@ -886,7 +882,7 @@ namespace CHD.SVN_Notifier
 						{
 							forcedCheckForNewVersion = false;
 							lastTimeOfCheckForNewVersion = DateTime.Now;
-							SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { "Checking for new version..." });
+							SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_CheckingVersion });
 							CheckForNewVersion(true);
 						}
 						bool skipUpdateStatus = false;
@@ -910,8 +906,8 @@ namespace CHD.SVN_Notifier
 							}
 						}
 
-						while (forcedFolders.Count > 0)
-							UpdateFolderStatus((SvnItem)forcedFolders.Dequeue());
+						while (forcedFolders.TryDequeue(out var forcedFolder))
+							UpdateFolderStatus(forcedFolder);
 
 						if ((folder.StatusTime + new TimeSpan(0, 0, folder.GetInterval(formIsActive)) <= DateTime.Now) && !skipUpdateStatus)
 							UpdateFolderStatus(folder);
@@ -921,14 +917,14 @@ namespace CHD.SVN_Notifier
 					{
 						forcedCheckForNewVersion = false;
 						lastTimeOfCheckForNewVersion = DateTime.Now;
-						SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { "Checking for new version..." });
+						SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_CheckingVersion });
 						CheckForNewVersion(true);
 					}
 
 					if (Config.CheckForNewVersion && (lastTimeOfCheckForNewVersion + new TimeSpan(3, 0, 0) < DateTime.Now))
 					{
 						lastTimeOfCheckForNewVersion = DateTime.Now;
-						SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { "Checking for new version..." });
+						SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_CheckingVersion });
 						CheckForNewVersion(false);
 					}
 
@@ -946,13 +942,9 @@ namespace CHD.SVN_Notifier
 
 				SafeInvoke(new MethodInvoker(EndUpdateListView));
 			}
-			catch (ThreadAbortException)
-			{
-				SvnTools.KillBackgroundProcess();
-			}
 			catch (Exception e)     // Otherwise it will just lost
 			{
-				ShowError("Error on status thread: " + e);
+				ShowError(Loc.Msg_StatusThreadError(e.ToString()));
 				Application.Exit();
 			}
 		}
@@ -1025,7 +1017,7 @@ namespace CHD.SVN_Notifier
 		/// </summary>
 		private void UpdateFolderStatus(SvnItem folder)
 		{
-			SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { "Checking '" + folder.Path + "'..." });
+			SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_Checking(folder.Path) });
 			DateTime statusTime = DateTime.Now;
 			if (sessionEndInProgress) return;       // Need to avoid error on svn.exe invoking
 			SvnStatus status = SvnTools.GetSvnFolderStatus(folder);
@@ -1079,7 +1071,6 @@ namespace CHD.SVN_Notifier
 
 			// Reduce used memory
 			GC.Collect();
-			EmptyWorkingSet(currentProcessHandle);
 
 			if (!PauseTimer.Enabled)
 			{
@@ -1199,7 +1190,7 @@ namespace CHD.SVN_Notifier
 						nonUpdatedFolders[i] = newNonUpdatedFolders[i].VisiblePath;
 					firstBalloonPath = nonUpdatedFolders[0];
 					string balloonMessage = String.Join(Environment.NewLine, nonUpdatedFolders);
-					TrayNotifyIcon.ShowBalloonTip(Config.ShowBalloonInterval, "Update needed", balloonMessage, ToolTipIcon.Info);
+					TrayNotifyIcon.ShowBalloonTip(Config.ShowBalloonInterval, Loc.Balloon_UpdateNeeded, balloonMessage, ToolTipIcon.Info);
 				}
 			}
 		}
@@ -1222,10 +1213,7 @@ namespace CHD.SVN_Notifier
 			WarningStatusLabel.DisplayStyle = ToolStripItemDisplayStyle.Image;
 			if (path == null)
 				path = "Checking for new version";                          // TODO: Strange realization
-			string s = "[" + DateTime.Now + "] " + Environment.NewLine +
-				path + ":" + Environment.NewLine +
-				error.Replace("\n", Environment.NewLine) +
-				Environment.NewLine + Environment.NewLine;
+			string s = $"[{DateTime.Now}] {Environment.NewLine}{path}:{Environment.NewLine}{error.Replace("\n", Environment.NewLine)}{Environment.NewLine}{Environment.NewLine}";
 
 			errorLog[path] = s;
 		}
@@ -1296,12 +1284,6 @@ namespace CHD.SVN_Notifier
 				Thread.CurrentThread.Name = "Main";
 				Application.ThreadException += OnThreadException;
 				Application.Run(form);
-
-				lock (form)
-				{
-					if (statusThread != null)
-						statusThread.Abort();
-				}
 			}
 			catch (Exception e)
 			{
@@ -1353,9 +1335,7 @@ namespace CHD.SVN_Notifier
 			var item = (SvnItem)row.DataBoundItem;
 			if (column == StatusColumn)
 			{
-				e.Value = item.Enabled
-					? Attributes.GetDescription(item.Status)
-					: "Disabled";
+				e.Value = Loc.SvnStatusText(item.Status, item.Enabled);
 				Color color = Color.Gray;
 				switch (item.Status)
 				{
@@ -1420,5 +1400,57 @@ namespace CHD.SVN_Notifier
 			}
 		}
 
+
+	public void ApplyLocalization()
+		{
+			// Dialogs
+			MainFolderBrowserDialog.Description = Loc.Dlg_SelectSvnFolder;
+			MainOpenFileDialog.Title = Loc.Dlg_SelectSvnFile;
+
+			// Main menu
+			FileMenuItem.Text      = Loc.Menu_File;
+			AddFolderMenuItem.Text = Loc.Menu_AddFolder;
+			AddFileMenuItem.Text   = Loc.Menu_AddFile;
+			RemoveMenuItem.Text    = Loc.Menu_Remove;
+			ImportConfigurationMenuItem.Text = Loc.Menu_ImportConfig;
+			ExportConfigurationMenuItem.Text = Loc.Menu_ExportConfig;
+			ExitMenuItem.Text      = Loc.Menu_Exit;
+			ToolsMenuItem.Text     = Loc.Menu_Tools;
+			UpdateAllMenuItem.Text = Loc.Menu_UpdateAll;
+			SettingsMenuItem.Text  = Loc.Menu_Settings;
+			HelpMenuItem.Text      = Loc.Menu_Help;
+			CheckForUpdatesMenuItem.Text = Loc.Menu_CheckUpdates;
+			AboutMenuItem.Text     = Loc.Menu_About;
+
+			// Tray menu
+			TrayShowProgramMenuItem.Text = Loc.Tray_ShowProgram;
+			TrayUpdateAllMenuItem.Text   = Loc.Tray_UpdateAll;
+			TrayExitMenuItem.Text        = Loc.Tray_Exit;
+
+			// Toolbar
+			AddFolderButton.Text  = Loc.Btn_AddFolder;
+			AddFileButton.Text    = Loc.Btn_AddFile;
+			RemoteButton.Text     = Loc.Btn_Remove;
+			PropertiesButton.Text = Loc.Btn_Properties;
+			UpdateButton.Text     = Loc.Btn_Update;
+			ChangeLogButton.Text  = Loc.Btn_ChangeLog;
+			LogButton.Text        = Loc.Btn_Log;
+			OpenButton.Text       = Loc.Btn_Open;
+			CommitButton.Text     = Loc.Btn_Commit;
+
+			// Grid columns
+			StatusColumn.HeaderText      = Loc.Col_Status;
+			ColumnVisiblePath.HeaderText = Loc.Col_VisiblePath;
+			PathColumn.HeaderText        = Loc.Col_Path;
+
+			// Context menu
+			CheckNowMenuItem.Text    = Loc.Ctx_CheckNow;
+			ChangeLogMenuItem.Text   = Loc.Ctx_ChangeLog;
+			UpdateMenuItem.Text      = Loc.Ctx_Update;
+			CommitMenuItem.Text      = Loc.Ctx_Commit;
+			OpenMenuItem.Text        = Loc.Ctx_Open;
+			LogMenuItem.Text         = Loc.Ctx_Log;
+			PropertiesMenuItem.Text  = Loc.Ctx_Properties;
+		}
 	}
 }

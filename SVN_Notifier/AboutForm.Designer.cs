@@ -41,6 +41,7 @@
 			this.BodyPanel = new System.Windows.Forms.Panel();
 			this.GitHubLabel = new System.Windows.Forms.Label();
 			this.GitHubLinkLinkLabel = new System.Windows.Forms.LinkLabel();
+			this.V3Label = new System.Windows.Forms.Label();
 			((System.ComponentModel.ISupportInitialize)(this.HeaderPictureBox)).BeginInit();
 			this.BodyPanel.SuspendLayout();
 			this.SuspendLayout();
@@ -88,7 +89,7 @@
 			this.CopyrightLabel.Name = "CopyrightLabel";
 			this.CopyrightLabel.Size = new System.Drawing.Size(324, 32);
 			this.CopyrightLabel.TabIndex = 4;
-			this.CopyrightLabel.Text = "Copyright (C) 2007-2011 Computer Hardware Design Ltd";
+			this.CopyrightLabel.Text = "Copyright (C) 2007-2026 CHD  |  v3 © MGGM-Software";
 			this.CopyrightLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
 			// 
 			// DescriptionLabel
@@ -110,8 +111,18 @@
 			this.DevelopersLabel.Name = "DevelopersLabel";
 			this.DevelopersLabel.Size = new System.Drawing.Size(324, 32);
 			this.DevelopersLabel.TabIndex = 6;
-			this.DevelopersLabel.Text = "Developers: Vlad Rudenko, Aleksej Vaschenko, Nikolaj Nahimov";
+			this.DevelopersLabel.Text = "v1/v2: Vlad Rudenko, A. Vaschenko, N. Nahimov  |  v3: MGGM-Software";
 			this.DevelopersLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+			// 
+			// V3Label
+			// 
+			this.V3Label.Dock = System.Windows.Forms.DockStyle.Bottom;
+			this.V3Label.Location = new System.Drawing.Point(0, 128);
+			this.V3Label.Name = "V3Label";
+			this.V3Label.Size = new System.Drawing.Size(324, 16);
+			this.V3Label.TabIndex = 12;
+			this.V3Label.Text = "Version 3.x: MGGM-Software";
+			this.V3Label.TextAlign = System.Drawing.ContentAlignment.TopCenter;
 			// 
 			// ProjectLabel
 			// 
@@ -152,6 +163,7 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
 			this.BodyPanel.BackColor = System.Drawing.Color.White;
+			this.BodyPanel.Controls.Add(this.V3Label);
 			this.BodyPanel.Controls.Add(this.GitHubLabel);
 			this.BodyPanel.Controls.Add(this.GitHubLinkLinkLabel);
 			this.BodyPanel.Controls.Add(this.ProjectLabel);
@@ -225,5 +237,6 @@
 		private System.Windows.Forms.Panel BodyPanel;
 		private System.Windows.Forms.Label GitHubLabel;
 		private System.Windows.Forms.LinkLabel GitHubLinkLinkLabel;
+		private System.Windows.Forms.Label V3Label;
 	}
 }
