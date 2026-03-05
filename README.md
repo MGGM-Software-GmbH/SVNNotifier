@@ -1,16 +1,41 @@
-# SVN Notifier • [Download](https://github.com/JocysCom/SVNNotifier/releases/download/2.1.7.0/SVN_Notifier.exe)
- * SVN Notifier 2.1.7.0 (2019-08-31) • Digitally Signed • Freeware
+# SVN Notifier
 
 Small and portable application which notifies you about other people's commits to Subversion repositories.
 
-## Version 2.x Changes 
+## Version 3.x (MGGM-Software GmbH)
 
-Improved old interface and refactored the code (see new screenshots below).
+**SVN Notifier 3.0.0.1** — maintained and extended by [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH).
 
-## Original Source and Developers
+### What's new in v3
+
+- **Migrated to .NET 8** (net8.0-windows) with SDK-style project format
+- **Multilingual UI** — complete English and German localisation; switchable at runtime via Settings
+- **Configurable font** — font family and size selectable in Settings (default: Segoe UI 8.5 pt)
+- **Windows Explorer sort order** for repository list (uses `StrCmpLogicalW`)
+- Removed all Win32 P/Invoke from `IniFile.cs` — replaced with fully managed INI reader/writer
+- Replaced deprecated `XmlTextReader` + `Hashtable` with `XDocument` / LINQ to XML
+- Replaced non-generic collections (`Queue`, `Hashtable`) with `ConcurrentQueue<T>`, `Dictionary<K,V>`
+- Removed obsolete `Thread.Abort()` usage (not supported in .NET 5+)
+- Fixed `Process.Start()` calls for .NET 8 (`UseShellExecute = true`)
+- Updated branding: version 3, copyright 2026 MGGM-Software
+
+### Source
+
+Fork of [JocysCom/SVNNotifier](https://github.com/JocysCom/SVNNotifier):
+https://github.com/MGGM-Software-GmbH/SVNNotifier
+
+---
+
+## Version 2.x (JocysCom)
+
+**SVN Notifier 2.1.7.0 (2019-08-31)**
+
+Improved old interface and refactored the code.
+
+## Original Source and Developers (v1)
 
   http://svnnotifier.tigris.org
-  
+
   Developers: Vlad Rudenko, Aleksej Vaschenko, Nikolaj Nahimov.
 
 ## Description
