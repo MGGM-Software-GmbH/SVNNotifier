@@ -18,7 +18,6 @@ Small and portable application which notifies you about other people's commits t
 - Replaced non-generic collections (`Queue`, `Hashtable`) with `ConcurrentQueue<T>`, `Dictionary<K,V>`
 - Removed obsolete `Thread.Abort()` usage (not supported in .NET 5+)
 - Fixed `Process.Start()` calls for .NET 8 (`UseShellExecute = true`)
-- Updated branding: version 3, copyright 2026 MGGM-Software
 
 ### Source
 
