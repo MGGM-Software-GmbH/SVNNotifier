@@ -77,7 +77,7 @@ namespace CHD.SVN_Notifier
 		private static int GetRepositoryRevision(SvnItem folder, string arg)
 		{
 			string arguments = String.Format(svnInfoArguments, folder.Path, arg);
-			ExecuteResult er = ExecuteProcess(Config.SVNpath, folder.Path, arguments, true, false);
+			ExecuteResult er = ExecuteProcess(Config.SVNpath, folder.Path, arguments, true, false, useTimeout: true);
 
 			try
 			{
@@ -198,7 +198,7 @@ namespace CHD.SVN_Notifier
 			try
 			{
 				string arguments = String.Format(svnStatusArguments, path);
-				ExecuteResult er = ExecuteProcess(Config.SVNpath, path, arguments, true, true);
+				ExecuteResult er = ExecuteProcess(Config.SVNpath, path, arguments, true, true, useTimeout: true);
 
 				SvnXml.Create(er.processOutput);        // Because SVN may return non-valid XML in some cases?
 
@@ -240,7 +240,7 @@ namespace CHD.SVN_Notifier
 		}
 
 
-		private static ExecuteResult ExecuteProcess(string executionFile, string workingPath, string arguments, bool waitForExit, bool lowPriority)
+		private static ExecuteResult ExecuteProcess(string executionFile, string workingPath, string arguments, bool waitForExit, bool lowPriority, bool useTimeout = false)
 		{
 			ProcessStartInfo psi = new ProcessStartInfo
 			{
@@ -291,7 +291,7 @@ namespace CHD.SVN_Notifier
 				if (er.processError.Length > 0)
 					ErrorAdded(workingPath, er.processError);
 
-				int timeoutMs = Config.SvnCommandTimeout > 0 ? Config.SvnCommandTimeout * 1000 : -1;
+				int timeoutMs = (useTimeout && Config.SvnCommandTimeout > 0) ? Config.SvnCommandTimeout * 1000 : -1;
 				bool exited = er.process.WaitForExit(timeoutMs);
 				if (!exited)
 				{
