@@ -1253,6 +1253,7 @@ namespace CHD.SVN_Notifier
 		[STAThread]
 		private static void Main(string[] args)
 		{
+			Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 			Application.EnableVisualStyles();
 			Application.SetCompatibleTextRenderingDefault(false);
 			try
