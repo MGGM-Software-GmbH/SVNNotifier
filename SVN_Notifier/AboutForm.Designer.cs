@@ -42,6 +42,7 @@
 			this.GitHubLabel = new System.Windows.Forms.Label();
 			this.GitHubLinkLinkLabel = new System.Windows.Forms.LinkLabel();
 			this.V3Label = new System.Windows.Forms.Label();
+			this.V3LinkLabel = new System.Windows.Forms.LinkLabel();
 			((System.ComponentModel.ISupportInitialize)(this.HeaderPictureBox)).BeginInit();
 			this.BodyPanel.SuspendLayout();
 			this.SuspendLayout();
@@ -50,7 +51,7 @@
 			// 
 			this.OkButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
 			this.OkButton.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-			this.OkButton.Location = new System.Drawing.Point(232, 268);
+			this.OkButton.Location = new System.Drawing.Point(232, 284);
 			this.OkButton.Name = "OkButton";
 			this.OkButton.Size = new System.Drawing.Size(80, 23);
 			this.OkButton.TabIndex = 1;
@@ -115,14 +116,26 @@
 			this.DevelopersLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
 			// 
 			// V3Label
-			// 
+			//
 			this.V3Label.Dock = System.Windows.Forms.DockStyle.Bottom;
 			this.V3Label.Location = new System.Drawing.Point(0, 128);
 			this.V3Label.Name = "V3Label";
 			this.V3Label.Size = new System.Drawing.Size(324, 16);
 			this.V3Label.TabIndex = 12;
-			this.V3Label.Text = "Version 3.x: MGGM-Software";
-			this.V3Label.TextAlign = System.Drawing.ContentAlignment.TopCenter;
+			this.V3Label.Text = "Project Home - Version 3.x:";
+			this.V3Label.TextAlign = System.Drawing.ContentAlignment.BottomCenter;
+			//
+			// V3LinkLabel
+			//
+			this.V3LinkLabel.Dock = System.Windows.Forms.DockStyle.Bottom;
+			this.V3LinkLabel.Location = new System.Drawing.Point(0, 144);
+			this.V3LinkLabel.Name = "V3LinkLabel";
+			this.V3LinkLabel.Size = new System.Drawing.Size(324, 16);
+			this.V3LinkLabel.TabIndex = 13;
+			this.V3LinkLabel.TabStop = true;
+			this.V3LinkLabel.Text = "github.com/MGGM-Software-GmbH/SVNNotifier";
+			this.V3LinkLabel.TextAlign = System.Drawing.ContentAlignment.TopCenter;
+			this.V3LinkLabel.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.LinkLabel_LinkClicked);
 			// 
 			// ProjectLabel
 			// 
@@ -164,6 +177,7 @@
             | System.Windows.Forms.AnchorStyles.Right)));
 			this.BodyPanel.BackColor = System.Drawing.Color.White;
 			this.BodyPanel.Controls.Add(this.V3Label);
+			this.BodyPanel.Controls.Add(this.V3LinkLabel);
 			this.BodyPanel.Controls.Add(this.GitHubLabel);
 			this.BodyPanel.Controls.Add(this.GitHubLinkLinkLabel);
 			this.BodyPanel.Controls.Add(this.ProjectLabel);
@@ -175,7 +189,7 @@
 			this.BodyPanel.Controls.Add(this.DevelopersLabel);
 			this.BodyPanel.Location = new System.Drawing.Point(0, 38);
 			this.BodyPanel.Name = "BodyPanel";
-			this.BodyPanel.Size = new System.Drawing.Size(324, 224);
+			this.BodyPanel.Size = new System.Drawing.Size(324, 240);
 			this.BodyPanel.TabIndex = 11;
 			// 
 			// GitHubLabel
@@ -205,7 +219,7 @@
 			this.AcceptButton = this.OkButton;
 			this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
 			this.CancelButton = this.OkButton;
-			this.ClientSize = new System.Drawing.Size(324, 303);
+			this.ClientSize = new System.Drawing.Size(324, 319);
 			this.Controls.Add(this.BodyPanel);
 			this.Controls.Add(this.HeaderPictureBox);
 			this.Controls.Add(this.OkButton);
@@ -238,5 +252,6 @@
 		private System.Windows.Forms.Label GitHubLabel;
 		private System.Windows.Forms.LinkLabel GitHubLinkLinkLabel;
 		private System.Windows.Forms.Label V3Label;
+		private System.Windows.Forms.LinkLabel V3LinkLabel;
 	}
 }
