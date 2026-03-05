@@ -89,7 +89,7 @@
 			this.CopyrightLabel.Name = "CopyrightLabel";
 			this.CopyrightLabel.Size = new System.Drawing.Size(324, 32);
 			this.CopyrightLabel.TabIndex = 4;
-			this.CopyrightLabel.Text = "Copyright (C) 2007-2026 CHD  |  v3 © MGGM-Software";
+			this.CopyrightLabel.Text = "Copyright (C) 2007-2011 CHD  |  v3 (C) 2026 MGGM-Software";
 			this.CopyrightLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
 			// 
 			// DescriptionLabel

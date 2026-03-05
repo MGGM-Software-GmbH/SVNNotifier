@@ -124,7 +124,7 @@ namespace CHD.SVN_Notifier
 			if (File.Exists(folders[selectedIndex].Path))
 				folder = Path.GetDirectoryName(folder);
 			// Open folder or folder of the file
-			Process.Start(folder + @"\");                   
+			Process.Start(new System.Diagnostics.ProcessStartInfo(folder) { UseShellExecute = true });
 		}
 
 

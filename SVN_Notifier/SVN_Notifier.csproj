@@ -9,7 +9,7 @@
     <RootNamespace>CHD.SVN_Notifier</RootNamespace>
     <AssemblyName>SVN_Notifier</AssemblyName>
     <ApplicationIcon>App.ico</ApplicationIcon>
-    <AssemblyTitle>CHD SVN Notifier</AssemblyTitle>
+    <AssemblyTitle>SVN Notifier</AssemblyTitle>
     <AssemblyVersion>3.0.0.1</AssemblyVersion>
     <FileVersion>3.0.0.1</FileVersion>
     <Version>3.0.0.1</Version>
@@ -17,7 +17,7 @@
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Company>CHD</Company>
     <Product>SVN Notifier</Product>
-    <Copyright>Copyright © 2007-2026 CHD  |  v3 © 2026 MGGM-Software</Copyright>
+    <Copyright>Copyright (C) 2007-2011 CHD  |  v3 (C) 2026 MGGM-Software</Copyright>
     <Description>Notifies you about other people's commits to Subversion repositories</Description>
     <ProjectGuid>{047E30FF-665B-422C-9877-8983961F848A}</ProjectGuid>
   </PropertyGroup>

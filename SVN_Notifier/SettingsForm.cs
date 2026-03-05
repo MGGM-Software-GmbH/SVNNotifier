@@ -20,12 +20,17 @@
 
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace CHD.SVN_Notifier
 {
 	public partial class SettingsForm : Form
 	{
+		private int _initialLanguage;
+		private string _initialFontFamily = "";
+		private float _initialFontSize;
+
 		public SettingsForm()
 		{
 			InitializeComponent();
@@ -50,10 +55,11 @@ namespace CHD.SVN_Notifier
 			HideSystemTrayLabel.Text           = Loc.SF_Label_HideTray;
 			HideOnStartupCheckBox.Text         = Loc.SF_Chk_HideOnStart;
 			ShowInTaskbarCheckBox.Text         = Loc.SF_Chk_ShowTaskbar;
-			CheckForNewVersionCheckBox.Text    = Loc.SF_Chk_CheckVersion;
 			ChangeLogBeforeUpdateCheckBox.Text = Loc.SF_Chk_ChangeLog;
 			SilentlUpdateCheckBox.Text         = Loc.SF_Chk_SilentUpdate;
 			LanguageLabel.Text                 = Loc.SF_Label_Language;
+			FontFamilyLabel.Text               = Loc.SF_Label_Font;
+			FontSizeLabel.Text                 = Loc.SF_Label_FontSize;
 
 			int sel = DoubleClickComboBox.SelectedIndex;
 			DoubleClickComboBox.Items.Clear();
@@ -89,7 +95,7 @@ namespace CHD.SVN_Notifier
 		{
 			SvnPathTextBox.Text = Config.SVNpath;
 			TortoisePathTextBox.Text = Config.TortoiseSVNpath;
-			
+
 			ActiveHoursUpDown.Value = Config.DefaultActiveStatusUpdateInterval / 3600;
 			ActiveMinutesUpDown.Value = (Config.DefaultActiveStatusUpdateInterval % 3600) / 60;
 			ActiveSecondsUpDown.Value = Config.DefaultActiveStatusUpdateInterval % 60;
@@ -123,10 +129,26 @@ namespace CHD.SVN_Notifier
 			HideSystemTrayUpDown.Value = Config.ShowBalloonInterval / 1000;
 			HideOnStartupCheckBox.Checked = Config.HideOnStartup;
 			ShowInTaskbarCheckBox.Checked = Config.ShowInTaskbar;
-			CheckForNewVersionCheckBox.Checked = Config.CheckForNewVersion;
 			SilentlUpdateCheckBox.Checked = Config.UpdateAllSilently;
 			DialogActiionDropDown.SelectedIndex = Config.UpdateWindowAction;
 			LanguageComboBox.SelectedIndex = Config.Language;
+
+			// Populate font family list from installed fonts
+			var families = System.Drawing.FontFamily.Families
+				.Where(f => f.IsStyleAvailable(FontStyle.Regular))
+				.Select(f => f.Name)
+				.OrderBy(n => n)
+				.ToArray();
+			FontFamilyComboBox.Items.AddRange(families);
+			int fontIdx = System.Array.IndexOf(families, Config.FontFamily);
+			FontFamilyComboBox.SelectedIndex = fontIdx >= 0 ? fontIdx : 0;
+
+			FontSizeNumericUpDown.Value = (decimal)Config.FontSize;
+
+			// Remember initial values to detect changes that require restart
+			_initialLanguage    = Config.Language;
+			_initialFontFamily  = Config.FontFamily;
+			_initialFontSize    = Config.FontSize;
 		}
 
 
@@ -135,12 +157,12 @@ namespace CHD.SVN_Notifier
 			Config.SVNpath = SvnPathTextBox.Text;
 			Config.TortoiseSVNpath = TortoisePathTextBox.Text;
 
-			Config.DefaultActiveStatusUpdateInterval = 
+			Config.DefaultActiveStatusUpdateInterval =
 				(int)ActiveHoursUpDown.Value * 3600
-				+ (int)ActiveMinutesUpDown.Value * 60 
+				+ (int)ActiveMinutesUpDown.Value * 60
 				+ (int)ActiveSecondsUpDown.Value;
 
-			Config.DefaultIdleStatusUpdateInterval = 
+			Config.DefaultIdleStatusUpdateInterval =
 				(int)InactiveHoursUpDown.Value * 3600
 				+ (int)InactiveMinutesUpDown.Value * 60
 				+ (int)InactiveSecondsUpDown.Value;
@@ -162,12 +184,23 @@ namespace CHD.SVN_Notifier
 			Config.ShowBalloonInterval = (int)HideSystemTrayUpDown.Value * 1000;
 			Config.HideOnStartup = HideOnStartupCheckBox.Checked;
 			Config.ShowInTaskbar = ShowInTaskbarCheckBox.Checked;
-			Config.CheckForNewVersion = CheckForNewVersionCheckBox.Checked;
 			Config.UpdateAllSilently = SilentlUpdateCheckBox.Checked;
 			Config.UpdateWindowAction = DialogActiionDropDown.SelectedIndex;
 			Config.Language = LanguageComboBox.SelectedIndex >= 0 ? LanguageComboBox.SelectedIndex : 0;
 
+			Config.FontFamily = FontFamilyComboBox.SelectedItem?.ToString() ?? Config.FontFamily;
+			Config.FontSize   = (float)FontSizeNumericUpDown.Value;
+
+			bool needsRestart = Config.Language    != _initialLanguage
+			                 || Config.FontFamily  != _initialFontFamily
+			                 || Config.FontSize    != _initialFontSize;
+
 			Config.SaveSettings();
+
+			if (needsRestart)
+				MessageBox.Show(Loc.Msg_RestartRequired, "SVN Notifier",
+					MessageBoxButtons.OK, MessageBoxIcon.Information);
+
 			Close();
 		}
 
@@ -181,7 +214,7 @@ namespace CHD.SVN_Notifier
 			}
 		}
 
-		
+
 		private void button_BrowseTortoise_Click(object sender, System.EventArgs e)
 		{
 			if (TortoiseFileDialog.ShowDialog (this) == DialogResult.OK)
@@ -203,7 +236,7 @@ namespace CHD.SVN_Notifier
 				OkButton.Enabled = false;
 
 			}
-				
+
 			if (!File.Exists (TortoisePathTextBox.Text))
 			{
 				TortoisePathTextBox.BackColor = Color.Yellow;

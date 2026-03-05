@@ -122,6 +122,16 @@ namespace CHD.SVN_Notifier
 		/// </summary>
 		public static int Language;
 
+		/// <summary>
+		/// Application font family name (e.g. "Microsoft Sans Serif")
+		/// </summary>
+		public static string FontFamily;
+
+		/// <summary>
+		/// Application font size in points
+		/// </summary>
+		public static float FontSize;
+
 
 		public static void Init(string fileName)
 		{
@@ -161,6 +171,11 @@ namespace CHD.SVN_Notifier
 			ChangeLogBeforeUpdate = IsTortoiseVersion_1_5_orHigher() && iniFile.ReadBoolean("Settings", "ChangeLogBeforeUpdate", false);
 
 			Language = iniFile.ReadInteger("Settings", "Language", 0);
+
+			FontFamily = iniFile.ReadString("Settings", "FontFamily", "Segoe UI");
+			var fontSizeStr = iniFile.ReadString("Settings", "FontSize", "8.5");
+			FontSize = float.TryParse(fontSizeStr, System.Globalization.NumberStyles.Float,
+				System.Globalization.CultureInfo.InvariantCulture, out var fs) ? fs : 8.5f;
 		}
 
 
@@ -192,6 +207,8 @@ namespace CHD.SVN_Notifier
 			iniFile.Write("Settings", "UpdateAllSilently", UpdateAllSilently);
 			iniFile.Write("Settings", "UpdateWindowAction", UpdateWindowAction);
 			iniFile.Write("Settings", "Language", Language);
+			iniFile.Write("Settings", "FontFamily", FontFamily);
+			iniFile.Write("Settings", "FontSize", FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
 		}
 
 

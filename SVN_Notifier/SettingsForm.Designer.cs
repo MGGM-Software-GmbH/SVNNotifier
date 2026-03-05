@@ -42,10 +42,13 @@
 			this.TortoiseFileDialog = new System.Windows.Forms.OpenFileDialog();
 			this.LanguageLabel = new System.Windows.Forms.Label();
 			this.LanguageComboBox = new System.Windows.Forms.ComboBox();
+			this.FontFamilyLabel = new System.Windows.Forms.Label();
+			this.FontFamilyComboBox = new System.Windows.Forms.ComboBox();
+			this.FontSizeLabel = new System.Windows.Forms.Label();
+			this.FontSizeNumericUpDown = new System.Windows.Forms.NumericUpDown();
 			this.DoubleClickComboBox = new System.Windows.Forms.ComboBox();
 			this.DoubleClickLabel = new System.Windows.Forms.Label();
 			this.HideOnStartupCheckBox = new System.Windows.Forms.CheckBox();
-			this.CheckForNewVersionCheckBox = new System.Windows.Forms.CheckBox();
 			this.HideSystemTrayUpDown = new System.Windows.Forms.NumericUpDown();
 			this.HideSystemTrayLabel = new System.Windows.Forms.Label();
 			this.ChangeLogBeforeUpdateCheckBox = new System.Windows.Forms.CheckBox();
@@ -93,6 +96,7 @@
 			this.UpdateTabPage = new System.Windows.Forms.TabPage();
 			this.RequiresTortoiseLabel = new System.Windows.Forms.Label();
 			((System.ComponentModel.ISupportInitialize)(this.HideSystemTrayUpDown)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.FontSizeNumericUpDown)).BeginInit();
 			this.MainTabControl.SuspendLayout();
 			this.GeneralTabPage.SuspendLayout();
 			this.OtherOptionsGroupBox.SuspendLayout();
@@ -160,7 +164,7 @@
 			this.OkButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
 			this.OkButton.DialogResult = System.Windows.Forms.DialogResult.OK;
 			this.OkButton.FlatStyle = System.Windows.Forms.FlatStyle.System;
-			this.OkButton.Location = new System.Drawing.Point(242, 323);
+			this.OkButton.Location = new System.Drawing.Point(242, 354);
 			this.OkButton.Name = "OkButton";
 			this.OkButton.Size = new System.Drawing.Size(72, 23);
 			this.OkButton.TabIndex = 7;
@@ -172,7 +176,7 @@
 			this.CloseButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
 			this.CloseButton.DialogResult = System.Windows.Forms.DialogResult.Cancel;
 			this.CloseButton.FlatStyle = System.Windows.Forms.FlatStyle.System;
-			this.CloseButton.Location = new System.Drawing.Point(320, 323);
+			this.CloseButton.Location = new System.Drawing.Point(320, 354);
 			this.CloseButton.Name = "CloseButton";
 			this.CloseButton.Size = new System.Drawing.Size(72, 23);
 			this.CloseButton.TabIndex = 8;
@@ -238,15 +242,6 @@
 			this.HideOnStartupCheckBox.Size = new System.Drawing.Size(206, 17);
 			this.HideOnStartupCheckBox.TabIndex = 15;
 			this.HideOnStartupCheckBox.Text = "Hide program to system tray on startup";
-			// 
-			// CheckForNewVersionCheckBox
-			// 
-			this.CheckForNewVersionCheckBox.AutoSize = true;
-			this.CheckForNewVersionCheckBox.Location = new System.Drawing.Point(6, 113);
-			this.CheckForNewVersionCheckBox.Name = "CheckForNewVersionCheckBox";
-			this.CheckForNewVersionCheckBox.Size = new System.Drawing.Size(132, 17);
-			this.CheckForNewVersionCheckBox.TabIndex = 16;
-			this.CheckForNewVersionCheckBox.Text = "Check for new version";
 			// 
 			// HideSystemTrayUpDown
 			// 
@@ -335,7 +330,7 @@
 			this.MainTabControl.Multiline = true;
 			this.MainTabControl.Name = "MainTabControl";
 			this.MainTabControl.SelectedIndex = 0;
-			this.MainTabControl.Size = new System.Drawing.Size(380, 307);
+			this.MainTabControl.Size = new System.Drawing.Size(380, 338);
 			this.MainTabControl.TabIndex = 28;
 			// 
 			// GeneralTabPage
@@ -346,7 +341,7 @@
 			this.GeneralTabPage.Location = new System.Drawing.Point(4, 22);
 			this.GeneralTabPage.Name = "GeneralTabPage";
 			this.GeneralTabPage.Padding = new System.Windows.Forms.Padding(3);
-			this.GeneralTabPage.Size = new System.Drawing.Size(372, 281);
+			this.GeneralTabPage.Size = new System.Drawing.Size(372, 312);
 			this.GeneralTabPage.TabIndex = 0;
 			this.GeneralTabPage.Text = "General";
 			// 
@@ -357,16 +352,19 @@
             | System.Windows.Forms.AnchorStyles.Right)));
 			this.OtherOptionsGroupBox.Controls.Add(this.HideSystemTrayUpDown);
 			this.OtherOptionsGroupBox.Controls.Add(this.DoubleClickLabel);
-			this.OtherOptionsGroupBox.Controls.Add(this.CheckForNewVersionCheckBox);
 			this.OtherOptionsGroupBox.Controls.Add(this.ShowInTaskbarCheckBox);
 			this.OtherOptionsGroupBox.Controls.Add(this.HideOnStartupCheckBox);
 			this.OtherOptionsGroupBox.Controls.Add(this.DoubleClickComboBox);
 			this.OtherOptionsGroupBox.Controls.Add(this.HideSystemTrayLabel);
 			this.OtherOptionsGroupBox.Controls.Add(this.LanguageLabel);
 			this.OtherOptionsGroupBox.Controls.Add(this.LanguageComboBox);
+			this.OtherOptionsGroupBox.Controls.Add(this.FontFamilyLabel);
+			this.OtherOptionsGroupBox.Controls.Add(this.FontFamilyComboBox);
+			this.OtherOptionsGroupBox.Controls.Add(this.FontSizeLabel);
+			this.OtherOptionsGroupBox.Controls.Add(this.FontSizeNumericUpDown);
 			this.OtherOptionsGroupBox.Location = new System.Drawing.Point(6, 112);
 			this.OtherOptionsGroupBox.Name = "OtherOptionsGroupBox";
-			this.OtherOptionsGroupBox.Size = new System.Drawing.Size(360, 163);
+			this.OtherOptionsGroupBox.Size = new System.Drawing.Size(360, 194);
 			this.OtherOptionsGroupBox.TabIndex = 22;
 			this.OtherOptionsGroupBox.TabStop = false;
 			this.OtherOptionsGroupBox.Text = "Other Options";
@@ -383,7 +381,7 @@
 			// LanguageLabel
 			// 
 			this.LanguageLabel.AutoSize = true;
-			this.LanguageLabel.Location = new System.Drawing.Point(6, 138);
+			this.LanguageLabel.Location = new System.Drawing.Point(6, 113);
 			this.LanguageLabel.Name = "LanguageLabel";
 			this.LanguageLabel.Size = new System.Drawing.Size(60, 13);
 			this.LanguageLabel.TabIndex = 30;
@@ -393,11 +391,50 @@
 			// 
 			this.LanguageComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
 			this.LanguageComboBox.Items.AddRange(new object[] { "English", "Deutsch" });
-			this.LanguageComboBox.Location = new System.Drawing.Point(100, 135);
+			this.LanguageComboBox.Location = new System.Drawing.Point(100, 110);
 			this.LanguageComboBox.Name = "LanguageComboBox";
-			this.LanguageComboBox.Size = new System.Drawing.Size(140, 21);
+			this.LanguageComboBox.Size = new System.Drawing.Size(240, 21);
 			this.LanguageComboBox.TabIndex = 31;
-			// 
+			//
+			// FontFamilyLabel
+			//
+			this.FontFamilyLabel.AutoSize = true;
+			this.FontFamilyLabel.Location = new System.Drawing.Point(6, 141);
+			this.FontFamilyLabel.Name = "FontFamilyLabel";
+			this.FontFamilyLabel.Size = new System.Drawing.Size(60, 13);
+			this.FontFamilyLabel.TabIndex = 32;
+			this.FontFamilyLabel.Text = "Font:";
+			//
+			// FontFamilyComboBox
+			//
+			this.FontFamilyComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+			this.FontFamilyComboBox.Location = new System.Drawing.Point(100, 138);
+			this.FontFamilyComboBox.Name = "FontFamilyComboBox";
+			this.FontFamilyComboBox.Size = new System.Drawing.Size(240, 21);
+			this.FontFamilyComboBox.TabIndex = 33;
+			//
+			// FontSizeLabel
+			//
+			this.FontSizeLabel.AutoSize = true;
+			this.FontSizeLabel.Location = new System.Drawing.Point(6, 168);
+			this.FontSizeLabel.Name = "FontSizeLabel";
+			this.FontSizeLabel.Size = new System.Drawing.Size(60, 13);
+			this.FontSizeLabel.TabIndex = 34;
+			this.FontSizeLabel.Text = "Font size:";
+			//
+			// FontSizeNumericUpDown
+			//
+			this.FontSizeNumericUpDown.DecimalPlaces = 2;
+			this.FontSizeNumericUpDown.Increment = new decimal(new int[] { 25, 0, 0, 131072 });
+			this.FontSizeNumericUpDown.Location = new System.Drawing.Point(100, 165);
+			this.FontSizeNumericUpDown.Maximum = new decimal(new int[] { 2400, 0, 0, 131072 });
+			this.FontSizeNumericUpDown.Minimum = new decimal(new int[] { 600, 0, 0, 131072 });
+			this.FontSizeNumericUpDown.Name = "FontSizeNumericUpDown";
+			this.FontSizeNumericUpDown.Size = new System.Drawing.Size(55, 20);
+			this.FontSizeNumericUpDown.TabIndex = 35;
+			this.FontSizeNumericUpDown.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+			this.FontSizeNumericUpDown.Value = new decimal(new int[] { 850, 0, 0, 131072 });
+			//
 			// LocationsGroupBox
 			// 
 			this.LocationsGroupBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
@@ -930,20 +967,21 @@
 			this.AcceptButton = this.OkButton;
 			this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
 			this.CancelButton = this.CloseButton;
-			this.ClientSize = new System.Drawing.Size(404, 358);
+			this.ClientSize = new System.Drawing.Size(404, 389);
 			this.Controls.Add(this.MainTabControl);
 			this.Controls.Add(this.CloseButton);
 			this.Controls.Add(this.OkButton);
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.MaximizeBox = false;
 			this.MinimizeBox = false;
-			this.MinimumSize = new System.Drawing.Size(420, 360);
+			this.MinimumSize = new System.Drawing.Size(420, 391);
 			this.Name = "SettingsForm";
 			this.ShowInTaskbar = false;
 			this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
 			this.Text = "Settings";
 			this.Load += new System.EventHandler(this.SettingsForm_Load);
 			((System.ComponentModel.ISupportInitialize)(this.HideSystemTrayUpDown)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.FontSizeNumericUpDown)).EndInit();
 			this.MainTabControl.ResumeLayout(false);
 			this.GeneralTabPage.ResumeLayout(false);
 			this.OtherOptionsGroupBox.ResumeLayout(false);
@@ -992,7 +1030,6 @@
 		private System.Windows.Forms.ComboBox DoubleClickComboBox;
 		private System.Windows.Forms.Label DoubleClickLabel;
 		private System.Windows.Forms.CheckBox HideOnStartupCheckBox;
-		private System.Windows.Forms.CheckBox CheckForNewVersionCheckBox;
 		private System.Windows.Forms.NumericUpDown HideSystemTrayUpDown;
 		private System.Windows.Forms.Label HideSystemTrayLabel;
 		private System.Windows.Forms.CheckBox ChangeLogBeforeUpdateCheckBox;
@@ -1037,6 +1074,10 @@
 		private System.Windows.Forms.NumericUpDown StartupSecondsUpDown;
 		private System.Windows.Forms.CheckBox ResumeLabel;
 		private System.Windows.Forms.CheckBox StartupLabel;
+		private System.Windows.Forms.Label FontFamilyLabel;
+		private System.Windows.Forms.ComboBox FontFamilyComboBox;
+		private System.Windows.Forms.Label FontSizeLabel;
+		private System.Windows.Forms.NumericUpDown FontSizeNumericUpDown;
 
 	}
 }

@@ -56,8 +56,6 @@
 			this.SettingsMenuSeparator = new System.Windows.Forms.ToolStripSeparator();
 			this.SettingsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.HelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-			this.CheckForUpdatesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-			this.AboutMenuSeparator = new System.Windows.Forms.ToolStripSeparator();
 			this.AboutMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.ItemMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
 			this.CheckNowMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -296,25 +294,10 @@
 			// HelpMenuItem
 			// 
 			this.HelpMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.CheckForUpdatesMenuItem,
-            this.AboutMenuSeparator,
             this.AboutMenuItem});
 			this.HelpMenuItem.Name = "HelpMenuItem";
 			this.HelpMenuItem.Size = new System.Drawing.Size(44, 20);
 			this.HelpMenuItem.Text = "&Help";
-			// 
-			// CheckForUpdatesMenuItem
-			// 
-			this.CheckForUpdatesMenuItem.Image = global::CHD.SVN_Notifier.Properties.Resources.Check_Updates;
-			this.CheckForUpdatesMenuItem.Name = "CheckForUpdatesMenuItem";
-			this.CheckForUpdatesMenuItem.Size = new System.Drawing.Size(175, 22);
-			this.CheckForUpdatesMenuItem.Text = "&Check for Updates";
-			this.CheckForUpdatesMenuItem.Click += new System.EventHandler(this.CheckForUpdatesMenuItem_Click);
-			// 
-			// AboutMenuSeparator
-			// 
-			this.AboutMenuSeparator.Name = "AboutMenuSeparator";
-			this.AboutMenuSeparator.Size = new System.Drawing.Size(172, 6);
 			// 
 			// AboutMenuItem
 			// 
@@ -751,8 +734,6 @@
 		private System.Windows.Forms.ToolStripMenuItem UpdateAllMenuItem;
 		private System.Windows.Forms.ToolStripSeparator SettingsMenuSeparator;
 		private System.Windows.Forms.ToolStripMenuItem SettingsMenuItem;
-		private System.Windows.Forms.ToolStripMenuItem CheckForUpdatesMenuItem;
-		private System.Windows.Forms.ToolStripSeparator AboutMenuSeparator;
 		private System.Windows.Forms.ToolStripMenuItem AboutMenuItem;
 		private System.Windows.Forms.ContextMenuStrip ItemMenu;
 		private System.Windows.Forms.ToolStripMenuItem CheckNowMenuItem;

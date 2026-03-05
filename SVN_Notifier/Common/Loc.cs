@@ -94,6 +94,9 @@ namespace CHD.SVN_Notifier
 		public static string Msg_StatusThreadError(string e) => IsDe
 			? $"Fehler im Status-Thread: {e}"
 			: $"Error on status thread: {e}";
+		public static string Msg_RestartRequired => T(
+			"Some settings will take effect after restarting the application.",
+			"Einige Einstellungen werden erst nach einem Neustart der Anwendung wirksam.");
 
 		// ----------------------------------------------------------------
 		// SVN Status strings
@@ -141,6 +144,8 @@ namespace CHD.SVN_Notifier
 		                                               "\"Änderungsprotokoll\" vor Update erzwingen");
 		public static string SF_Chk_SilentUpdate => T("\"Silent\" Update All",         "\"Stilles\" Alle aktualisieren");
 		public static string SF_Label_Language   => T("Language:",                     "Sprache:");
+		public static string SF_Label_Font       => T("Font:",                         "Schriftart:");
+		public static string SF_Label_FontSize   => T("Font size:",                    "Schriftgröße:");
 		public static string SF_Group_Status     => T("Default status checking interval when...",
 		                                               "Standard-Prüfintervall wenn...");
 		public static string SF_Label_Active     => T("... form is active:",           "... Fenster aktiv:");

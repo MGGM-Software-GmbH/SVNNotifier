@@ -51,7 +51,7 @@ namespace CHD.SVN_Notifier
 			// Ignore browser missing or delayed situations
 			try
 			{
-				Process.Start(link);
+				Process.Start(new ProcessStartInfo(link) { UseShellExecute = true });
 			}
 			catch { }
 		}

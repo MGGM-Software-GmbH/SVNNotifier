@@ -93,8 +93,8 @@ namespace CHD.SVN_Notifier
 
 		private void FormInit()
 		{
-			// Load an apply sorting.
-			folders = new BindingList<SvnItem>(Config.ReadSvnFolders().OrderBy(x=>x.Path).ToList());
+			// Load and apply Windows Explorer-style sorting (StrCmpLogicalW).
+			folders = new BindingList<SvnItem>(Config.ReadSvnFolders().OrderBy(x=>x.Path, WindowsPathComparer.Instance).ToList());
 			ItemListView.DataSource = folders;
 			UpdateFormSize();
 			UpdateListViewFolderNames();
@@ -301,13 +301,6 @@ namespace CHD.SVN_Notifier
 			newNonUpdatedFolders.Clear();
 			Config.SaveSvnFolders(folders);
 			UpdateTray(true);
-			BeginUpdateFolderStatuses();
-		}
-
-
-		private void CheckForUpdatesMenuItem_Click(object sender, EventArgs e)
-		{
-			forcedCheckForNewVersion = true;
 			BeginUpdateFolderStatuses();
 		}
 
@@ -697,7 +690,21 @@ namespace CHD.SVN_Notifier
 
 		////////////////////////////////////////////////////////////////////////////////////
 
-		private void ShowFolderList()
+
+		////////////////////////////////////////////////////////////////////////////////////
+
+		private void FormStateChanged(bool _formIsActive)
+		{
+			formIsActive = _formIsActive;
+
+			bool startTimer = StatusUpdateTimer.Enabled;
+			StatusUpdateTimer.Stop();
+
+			if (startTimer) StartTimer();
+		}
+
+
+				private void ShowFolderList()
 		{
 			Show();
 			if (WindowState == FormWindowState.Minimized)
@@ -721,88 +728,7 @@ namespace CHD.SVN_Notifier
 
 		////////////////////////////////////////////////////////////////////////////////////
 
-		#region Checking for new version
-
-		private bool forcedCheckForNewVersion;                          // Means manually called from main menu
-		private DateTime lastTimeOfCheckForNewVersion = DateTime.MinValue;      // Force to check at startup
-		private Version lastStableVersion;
-
-
-		/// <summary>
-		/// Executed on working thread
-		/// </summary>
-		private void CheckForNewVersion(bool forceShowResult)
-		{
-			string lastStableVersionInfo = ReadFromWeb("http://svnnotifier.tigris.org/LastStableVersion.txt");
-
-			if (lastStableVersionInfo != null)
-			{
-				lastStableVersion = new Version(lastStableVersionInfo.Split('\n')[0]);
-				var version = new Version(Application.ProductVersion);
-				if (lastStableVersion > version)
-				{
-					SafeInvoke(new MethodInvoker(ShowNewVersion), null, Int32.MaxValue);
-				}
-				else if (forceShowResult)
-				{
-					SafeInvoke(new MethodInvoker(ShowNoNewVersion), null, Int32.MaxValue);
-				}
-			}
-			else if (forceShowResult)
-			{
-				SafeInvoke(new MethodInvoker(ErrorCheckingForNewVersion), null, Int32.MaxValue);
-			}
-		}
-
-
-		private static string ReadFromWeb(string url)
-		{
-			try
-			{
-				WebClient web = new WebClient();
-				Stream s = web.OpenRead(url);
-				string content = new StreamReader(s).ReadToEnd();
-
-				if ((content.Length < 5) || (content.Length > 15))
-					return null;    // Bad content
-
-				return content;
-			}
-			catch
-			{
-				return null;        // Problem with web connection
-			}
-		}
-
-
-		private void ShowNewVersion()
-		{
-			if (MessageBox.Show(
-				$"New stable version of SVN Notifier is available - v{lastStableVersion}\nDo you want to go to the project home page?",
-				"SVN Notifier",
-				MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK)
-				new AboutForm().ShowDialog();
-		}
-
-
-		private static void ShowNoNewVersion()
-		{
-			MessageBox.Show(Loc.Msg_LatestVersion,
-				"SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Information);
-		}
-
-
-		private static void ErrorCheckingForNewVersion()
-		{
-			MessageBox.Show(Loc.Msg_CantCheckVersion,
-				"SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Error);
-		}
-
-		#endregion
-
-		////////////////////////////////////////////////////////////////////////////////////
-
-		private void FormStateChanged(bool _formIsActive)
+		private void FormStateChangedrmStateChanged(bool _formIsActive)
 		{
 			formIsActive = _formIsActive;
 
@@ -840,7 +766,7 @@ namespace CHD.SVN_Notifier
 
 		private void BeginUpdateFolderStatuses()
 		{
-			if ((folders.Count > 0) || forcedCheckForNewVersion)
+			if (folders.Count > 0)
 			{
 				StatusUpdateTimer.Stop();
 
@@ -878,13 +804,6 @@ namespace CHD.SVN_Notifier
 						if (!folder.Enabled)
 							continue;
 						updateNotInProgress.WaitOne();
-						if (forcedCheckForNewVersion)
-						{
-							forcedCheckForNewVersion = false;
-							lastTimeOfCheckForNewVersion = DateTime.Now;
-							SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_CheckingVersion });
-							CheckForNewVersion(true);
-						}
 						bool skipUpdateStatus = false;
 						// Check commit and update processes for finishing
 						for (int i = 0; i < SvnTools.svnFolderProcesses.Count; i++)
@@ -913,20 +832,7 @@ namespace CHD.SVN_Notifier
 							UpdateFolderStatus(folder);
 					}
 
-					if (forcedCheckForNewVersion)
-					{
-						forcedCheckForNewVersion = false;
-						lastTimeOfCheckForNewVersion = DateTime.Now;
-						SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_CheckingVersion });
-						CheckForNewVersion(true);
-					}
 
-					if (Config.CheckForNewVersion && (lastTimeOfCheckForNewVersion + new TimeSpan(3, 0, 0) < DateTime.Now))
-					{
-						lastTimeOfCheckForNewVersion = DateTime.Now;
-						SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_CheckingVersion });
-						CheckForNewVersion(false);
-					}
 
 					lock (this)
 					{
@@ -1253,7 +1159,13 @@ namespace CHD.SVN_Notifier
 		[STAThread]
 		private static void Main(string[] args)
 		{
-			Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+			// Load config early so font settings are available before any UI is created
+			const string iniFileName = "SVN_Notifier.ini";
+			Config.Init(File.Exists(iniFileName)
+				? iniFileName
+				: Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), iniFileName));
+
+			Application.SetDefaultFont(new System.Drawing.Font(Config.FontFamily, Config.FontSize));
 			Application.EnableVisualStyles();
 			Application.SetCompatibleTextRenderingDefault(false);
 			try
@@ -1269,12 +1181,6 @@ namespace CHD.SVN_Notifier
 					Process.Start(psi);
 					return;
 				}
-
-				const string iniFileName = "SVN_Notifier.ini";
-				if (File.Exists(iniFileName))
-					Config.Init(iniFileName);
-				else
-					Config.Init(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), iniFileName));
 
 				if (!Config.IsSettingsOK())
 					if (new SettingsForm().ShowDialog() != DialogResult.OK)
@@ -1420,7 +1326,6 @@ namespace CHD.SVN_Notifier
 			UpdateAllMenuItem.Text = Loc.Menu_UpdateAll;
 			SettingsMenuItem.Text  = Loc.Menu_Settings;
 			HelpMenuItem.Text      = Loc.Menu_Help;
-			CheckForUpdatesMenuItem.Text = Loc.Menu_CheckUpdates;
 			AboutMenuItem.Text     = Loc.Menu_About;
 
 			// Tray menu
