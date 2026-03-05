@@ -12,6 +12,7 @@ Small and portable application which notifies you about other people's commits t
 - **Multilingual UI** — complete English and German localisation; switchable at runtime via Settings
 - **Configurable font** — font family and size selectable in Settings (default: Segoe UI 8.5 pt)
 - **Windows Explorer sort order** for repository list (uses `StrCmpLogicalW`)
+- **Configurable SVN command timeout** — prevents hanging on unreachable servers (default: 60 s, 0 = unlimited)
 - Removed all Win32 P/Invoke from `IniFile.cs` — replaced with fully managed INI reader/writer
 - Replaced deprecated `XmlTextReader` + `Hashtable` with `XDocument` / LINQ to XML
 - Replaced non-generic collections (`Queue`, `Hashtable`) with `ConcurrentQueue<T>`, `Dictionary<K,V>`

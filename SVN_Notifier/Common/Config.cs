@@ -132,6 +132,11 @@ namespace CHD.SVN_Notifier
 		/// </summary>
 		public static float FontSize;
 
+		/// <summary>
+		/// Timeout in seconds for SVN command execution (0 = unlimited)
+		/// </summary>
+		public static int SvnCommandTimeout;
+
 
 		public static void Init(string fileName)
 		{
@@ -172,6 +177,7 @@ namespace CHD.SVN_Notifier
 
 			Language = iniFile.ReadInteger("Settings", "Language", 0);
 
+			SvnCommandTimeout = iniFile.ReadInteger("Settings", "SvnCommandTimeout", 60);
 			FontFamily = iniFile.ReadString("Settings", "FontFamily", "Segoe UI");
 			var fontSizeStr = iniFile.ReadString("Settings", "FontSize", "8.5");
 			FontSize = float.TryParse(fontSizeStr, System.Globalization.NumberStyles.Float,
@@ -206,6 +212,7 @@ namespace CHD.SVN_Notifier
 			iniFile.Write("Settings", "ChangeLogBeforeUpdate", ChangeLogBeforeUpdate);
 			iniFile.Write("Settings", "UpdateAllSilently", UpdateAllSilently);
 			iniFile.Write("Settings", "UpdateWindowAction", UpdateWindowAction);
+			iniFile.Write("Settings", "SvnCommandTimeout", SvnCommandTimeout);
 			iniFile.Write("Settings", "Language", Language);
 			iniFile.Write("Settings", "FontFamily", FontFamily);
 			iniFile.Write("Settings", "FontSize", FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));

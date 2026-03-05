@@ -291,12 +291,17 @@ namespace CHD.SVN_Notifier
 				if (er.processError.Length > 0)
 					ErrorAdded(workingPath, er.processError);
 
-				er.process.WaitForExit();
-
-				if ((uint)er.process.ExitCode == 0xc0000142)        // STATUS_DLL_INIT_FAILED - Occurs when Windows shutdown in progress
+				int timeoutMs = Config.SvnCommandTimeout > 0 ? Config.SvnCommandTimeout * 1000 : -1;
+				bool exited = er.process.WaitForExit(timeoutMs);
+				if (!exited)
+				{
+					try { er.process.Kill(); } catch { }
+					string timeoutError = $"SVN command timed out after {Config.SvnCommandTimeout} seconds.";
+					ErrorAdded(workingPath, timeoutError);
+				}
+				else if ((uint)er.process.ExitCode == 0xc0000142)   // STATUS_DLL_INIT_FAILED - Occurs when Windows shutdown in progress
 				{
 					Application.Exit();
-
 					// Thread.Abort() is not supported in .NET 5+; background thread exits with the process.
 				}
 

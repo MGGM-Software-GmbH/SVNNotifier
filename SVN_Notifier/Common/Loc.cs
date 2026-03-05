@@ -146,6 +146,8 @@ namespace CHD.SVN_Notifier
 		public static string SF_Label_Language   => T("Language:",                     "Sprache:");
 		public static string SF_Label_Font       => T("Font:",                         "Schriftart:");
 		public static string SF_Label_FontSize   => T("Font size:",                    "Schriftgröße:");
+		public static string SF_Label_SvnTimeout => T("SVN command timeout:",               "SVN-Befehls-Timeout:");
+		public static string SF_Label_SvnTimeoutSec => T("sec.",                              "Sek.");
 		public static string SF_Group_Status     => T("Default status checking interval when...",
 		                                               "Standard-Prüfintervall wenn...");
 		public static string SF_Label_Active     => T("... form is active:",           "... Fenster aktiv:");

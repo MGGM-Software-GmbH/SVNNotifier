@@ -70,6 +70,8 @@ namespace CHD.SVN_Notifier
 			if (sel >= 0 && sel < DoubleClickComboBox.Items.Count)
 				DoubleClickComboBox.SelectedIndex = sel;
 
+			TimeoutLabel.Text       = Loc.SF_Label_SvnTimeout;
+			TimeoutSecondsLabel.Text = Loc.SF_Label_SvnTimeoutSec;
 			StatusGroupBox.Text     = Loc.SF_Group_Status;
 			ActiveLabel.Text        = Loc.SF_Label_Active;
 			InactiveLabel.Text      = Loc.SF_Label_Inactive;
@@ -112,6 +114,7 @@ namespace CHD.SVN_Notifier
 			ResumeHoursUpDown.Value = Config.PauseAfterWindowsResumeInterval / 3600;
 			ResumeMinutesUpDown.Value = (Config.PauseAfterWindowsResumeInterval % 3600) / 60;
 			ResumeSecondsUpDown.Value = Config.PauseAfterWindowsResumeInterval % 60;
+			TimeoutUpDown.Value     = Config.SvnCommandTimeout;
 			ResumeLabel.Checked = Config.DoPauseAfterWindowsResume;
 
 			if (Config.IsTortoiseVersion_1_5_orHigher())
@@ -188,6 +191,7 @@ namespace CHD.SVN_Notifier
 			Config.UpdateWindowAction = DialogActiionDropDown.SelectedIndex;
 			Config.Language = LanguageComboBox.SelectedIndex >= 0 ? LanguageComboBox.SelectedIndex : 0;
 
+			Config.SvnCommandTimeout = (int)TimeoutUpDown.Value;
 			Config.FontFamily = FontFamilyComboBox.SelectedItem?.ToString() ?? Config.FontFamily;
 			Config.FontSize   = (float)FontSizeNumericUpDown.Value;
 

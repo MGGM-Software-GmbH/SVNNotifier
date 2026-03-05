@@ -93,6 +93,9 @@
 			this.ActiveSecondsLabel = new System.Windows.Forms.Label();
 			this.ActiveLabel = new System.Windows.Forms.Label();
 			this.InactiveLabel = new System.Windows.Forms.Label();
+			this.TimeoutLabel = new System.Windows.Forms.Label();
+			this.TimeoutUpDown = new System.Windows.Forms.NumericUpDown();
+			this.TimeoutSecondsLabel = new System.Windows.Forms.Label();
 			this.UpdateTabPage = new System.Windows.Forms.TabPage();
 			this.RequiresTortoiseLabel = new System.Windows.Forms.Label();
 			((System.ComponentModel.ISupportInitialize)(this.HideSystemTrayUpDown)).BeginInit();
@@ -103,6 +106,7 @@
 			this.LocationsGroupBox.SuspendLayout();
 			this.StatusTabPage.SuspendLayout();
 			this.PauseGroupBox.SuspendLayout();
+			((System.ComponentModel.ISupportInitialize)(this.TimeoutUpDown)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.ResumeHoursUpDown)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.StartupHoursUpDown)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.ResumeMinutesUpDown)).BeginInit();
@@ -454,6 +458,9 @@
 			// 
 			// StatusTabPage
 			// 
+			this.StatusTabPage.Controls.Add(this.TimeoutLabel);
+			this.StatusTabPage.Controls.Add(this.TimeoutUpDown);
+			this.StatusTabPage.Controls.Add(this.TimeoutSecondsLabel);
 			this.StatusTabPage.Controls.Add(this.PauseGroupBox);
 			this.StatusTabPage.Controls.Add(this.StatusGroupBox);
 			this.StatusTabPage.Location = new System.Drawing.Point(4, 22);
@@ -938,8 +945,35 @@
 			this.InactiveLabel.Text = "... form is not active:";
 			this.InactiveLabel.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
 			// 
+			// TimeoutLabel
+			//
+			this.TimeoutLabel.AutoSize = true;
+			this.TimeoutLabel.Location = new System.Drawing.Point(6, 204);
+			this.TimeoutLabel.Name = "TimeoutLabel";
+			this.TimeoutLabel.TabIndex = 20;
+			this.TimeoutLabel.Text = "SVN command timeout:";
+			//
+			// TimeoutUpDown
+			//
+			this.TimeoutUpDown.Location = new System.Drawing.Point(200, 201);
+			this.TimeoutUpDown.Maximum = new decimal(new int[] { 3600, 0, 0, 0 });
+			this.TimeoutUpDown.Minimum = new decimal(new int[] { 0, 0, 0, 0 });
+			this.TimeoutUpDown.Name = "TimeoutUpDown";
+			this.TimeoutUpDown.Size = new System.Drawing.Size(55, 20);
+			this.TimeoutUpDown.TabIndex = 21;
+			this.TimeoutUpDown.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+			this.TimeoutUpDown.Value = new decimal(new int[] { 60, 0, 0, 0 });
+			//
+			// TimeoutSecondsLabel
+			//
+			this.TimeoutSecondsLabel.AutoSize = true;
+			this.TimeoutSecondsLabel.Location = new System.Drawing.Point(261, 204);
+			this.TimeoutSecondsLabel.Name = "TimeoutSecondsLabel";
+			this.TimeoutSecondsLabel.TabIndex = 22;
+			this.TimeoutSecondsLabel.Text = "sec.";
+			//
 			// UpdateTabPage
-			// 
+			//
 			this.UpdateTabPage.Controls.Add(this.RequiresTortoiseLabel);
 			this.UpdateTabPage.Controls.Add(this.ChangeLogBeforeUpdateCheckBox);
 			this.UpdateTabPage.Controls.Add(this.SilentlUpdateCheckBox);
@@ -991,6 +1025,7 @@
 			this.StatusTabPage.ResumeLayout(false);
 			this.PauseGroupBox.ResumeLayout(false);
 			this.PauseGroupBox.PerformLayout();
+			((System.ComponentModel.ISupportInitialize)(this.TimeoutUpDown)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.ResumeHoursUpDown)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.StartupHoursUpDown)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.ResumeMinutesUpDown)).EndInit();
@@ -1074,6 +1109,9 @@
 		private System.Windows.Forms.NumericUpDown StartupSecondsUpDown;
 		private System.Windows.Forms.CheckBox ResumeLabel;
 		private System.Windows.Forms.CheckBox StartupLabel;
+		private System.Windows.Forms.Label TimeoutLabel;
+		private System.Windows.Forms.NumericUpDown TimeoutUpDown;
+		private System.Windows.Forms.Label TimeoutSecondsLabel;
 		private System.Windows.Forms.Label FontFamilyLabel;
 		private System.Windows.Forms.ComboBox FontFamilyComboBox;
 		private System.Windows.Forms.Label FontSizeLabel;
