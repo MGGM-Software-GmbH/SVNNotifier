@@ -8,7 +8,7 @@ Small and portable application which notifies you about other people's commits t
 
 ### What's new in v3
 
-- **Migrated to .NET 8** (net8.0-windows) with SDK-style project format
+- **Migrated to .NET 10** (net10.0-windows) with SDK-style project format
 - **Multilingual UI** — complete English and German localisation; switchable at runtime via Settings
 - **Configurable font** — font family and size selectable in Settings (default: Segoe UI 8.5 pt)
 - **Windows Explorer sort order** for repository list (uses `StrCmpLogicalW`)
@@ -17,7 +17,7 @@ Small and portable application which notifies you about other people's commits t
 - Replaced deprecated `XmlTextReader` + `Hashtable` with `XDocument` / LINQ to XML
 - Replaced non-generic collections (`Queue`, `Hashtable`) with `ConcurrentQueue<T>`, `Dictionary<K,V>`
 - Removed obsolete `Thread.Abort()` usage (not supported in .NET 5+)
-- Fixed `Process.Start()` calls for .NET 8 (`UseShellExecute = true`)
+- Fixed `Process.Start()` calls for .NET 8+ (`UseShellExecute = true`)
 
 ### Source
 
