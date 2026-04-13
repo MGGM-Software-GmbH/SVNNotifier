@@ -959,9 +959,25 @@ namespace CHD.SVN_Notifier
 				{
 					newNonUpdatedFolders.Add(folder);
 					UpdateTray(true);
+					
+					// Auto-Update: if enabled for this folder, update it silently in the background
+					if (folder.AutoUpdate)
+					{
+						folder.Status = SvnStatus.Unknown;
+						folder._IsAutoUpdating = true;
+						SvnTools.BeginUpdateSilently(folder);
+					}
 				}
 				else
+				{
+					// If auto-update was in progress and is now complete, show toast
+					if (folder._IsAutoUpdating)
+					{
+						folder._IsAutoUpdating = false;
+						TrayNotifyIcon.ShowBalloonTip(3000, Loc.Tooltip_AutoUpdate, Loc.Toast_AutoUpdateCompleted(folder.VisiblePath), ToolTipIcon.Info);
+					}
 					UpdateTray(false);
+				}
 
 				// Refresh buttons
 				ItemListView_SelectedIndexChanged(null, null);
@@ -1305,10 +1321,64 @@ namespace CHD.SVN_Notifier
 				}
 
 			}
+			if (column == ColumnAutoUpdate)
+			{
+				// Show green checkmark if AutoUpdate is enabled
+				e.Value = (bool?)e.Value == true ? "✓" : "";
+				e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+				e.CellStyle.BackColor = Color.FromArgb(200, 240, 200);
+				e.CellStyle.SelectionBackColor = Color.FromArgb(100, 200, 100);
+				e.CellStyle.ForeColor = Color.FromArgb(34, 139, 34);  // Forest Green
+				e.CellStyle.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+			}
 		}
 
+		private void ItemListView_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+		{
+			if (e.RowIndex < 0 || e.ColumnIndex < 0)
+				return;
+			var grid = (DataGridView)sender;
+			var row = grid.Rows[e.RowIndex];
+			var column = grid.Columns[e.ColumnIndex];
+			// Save configuration when AutoUpdate checkbox changed
+			if (column == ColumnAutoUpdate)
+			{
+				Config.SaveSvnFolders(folders);
+			}
+		}
 
-	public void ApplyLocalization()
+		private void ItemListView_CellClick(object sender, DataGridViewCellEventArgs e)
+		{
+			// Toggle AutoUpdate when user clicks on the AutoUpdate column
+			if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+			{
+				var grid = (DataGridView)sender;
+				var column = grid.Columns[e.ColumnIndex];
+				if (column == ColumnAutoUpdate)
+				{
+					var row = grid.Rows[e.RowIndex];
+					var item = (SvnItem)row.DataBoundItem;
+					item.AutoUpdate = !item.AutoUpdate;
+					Config.SaveSvnFolders(folders);
+					grid.InvalidateCell(e.ColumnIndex, e.RowIndex);
+				}
+			}
+		}
+
+		private void ItemListView_CellToolTipTextNeeded(object sender, DataGridViewCellToolTipTextNeededEventArgs e)
+		{
+			if (e.RowIndex < 0 || e.ColumnIndex < 0)
+				return;
+			var grid = (DataGridView)sender;
+			var column = grid.Columns[e.ColumnIndex];
+			
+			if (column == ColumnAutoUpdate)
+			{
+				e.ToolTipText = Loc.Tooltip_AutoUpdate;
+			}
+		}
+
+		public void ApplyLocalization()
 		{
 			// Dialogs
 			MainFolderBrowserDialog.Description = Loc.Dlg_SelectSvnFolder;

@@ -29,6 +29,7 @@ namespace CHD.SVN_Notifier
 		public SvnItem()
 		{
 			Enabled = true;
+			AutoUpdate = true;
 		}
 
 		public string origPath;
@@ -67,6 +68,16 @@ namespace CHD.SVN_Notifier
 		}
 		bool _Enabled;
 
+		public bool AutoUpdate
+		{
+			get { return _AutoUpdate; }
+			set { _AutoUpdate = value; NotifyPropertyChanged("AutoUpdate"); }
+		}
+		bool _AutoUpdate;
+
+		// Internal flag to track if auto-update is in progress (not serialized)
+		internal bool _IsAutoUpdating = false;
+
 
 		public string Path
 		{
@@ -91,7 +102,7 @@ namespace CHD.SVN_Notifier
 
 		public string Serialize()
 		{
-			return $"{origPath}|{ActiveStatusUpdateInterval}|{IdleStatusUpdateInterval}|{!Enabled}|{(int)pathType}";
+			return $"{origPath}|{ActiveStatusUpdateInterval}|{IdleStatusUpdateInterval}|{!Enabled}|{(int)pathType}|{!AutoUpdate}";
 		}
 
 
@@ -102,7 +113,8 @@ namespace CHD.SVN_Notifier
 			{
 				ActiveStatusUpdateInterval = int.Parse(p[1]),
 				IdleStatusUpdateInterval = int.Parse(p[2]),
-				Enabled = !Boolean.Parse(p[3])
+				Enabled = !Boolean.Parse(p[3]),
+				AutoUpdate = (p.Length > 5) ? !Boolean.Parse(p[5]) : true
 			};
 			return f;
 		}

@@ -4,9 +4,15 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.0.0.1** — maintained and extended by [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH).
+**SVN Notifier 3.0.0.2** — maintained and extended by [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH).
 
-### What's new in v3
+### What's new in v3.0.0.2
+
+- **Auto-Update per repository** — new column in the repository list with a green ✓ indicator; when enabled, the repository is automatically updated silently in the background as soon as incoming changes are detected (no popup window)
+- **Toast notification after auto-update** — a system tray balloon tip confirms each completed silent update, so you always know what happened
+- Auto-Update state is **persisted** in the INI configuration and restored on next launch (default: enabled)
+
+### What's new in v3.0.0.1
 
 - **Migrated to .NET 10** (net10.0-windows) with SDK-style project format
 - **Multilingual UI** — complete English and German localisation; switchable at runtime via Settings

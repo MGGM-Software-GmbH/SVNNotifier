@@ -46,6 +46,9 @@ namespace CHD.SVN_Notifier
 		public static string Col_Status          => T("Status",                        "Status");
 		public static string Col_VisiblePath     => T("Visible Path",                  "Angezeigter Pfad");
 		public static string Col_Path            => T("Path",                          "Pfad");
+		public static string Col_AutoUpdate      => T("Auto Update",                   "Auto-Update");
+		public static string Tooltip_AutoUpdate  => T("Auto-update when changes are detected", "Automatisches Aktualisieren wenn Änderungen erkannt werden");
+		public static string Toast_AutoUpdateCompleted(string path) => IsDe ? $"✓ Aktualisiert: {path}" : $"✓ Updated: {path}";
 
 		// Context menu
 		public static string Ctx_CheckNow        => T("Check Now...",                  "Jetzt prüfen...");

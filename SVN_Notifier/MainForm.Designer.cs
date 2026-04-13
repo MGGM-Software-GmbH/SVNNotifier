@@ -90,6 +90,7 @@
 			this.PauseTimer = new System.Windows.Forms.Timer(this.components);
 			this.ItemListView = new System.Windows.Forms.DataGridView();
 			this.ColumnEnabled = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+			this.ColumnAutoUpdate = new System.Windows.Forms.DataGridViewTextBoxColumn();
 			this.ImageColumn = new System.Windows.Forms.DataGridViewImageColumn();
 			this.StatusColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
 			this.ColumnVisiblePath = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -606,7 +607,8 @@
             this.ImageColumn,
             this.StatusColumn,
             this.ColumnVisiblePath,
-            this.PathColumn});
+            this.PathColumn,
+            this.ColumnAutoUpdate});
 			this.ItemListView.ContextMenuStrip = this.ItemMenu;
 			this.ItemListView.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.ItemListView.Location = new System.Drawing.Point(0, 49);
@@ -614,9 +616,13 @@
 			this.ItemListView.Name = "ItemListView";
 			this.ItemListView.RowHeadersVisible = false;
 			this.ItemListView.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+			this.ItemListView.ShowCellToolTips = true;
 			this.ItemListView.Size = new System.Drawing.Size(544, 70);
 			this.ItemListView.TabIndex = 0;
 			this.ItemListView.CellFormatting += new System.Windows.Forms.DataGridViewCellFormattingEventHandler(this.ItemListView_CellFormatting);
+			this.ItemListView.CellClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.ItemListView_CellClick);
+			this.ItemListView.CellToolTipTextNeeded += new System.Windows.Forms.DataGridViewCellToolTipTextNeededEventHandler(this.ItemListView_CellToolTipTextNeeded);
+			this.ItemListView.CellValueChanged += new System.Windows.Forms.DataGridViewCellEventHandler(this.ItemListView_CellValueChanged);
 			this.ItemListView.SelectionChanged += new System.EventHandler(this.ItemListView_SelectedIndexChanged);
 			this.ItemListView.DragDrop += new System.Windows.Forms.DragEventHandler(this.ItemListView_DragDrop);
 			this.ItemListView.DragEnter += new System.Windows.Forms.DragEventHandler(this.ItemListView_DragEnter);
@@ -634,6 +640,15 @@
 			this.ColumnEnabled.Resizable = System.Windows.Forms.DataGridViewTriState.False;
 			this.ColumnEnabled.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.Automatic;
 			this.ColumnEnabled.Width = 5;
+			// 
+			// ColumnAutoUpdate
+			// 
+			this.ColumnAutoUpdate.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+			this.ColumnAutoUpdate.DataPropertyName = "AutoUpdate";
+			this.ColumnAutoUpdate.HeaderText = "";
+			this.ColumnAutoUpdate.Name = "ColumnAutoUpdate";
+			this.ColumnAutoUpdate.ReadOnly = true;
+			this.ColumnAutoUpdate.Width = 25;
 			// 
 			// ImageColumn
 			// 
@@ -767,6 +782,7 @@
 		private System.Windows.Forms.ToolStripButton PropertiesButton;
 		private System.Windows.Forms.ToolStripSeparator CommitButtonSeparator;
 		private System.Windows.Forms.DataGridViewCheckBoxColumn ColumnEnabled;
+		private System.Windows.Forms.DataGridViewTextBoxColumn ColumnAutoUpdate;
 		private System.Windows.Forms.DataGridViewImageColumn ImageColumn;
 		private System.Windows.Forms.DataGridViewTextBoxColumn StatusColumn;
 		private System.Windows.Forms.DataGridViewTextBoxColumn ColumnVisiblePath;
