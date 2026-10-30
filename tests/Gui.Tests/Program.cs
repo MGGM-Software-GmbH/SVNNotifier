@@ -211,7 +211,9 @@ internal static class Program
         var preparedType = assembly.GetType("CHD.SVN_Notifier.PreparedApplicationUpdate")!;
         var formType = assembly.GetType("CHD.SVN_Notifier.ApplicationUpdateForm")!;
         var updater = Activator.CreateInstance(updaterType, BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { new HttpClient() }, null)!;
-        var release = Activator.CreateInstance(releaseType, new object[] { new Version("3.0.0.5"), new Uri("https://github.com/MGGM-Software-GmbH/SVNNotifier/releases/tag/v3.0.0.5"), new Uri("https://example.com/package.zip"), new Uri("https://example.com/SHA256SUMS.txt"), 100L })!;
+        var currentVersion = assembly.GetName().Version!;
+        var nextVersion = new Version(currentVersion.Major, currentVersion.Minor, currentVersion.Build, currentVersion.Revision + 1);
+        var release = Activator.CreateInstance(releaseType, new object[] { nextVersion, new Uri($"https://github.com/MGGM-Software-GmbH/SVNNotifier/releases/tag/v{nextVersion}"), new Uri("https://example.com/package.zip"), new Uri("https://example.com/SHA256SUMS.txt"), 100L })!;
         var callbackType = typeof(Func<,>).MakeGenericType(preparedType, typeof(Task));
         var callback = Expression.Lambda(callbackType, Expression.Constant(Task.CompletedTask), Expression.Parameter(preparedType)).Compile();
         return (Form)Activator.CreateInstance(formType, BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { updater, release, callback }, null)!;
