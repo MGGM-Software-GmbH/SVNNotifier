@@ -30,11 +30,21 @@ namespace CHD.SVN_Notifier
 		private int _initialLanguage;
 		private string _initialFontFamily = "";
 		private float _initialFontSize;
+		private readonly CheckBox checkApplicationVersionCheckBox = new CheckBox();
 
 		public SettingsForm()
 		{
 			InitializeComponent();
 			ApplyLocalization();
+			// Die Programmprüfung ist unabhängig von den SVN-Update-Einstellungen.
+			checkApplicationVersionCheckBox.Name = "CheckApplicationVersionCheckBox";
+			checkApplicationVersionCheckBox.Text = Loc.SF_Chk_CheckVersion;
+			checkApplicationVersionCheckBox.AutoSize = true;
+			checkApplicationVersionCheckBox.Location = new Point(6, 195);
+			checkApplicationVersionCheckBox.TabIndex = 36;
+			OtherOptionsGroupBox.Controls.Add(checkApplicationVersionCheckBox);
+			ClientSize = new Size(ClientSize.Width, ClientSize.Height + 28);
+			MinimumSize = new Size(MinimumSize.Width, Height);
 		}
 
 		private void ApplyLocalization()
@@ -132,6 +142,7 @@ namespace CHD.SVN_Notifier
 			HideSystemTrayUpDown.Value = Config.ShowBalloonInterval / 1000;
 			HideOnStartupCheckBox.Checked = Config.HideOnStartup;
 			ShowInTaskbarCheckBox.Checked = Config.ShowInTaskbar;
+			checkApplicationVersionCheckBox.Checked = Config.CheckForNewVersion;
 			SilentlUpdateCheckBox.Checked = Config.UpdateAllSilently;
 			DialogActiionDropDown.SelectedIndex = Config.UpdateWindowAction;
 			LanguageComboBox.SelectedIndex = Config.Language;
@@ -187,6 +198,7 @@ namespace CHD.SVN_Notifier
 			Config.ShowBalloonInterval = (int)HideSystemTrayUpDown.Value * 1000;
 			Config.HideOnStartup = HideOnStartupCheckBox.Checked;
 			Config.ShowInTaskbar = ShowInTaskbarCheckBox.Checked;
+			Config.CheckForNewVersion = checkApplicationVersionCheckBox.Checked;
 			Config.UpdateAllSilently = SilentlUpdateCheckBox.Checked;
 			Config.UpdateWindowAction = DialogActiionDropDown.SelectedIndex;
 			Config.Language = LanguageComboBox.SelectedIndex >= 0 ? LanguageComboBox.SelectedIndex : 0;

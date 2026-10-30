@@ -59,6 +59,7 @@ namespace CHD.SVN_Notifier
 			AddPowerEventListener();
 			FormInit();
 			ApplyLocalization();
+			InitializeApplicationUpdates();
 		}
 
 		private void AddPowerEventListener()
@@ -663,6 +664,7 @@ namespace CHD.SVN_Notifier
 
 		private void MainForm_FormClosed(object sender, FormClosedEventArgs e)
 		{
+			StopApplicationUpdates();
 			RemovePowerEventListener();
 		}
 
@@ -766,6 +768,8 @@ namespace CHD.SVN_Notifier
 
 		private void BeginUpdateFolderStatuses()
 		{
+			if (applicationInstallationInProgress)
+				return;
 			if (folders.Count > 0)
 			{
 				StatusUpdateTimer.Stop();
@@ -1175,11 +1179,30 @@ namespace CHD.SVN_Notifier
 		[STAThread]
 		private static void Main(string[] args)
 		{
+			if (args.Length == 2 && args[0] == "--apply-update")
+			{
+				ApplicationUpdatePlan? plan = null;
+				try
+				{
+					plan = System.Text.Json.JsonSerializer.Deserialize<ApplicationUpdatePlan>(File.ReadAllText(args[1]));
+					Config.Language = plan?.Language ?? 0;
+					ApplicationUpdateInstaller.Apply(args[1]);
+				}
+				catch (Exception exception)
+				{
+					if (plan is null || !IsOriginalUpdateProcessRunning(plan))
+						MessageBox.Show(Loc.AppUpdate_Error(exception.Message), Loc.AppUpdate_Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+					Environment.ExitCode = 1;
+				}
+				return;
+			}
 			// Load config early so font settings are available before any UI is created
 			const string iniFileName = "SVN_Notifier.ini";
 			Config.Init(File.Exists(iniFileName)
 				? iniFileName
 				: Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), iniFileName));
+			if (args.Length == 4 && args[0] == "--update-cleanup" && int.TryParse(args[2], out var helperId) && long.TryParse(args[3], out var helperStartTicks))
+				_ = CleanupApplicationUpdateAsync(args[1], helperId, helperStartTicks);
 
 			Application.SetDefaultFont(new System.Drawing.Font(Config.FontFamily, Config.FontSize));
 			Application.EnableVisualStyles();

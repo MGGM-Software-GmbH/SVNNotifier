@@ -82,6 +82,11 @@ jobs:
           } finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id }
           }
+      - name: Programmupdater und EXE-Austausch prüfen
+        shell: powershell
+        env:
+          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
+        run: ./.github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER
       - name: Pakete und Prüfsummen hochladen
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

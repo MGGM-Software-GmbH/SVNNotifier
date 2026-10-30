@@ -1,10 +1,12 @@
-SVN Notifier 3.0.0.3
+SVN Notifier 3.0.0.4
 
-- Automatischer Windows-Build mit GitHub Actions für die C#-Anwendung auf Basis von .NET 10.
-- Portable Pakete für Windows x64 und x86 mit gebündelter .NET-Laufzeit, README und Lizenz.
-- Prüfung von Versionsangaben, Anwendungsstart und SHA-256-Prüfsummen vor der Veröffentlichung.
-- Automatische Veröffentlichung bei Versions-Tags.
+- Automatische Versionsprüfung für die Anwendung beim Start und alle zwölf Stunden; manuell unter Hilfe > Nach Updates suchen.
+- Download und Installation einer bestätigten neuen stabilen Version mit anschließendem Neustart.
+- Automatische Auswahl von x64 oder x86 sowie Prüfung von SHA-256-Prüfsumme, ZIP-Inhalt, EXE-Version und Architektur.
+- Erhalt der Repository-Liste und INI-Einstellungen. Laufende SVN-Vorgänge werden vor der Installation berücksichtigt.
+- Abschaltbare automatische Programmprüfung unter Einstellungen > Allgemein. Die manuelle Prüfung bleibt verfügbar.
+- Regressionstests und Tests für EXE-Austausch, Neustart und manipulierte Downloads in GitHub Actions.
 
-Die Funktionen aus 3.0.0.2, einschließlich Auto-Update je Repository, Benachrichtigungen und deutscher sowie englischer Oberfläche, bleiben erhalten.
+Programmupdates und automatische SVN-Updates sind getrennte Funktionen. Versionen bis einschließlich 3.0.0.3 müssen einmal manuell durch diese Ausgabe ersetzt werden, um den Programmupdater zu erhalten.
 
-Das passende ZIP-Paket entpacken und `SVN_Notifier.exe` starten. Eine separate .NET-Installation ist nicht erforderlich. `svn.exe` und TortoiseSVN werden separat benötigt. Die EXE-Dateien sind nicht digital signiert. `SHA256SUMS.txt` enthält die Prüfsummen der beiden ZIP-Pakete.
+Das passende ZIP-Paket entpacken und `SVN_Notifier.exe` starten. Eine separate .NET-Installation ist nicht erforderlich. `svn.exe` und TortoiseSVN werden separat benötigt. Automatische Programmupdates benötigen Schreibzugriff auf den Programmordner. Die EXE-Dateien sind nicht digital signiert. `SHA256SUMS.txt` enthält die Prüfsummen der beiden ZIP-Pakete.

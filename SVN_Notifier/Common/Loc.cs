@@ -24,6 +24,25 @@ namespace CHD.SVN_Notifier
 		public static string Menu_Settings       => T("&Settings...",                  "&Einstellungen...");
 		public static string Menu_Help           => T("&Help",                         "&Hilfe");
 		public static string Menu_CheckUpdates   => T("&Check for Updates",            "Nach &Updates suchen");
+
+		// Programmupdates beziehen sich ausschließlich auf die Anwendung, nicht auf SVN-Repositories.
+		public static string AppUpdate_Title => T("Application update", "Programmupdate");
+		public static string AppUpdate_Checking => T("Checking for application updates...", "Programmversion wird geprüft...");
+		public static string AppUpdate_Install => T("Download and restart", "Herunterladen und neu starten");
+		public static string AppUpdate_Cancel => T("Cancel", "Abbrechen");
+		public static string AppUpdate_Cancelled => T("Download canceled.", "Download abgebrochen.");
+		public static string AppUpdate_NotInstalled => T("Update not installed.", "Update nicht installiert.");
+		public static string AppUpdate_Later => T("Later", "Später");
+		public static string AppUpdate_Notes => T("Release notes", "Versionshinweise");
+		public static string AppUpdate_Downloading => T("Downloading update...", "Update wird heruntergeladen...");
+		public static string AppUpdate_Verifying => T("Verifying update...", "Update wird geprüft...");
+		public static string AppUpdate_Installing => T("Installing update...", "Update wird installiert...");
+		public static string AppUpdate_PortableRequired => T("Automatic installation requires the portable ZIP release. Download and extract it from GitHub Releases.", "Die automatische Installation benötigt die portable ZIP-Ausgabe. Bitte diese aus den GitHub Releases herunterladen und entpacken.");
+		public static string AppUpdate_RepositoryBusy => T("An SVN operation is still running. Please try again after it has finished.", "Ein SVN-Vorgang läuft noch. Bitte nach dessen Ende erneut versuchen.");
+		public static string AppUpdate_Current(string version) => T("Installed version: ", "Installierte Version: ") + version;
+		public static string AppUpdate_Available(string version) => T("Available version: ", "Verfügbare Version: ") + version;
+		public static string AppUpdate_Error(string message) => T("Application update failed.\n\n", "Das Programmupdate ist fehlgeschlagen.\n\n") + message;
+		public static string AppUpdate_CheckError(string message) => T("Could not check for application updates.\n\n", "Programmupdates konnten nicht geprüft werden.\n\n") + message;
 		public static string Menu_About          => T("&About SVN Notifier",           "&Über SVN Notifier");
 
 		// Tray menu
@@ -142,7 +161,7 @@ namespace CHD.SVN_Notifier
 		public static string SF_Chk_HideOnStart  => T("Hide program to system tray on startup",
 		                                               "Beim Start in die Taskleiste minimieren");
 		public static string SF_Chk_ShowTaskbar  => T("Show in taskbar",               "In Taskleiste anzeigen");
-		public static string SF_Chk_CheckVersion => T("Check for new version",         "Nach neuer Version suchen");
+		public static string SF_Chk_CheckVersion => T("Check for application updates automatically", "Automatisch nach Programmupdates suchen");
 		public static string SF_Chk_ChangeLog    => T("Force to see \"Change Log\" before Update",
 		                                               "\"Änderungsprotokoll\" vor Update erzwingen");
 		public static string SF_Chk_SilentUpdate => T("\"Silent\" Update All",         "\"Stilles\" Alle aktualisieren");

@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory)]
     [ValidateSet('win-x64', 'win-x86')]
     [string] $RuntimeIdentifier,
-    [string] $ReleaseTag = ''
+    [string] $ReleaseTag = '',
+    [string] $ArtifactsDirectory = 'artifacts'
 )
 
 # Erstellt ein portables Windows-Paket mit konsistenter Version und Prüfsumme.
@@ -29,7 +30,7 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
     throw 'Das Paket muss unter Windows gebaut und geprüft werden.'
 }
 
-$artifactsPath = Join-Path $repositoryPath 'artifacts'
+$artifactsPath = if ([System.IO.Path]::IsPathRooted($ArtifactsDirectory)) { $ArtifactsDirectory } else { Join-Path $repositoryPath $ArtifactsDirectory }
 $publishPath = Join-Path $artifactsPath "publish/$RuntimeIdentifier"
 $packagePath = Join-Path $artifactsPath 'packages'
 $archiveName = "SVNNotifier-$version-$RuntimeIdentifier.zip"
