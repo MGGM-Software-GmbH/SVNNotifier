@@ -4,7 +4,40 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.0.0.2** — maintained and extended by [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH).
+**SVN Notifier 3.0.0.3** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.0.0.3
+
+- GitHub Actions baut die C#-Anwendung unter Windows bei Pushes auf `master`, Pull Requests und manuellen Workflow-Starts.
+- Portable ZIP-Pakete für Windows x64 und x86 enthalten die .NET-10-Laufzeit, diese README und die Lizenz. Eine separate .NET-Installation ist nicht erforderlich.
+- Versions-Tags erzeugen ein GitHub Release mit beiden Paketen und SHA-256-Prüfsummen. Die Anwendung selbst bleibt funktional unverändert.
+
+### Download und Verwendung
+
+Das zur Windows-Architektur passende ZIP-Paket unter [Releases](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases) herunterladen, entpacken und `SVN_Notifier.exe` starten. Subversion-Kommandozeilenclient (`svn.exe`) und TortoiseSVN werden weiterhin separat benötigt und in den Einstellungen ausgewählt. Die erzeugten EXE-Dateien sind nicht digital signiert.
+
+Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.0.0.3-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
+
+### Windows-Build und Veröffentlichung
+
+Voraussetzung für einen lokalen Build ist das .NET-10-SDK unter Windows. Im Repository-Hauptverzeichnis:
+
+```powershell
+dotnet build SVN_Notifier.sln --configuration Release
+pwsh -File .github/scripts/Build-Windows.ps1 -RuntimeIdentifier win-x64
+pwsh -File .github/scripts/Build-Windows.ps1 -RuntimeIdentifier win-x86
+```
+
+Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages/`. Der Workflow stellt sie auch bei normalen Builds als herunterladbare Actions-Artefakte zur Verfügung und prüft den Anwendungsstart beider Architekturen.
+
+Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.3` die Veröffentlichung aus:
+
+```powershell
+git tag v3.0.0.3
+git push mggm v3.0.0.3
+```
+
+Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds und Startprüfungen. Er überprüft die Prüfsummen, lädt die Pakete zunächst in einen Release-Entwurf hoch und veröffentlicht diesen anschließend. Dafür genügt das automatische `GITHUB_TOKEN`; zusätzliche Repository-Secrets sind nicht erforderlich.
 
 ### What's new in v3.0.0.2
 
