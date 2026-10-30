@@ -25,7 +25,7 @@ foreach ($propertyName in @('AssemblyVersion', 'FileVersion', 'InformationalVers
 if ($ReleaseTag -and $ReleaseTag -cne "v$version") {
     throw "Release-Tag $ReleaseTag stimmt nicht mit der Projektversion v$version überein."
 }
-if (-not $IsWindows) {
+if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
     throw 'Das Paket muss unter Windows gebaut und geprüft werden.'
 }
 

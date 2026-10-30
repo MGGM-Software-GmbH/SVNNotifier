@@ -41,10 +41,13 @@ jobs:
           RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
         run: ./.github/scripts/Build-Windows.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER -ReleaseTag $env:RELEASE_TAG
       - name: Anwendungsstart aus dem ZIP-Paket prüfen
+        shell: powershell
         env:
           RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
         run: |
           $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
           $archive = @(Get-ChildItem "artifacts/packages/*-$env:RUNTIME_IDENTIFIER.zip")
           if ($archive.Count -ne 1) { throw 'Genau ein ZIP-Paket wird erwartet.' }
           $testPath = Join-Path $env:RUNNER_TEMP "smoke-$env:RUNTIME_IDENTIFIER"
@@ -54,16 +57,26 @@ jobs:
               throw "Datei fehlt im ZIP-Paket: $fileName"
             }
           }
+          # Eine portable Testkonfiguration verhindert Zugriffe auf vorhandene Benutzer-Repositories.
+          @('[Settings]', 'Version=1.9', 'Language=0', 'SVN_path=missing-svn.exe', 'TortoiseSVN_path=missing-tortoise.exe') |
+            Set-Content -LiteralPath (Join-Path $testPath 'SVN_Notifier.ini') -Encoding ascii
           $process = Start-Process -FilePath (Join-Path $testPath 'SVN_Notifier.exe') -WorkingDirectory $testPath -PassThru
           try {
+            $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
             $deadline = [DateTime]::UtcNow.AddSeconds(30)
             do {
               Start-Sleep -Milliseconds 500
               $process.Refresh()
               if ($process.HasExited) { throw "Die Anwendung wurde beendet: Exit-Code $($process.ExitCode)" }
-            } while ($process.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
-            if ($process.MainWindowHandle -eq 0 -or -not $process.Responding) {
-              throw 'Die Anwendung hat kein reagierendes Fenster geöffnet.'
+              $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
+              $settingsWindow = $windows | Where-Object { $_.Current.Name -ceq 'Settings' -and -not $_.Current.IsOffscreen } | Select-Object -First 1
+            } while ($null -eq $settingsWindow -and [DateTime]::UtcNow -lt $deadline)
+            if ($null -eq $settingsWindow) {
+              throw 'Die Anwendung hat den Einstellungsdialog nicht geöffnet.'
+            }
+            $windowPattern = $settingsWindow.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
+            if (-not $windowPattern.WaitForInputIdle(5000)) {
+              throw 'Der Einstellungsdialog reagiert nicht.'
             }
             Write-Host "Anwendungsstart erfolgreich: $env:RUNTIME_IDENTIFIER"
           } finally {
