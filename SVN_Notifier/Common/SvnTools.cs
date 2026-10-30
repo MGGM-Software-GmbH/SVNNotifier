@@ -21,322 +21,190 @@
 using System;
 using System.Collections;
 using System.Diagnostics;
-using System.IO;
-using System.Text;
-using System.Threading;
-using System.Windows.Forms;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace CHD.SVN_Notifier
 {
-	
+    public class SvnFolderProcess
+    {
+        public readonly SvnItem folder;
+        public readonly Process process;
+        public readonly bool isUpdateCommand;
+        public ArrayList processOutput = new ArrayList();
+        public bool updateError;
+        internal Task<SvnProcessResult>? Completion;
 
+        public SvnFolderProcess(SvnItem f, Process p, bool isUpdateCommand)
+        {
+            folder = f;
+            process = p;
+            updateError = false;
+            this.isUpdateCommand = isUpdateCommand;
+        }
+    }
 
-	public class SvnFolderProcess
-	{
-		public readonly SvnItem folder;
-		public readonly Process process;
-		public readonly bool isUpdateCommand;
-		public ArrayList processOutput = new ArrayList();
-		public bool updateError;
+    public delegate void SvnErrorAddedHandler(string path, string error);
 
+    public class SvnTools
+    {
+        public static event SvnErrorAddedHandler? ErrorAdded;
+        private static readonly SvnOperationRunner runner = new(message => Config.WriteLog("SvnOperation", message), rejected: (root, reason) =>
+        {
+            if (reason.StartsWith("coordination-error:", StringComparison.Ordinal))
+                ErrorAdded?.Invoke(root, Loc.Svn_CoordinationError(reason));
+        });
+        public static readonly ArrayList svnFolderProcesses = ArrayList.Synchronized(new ArrayList());
+        internal static bool HasActiveOperations => runner.HasActiveOperations;
 
-		public SvnFolderProcess(SvnItem f, Process p, bool isUpdateCommand)
-		{
-			folder = f;
-			process = p;
-			updateError = false;
-			this.isUpdateCommand = isUpdateCommand;
-		}
-	}
+        // TODO: Optimize speed; join GetRepositoryHeadRevision and GetRepositoryCommitedRevision functions into one:
+        // void int GetRepositoryRevisions (string path, out int headRevision, out int committedRevision)
+        private static int GetRepositoryRevision(SvnItem folder, string revision)
+        {
+            var arguments = new[] { "info", "--non-interactive", "--xml", folder.Path };
+            if (!string.IsNullOrEmpty(revision)) arguments = arguments.Concat(new[] { "-r", revision }).ToArray();
+            var completion = runner.TryStart(folder.Path, "info", Config.SVNpath, arguments, true, Config.SvnCommandTimeout);
+            if (completion is null) { folder.DeferOperation(); return -1; }
+            var result = completion.GetAwaiter().GetResult();
+            if (!result.Success) { ReportFailure(folder, result); return -1; }
+            try
+            {
+                var entry = XDocument.Parse(result.Output).Root?.Element("entry");
+                folder.RepositoryUrl = entry?.Element("url")?.Value;
+                return int.Parse(entry?.Attribute("revision")?.Value ?? "-1");
+            }
+            catch { folder.DeferOperation(); ErrorAdded?.Invoke(folder.Path, Loc.Svn_InvalidInfo); return -1; }
+        }
 
+        public static int GetRepositoryHeadRevision(SvnItem folder) => GetRepositoryRevision(folder, "HEAD");
+        public static int GetRepositoryCommitedRevision(SvnItem folder) => GetRepositoryRevision(folder, "COMMITTED");
 
-	public delegate void SvnErrorAddedHandler(string path, string error);
+        public static void OpenChangeLogWindow(SvnItem folder, bool updateRevisions)
+        {
+            if (updateRevisions)
+            {
+                int head = GetRepositoryHeadRevision(folder);
+                int committed = GetRepositoryCommitedRevision(folder);
+                if (head < 0 || committed < 0) return;
+                folder.reviewedRevision = head;
+                folder.updateRevision = committed;
+            }
+            StartTracked(folder, "log", new[] { "/command:log", "/path:" + folder.Path, "/revend:" + folder.updateRevision }, false, false);
+        }
 
+        public static void OpenLogWindow(string path) =>
+            StartTracked(new SvnItem(path, PathType.Directory), "log", new[] { "/command:log", "/path:" + path }, false, false);
 
-	public class SvnTools
-	{
-		public static event SvnErrorAddedHandler ErrorAdded;
+        /// <summary>
+        /// This method waits until updating will finish
+        /// </summary>
+        public static bool Update(SvnItem folder, bool updateAll)
+        {
+            var arguments = new[] { "/command:update", "/path:" + folder.Path, "/notempfile", "/closeonend:" + Config.UpdateWindowAction };
+            if (Config.ChangeLogBeforeUpdate && !updateAll)
+                arguments = arguments.Concat(new[] { "/rev:" + folder.reviewedRevision }).ToArray();
+            var completion = runner.TryStart(folder.Path, "update-dialog", Config.TortoiseSVNpath, arguments, false, captureOutput: false);
+            if (completion is null) { folder.DeferOperation(); return false; }
+            var result = completion.GetAwaiter().GetResult();
+            if (!result.Success) ReportFailure(folder, result);
+            return result.Success;
+        }
 
-		// TortoiseSVN switches
-		private const string tortoiseChangeLogArguments = "/command:log /path:\"{0}\" /revend:{1}";
-		private const string tortoiseLogArguments = "/command:log /path:\"{0}\"";
-		private const string tortoiseUpdateArguments = "/command:update /path:\"{0}\"{1} /notempfile /closeonend:{2}";
-		private const string tortoiseCommitArguments = "/command:commit /path:\"{0}\" /notempfile";
+        /// <summary>Startet nur nach erfolgreicher Reservierung der gesamten Arbeitskopie.</summary>
+        public static bool BeginUpdateSilently(SvnItem folder)
+        {
+            int committed = GetRepositoryCommitedRevision(folder);
+            if (committed < 0) return false;
+            folder.updateRevision = committed;
+            return StartTracked(folder, "update", new[] { "update", "--non-interactive", folder.Path }, true, true);
+        }
 
-		// SVN switches
-		private const string svnStatusArguments = "status -u --non-interactive --xml \"{0}\"";
-		private const string svnInfoArguments = "info --non-interactive --xml \"{0}\" {1}";
-		private const string svnUpdateArguments = "update --non-interactive \"{0}\"";
+        private static bool StartTracked(SvnItem folder, string action, string[] arguments, bool update, bool commandLine)
+        {
+            // Skip this folder if update or commit is in progress. Die Reservierung gilt auch für andere Unterordner.
+            var completion = runner.TryStart(folder.Path, action, commandLine ? Config.SVNpath : Config.TortoiseSVNpath, arguments, false, captureOutput: commandLine);
+            if (completion is null) { folder.DeferOperation(); return false; }
+            lock (svnFolderProcesses.SyncRoot)
+                svnFolderProcesses.Add(new SvnFolderProcess(folder, new Process(), update) { Completion = completion });
+            return true;
+        }
 
-		public static ArrayList svnFolderProcesses = ArrayList.Synchronized(new ArrayList());
-		private static Process backgroundProcess;
+        /// <summary>Liest nur abgeschlossene Ergebnisse. Laufende Prozesse werden ohne blockierende Stream-Lesezugriffe überwacht.</summary>
+        public static void ReadProcessOutput(SvnFolderProcess process)
+        {
+            if (process.Completion is null || !process.Completion.IsCompleted) return;
+            var result = process.Completion.GetAwaiter().GetResult();
+            process.processOutput.Clear();
+            foreach (string line in (result.Output + "\n" + result.Error).Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                process.processOutput.Add(line.TrimEnd('\r'));
+            process.updateError = !result.Success || !string.IsNullOrWhiteSpace(result.Error)
+                || result.Output.Split('\n').Any(line => line.StartsWith("C ") || line.StartsWith("Skipped "));
+            if (process.updateError) process.folder.DeferOperation();
+        }
 
+        /// <summary>Entnimmt beendete Prozesse atomar, unabhängig davon, ob ihr Eintrag noch überwacht wird.</summary>
+        internal static SvnFolderProcess[] TakeCompleted()
+        {
+            lock (svnFolderProcesses.SyncRoot)
+            {
+                var completed = svnFolderProcesses.Cast<SvnFolderProcess>().Where(item => item.Completion?.IsCompleted == true).ToArray();
+                foreach (var item in completed)
+                {
+                    ReadProcessOutput(item);
+                    svnFolderProcesses.Remove(item);
+                    item.process.Dispose();
+                }
+                return completed;
+            }
+        }
 
-		// TODO: Optimize speed; join GetRepositoryHeadRevision and GetRepositoryCommitedRevision functions into one:
-		// void int GetRepositoryRevisions (string path, out int headRevision, out int committedRevision)
-		private static int GetRepositoryRevision(SvnItem folder, string arg)
-		{
-			string arguments = String.Format(svnInfoArguments, folder.Path, arg);
-			ExecuteResult er = ExecuteProcess(Config.SVNpath, folder.Path, arguments, true, false, useTimeout: true);
+        public static bool Commit(SvnItem folder) =>
+            StartTracked(folder, "commit-dialog", new[] { "/command:commit", "/path:" + folder.Path, "/notempfile" }, false, false);
 
-			try
-			{
-				SvnXml.Create(er.processOutput);
-				SvnXml.ParseXmlForStatus();
-				folder.RepositoryUrl = SvnXml.GetValue("url");
-				return Convert.ToInt32(SvnXml.GetValue("revision"));
-			}
-			catch
-			{
-				return 0;
-			}
-		}
+        /// <summary>Ein belegter Koordinationspfad ändert weder den Status noch vorhandene Benachrichtigungen.</summary>
+        public static SvnStatus? GetSvnFolderStatus(SvnItem folder)
+        {
+            var completion = runner.TryStart(folder.Path, "status", Config.SVNpath,
+                new[] { "status", "-u", "--non-interactive", "--xml", folder.Path }, true, Config.SvnCommandTimeout);
+            if (completion is null) { folder.DeferOperation(); return null; }
+            var result = completion.GetAwaiter().GetResult();
+            if (!result.Success) { ReportFailure(folder, result); return SvnStatus.Error; }
+            if (folder.RepositoryUrl is null) GetRepositoryRevision(folder, ""); // Fill folder.RepositoryUrl
+            try
+            {
+                // Because SVN may return non-valid XML in some cases?
+                //http://svn.collab.net/repos/svn/trunk/subversion/svn/status.c
+                //http://blog.wolfman.com/articles/category/svn
+                // Der vorhandene XML-Parser verwendet statischen Zustand; auch unterschiedliche Arbeitskopien dürfen ihn nicht mischen.
+                lock (typeof(SvnXml))
+                {
+                    SvnXml.Create(result.Output);
+                    SvnXml.ParseXmlForStatus();
+                    if (!SvnXml.ContainsKey("revision"))
+                    {
+                        folder.DeferOperation();
+                        ErrorAdded?.Invoke(folder.Path, "Folder not found in repository");
+                        return SvnStatus.Error;
+                    }
+                    if (SvnXml.ContainsKey("NeedUpdate"))
+                        return SvnXml.ContainsKey("Modified") ? SvnStatus.NeedUpdate_Modified : SvnStatus.NeedUpdate;
+                    return SvnXml.ContainsKey("Modified") ? SvnStatus.UpToDate_Modified : SvnStatus.UpToDate;
+                }
+            }
+            catch { folder.DeferOperation(); return SvnStatus.Error; }
+        }
 
+        /// <summary>Die Fehleranzeige erhält keine ungefilterten SVN-Ausgaben mit möglicherweise enthaltenen Zugangsdaten.</summary>
+        private static void ReportFailure(SvnItem folder, SvnProcessResult result)
+        {
+            folder.DeferOperation();
+            ErrorAdded?.Invoke(folder.Path, result.Cancelled ? Loc.Svn_Cancelled : Loc.Svn_ProcessError(result.ExitCode));
+        }
 
-		public static int GetRepositoryHeadRevision(SvnItem folder)
-		{
-			return GetRepositoryRevision(folder, "-r HEAD");
-		}
+        /// <summary>Stoppt neue Aufträge und wartet auf die Freigabe aller bereits angenommenen Vorgänge.</summary>
+        internal static Task StopAsync() => runner.StopAsync();
 
-
-		public static int GetRepositoryCommitedRevision(SvnItem folder)
-		{
-			return GetRepositoryRevision(folder, "-r COMMITTED");
-		}
-
-
-		public static void OpenChangeLogWindow(SvnItem folder, bool updateRevisions)
-		{
-			if (updateRevisions)
-			{
-				folder.reviewedRevision = GetRepositoryHeadRevision(folder);
-				folder.updateRevision = GetRepositoryCommitedRevision(folder);
-			}
-			string arguments = String.Format(tortoiseChangeLogArguments, folder.Path, folder.updateRevision);
-			ExecuteProcess(Config.TortoiseSVNpath, null, arguments, false, false);
-		}
-
-
-		public static void OpenLogWindow(string path)
-		{
-			string arguments = String.Format(tortoiseLogArguments, path);
-			ExecuteProcess(Config.TortoiseSVNpath, null, arguments, false, false);
-		}
-
-
-		/// <summary>
-		/// This method waits until updating will finish
-		/// </summary>
-		public static void Update(SvnItem folder, bool updateAll)
-		{
-			string revision = Config.ChangeLogBeforeUpdate && !updateAll ? " /rev:" + folder.reviewedRevision : "";
-			string arguments = String.Format(tortoiseUpdateArguments, folder.Path, revision, Config.UpdateWindowAction);
-			ExecuteProcess(Config.TortoiseSVNpath, null, arguments, true, false);
-		}
-
-
-		public static void BeginUpdateSilently(SvnItem folder)
-		{
-			// Skip this folder if update or commit is in progress
-			foreach (SvnFolderProcess sp in svnFolderProcesses)
-				if (sp.folder.Path == folder.Path)
-					return;
-
-			folder.updateRevision = GetRepositoryCommitedRevision(folder);
-			string arguments = String.Format(svnUpdateArguments, folder.Path);
-			ExecuteResult er = ExecuteProcess(Config.SVNpath, null, arguments, false, false);
-			Config.WriteLog("Svn", arguments);
-			svnFolderProcesses.Add(new SvnFolderProcess(folder, er.process, true));
-		}
-
-
-		public static void ReadProcessOutput(SvnFolderProcess sfp)
-		{
-			while (!sfp.process.StandardOutput.EndOfStream)
-			{
-				var line = sfp.process.StandardOutput.ReadLine();
-				sfp.processOutput.Add(line);
-				if (sfp.isUpdateCommand && (line.Length > 1))
-				{
-					if (line.StartsWith("C ") || line.StartsWith("svn"))
-						sfp.updateError = true;
-
-					else if (line.StartsWith("Skipped "))
-						sfp.updateError = true;
-				}
-			}
-
-			while (!sfp.process.StandardError.EndOfStream)
-			{
-				sfp.processOutput.Add(sfp.process.StandardError.ReadLine());
-				if (sfp.isUpdateCommand)
-					sfp.updateError = true;
-			}
-		}
-
-
-		public static void Commit(SvnItem folder)
-		{
-			string arguments = String.Format(tortoiseCommitArguments, folder.Path);
-			ExecuteResult er = ExecuteProcess(Config.TortoiseSVNpath, null, arguments, false, false);
-			svnFolderProcesses.Add(new SvnFolderProcess(folder, er.process, false));
-		}
-
-
-		public static SvnStatus GetSvnFolderStatus(SvnItem folder)
-		{
-			string path = folder.Path;
-			if (!Directory.Exists(path) && !File.Exists(path))
-			{
-				ErrorAdded(path, "File or folder don't exist!");
-				return SvnStatus.Error;
-			}
-
-			if (folder.RepositoryUrl == null)
-				GetRepositoryRevision(folder, null);    // Fill folder.RepositoryUrl
-
-			try
-			{
-				string arguments = String.Format(svnStatusArguments, path);
-				ExecuteResult er = ExecuteProcess(Config.SVNpath, path, arguments, true, true, useTimeout: true);
-
-				SvnXml.Create(er.processOutput);        // Because SVN may return non-valid XML in some cases?
-
-				try
-				{
-					//http://svn.collab.net/repos/svn/trunk/subversion/svn/status.c
-					//http://blog.wolfman.com/articles/category/svn
-
-					SvnXml.ParseXmlForStatus();
-
-					if (!SvnXml.ContainsKey("revision"))
-					{
-						ErrorAdded(path, "Folder not found in repository");
-						return SvnStatus.Error;
-					}
-
-					if (SvnXml.ContainsKey("NeedUpdate"))
-					{
-						if (SvnXml.ContainsKey("Modified"))
-							return SvnStatus.NeedUpdate_Modified;
-
-						return SvnStatus.NeedUpdate;
-					}
-
-					if (SvnXml.ContainsKey("Modified"))
-						return SvnStatus.UpToDate_Modified;
-
-					return SvnStatus.UpToDate;
-				}
-				catch
-				{
-					return SvnStatus.Error;
-				}
-			}
-			catch
-			{
-				return SvnStatus.Unknown;
-			}
-		}
-
-
-		private static ExecuteResult ExecuteProcess(string executionFile, string workingPath, string arguments, bool waitForExit, bool lowPriority, bool useTimeout = false)
-		{
-			ProcessStartInfo psi = new ProcessStartInfo
-			{
-				FileName = executionFile,
-				Arguments = arguments,
-				CreateNoWindow = true,
-				UseShellExecute = false,
-				RedirectStandardOutput = true,
-				RedirectStandardError = true,
-				StandardOutputEncoding = Encoding.ASCII
-			};
-
-			ExecuteResult er = new ExecuteResult();
-			er.process = Process.Start(psi);
-
-			if (waitForExit) backgroundProcess = er.process;
-
-			if (lowPriority)
-			{
-				try
-				{
-					er.process.PriorityClass = ProcessPriorityClass.Idle;
-				}
-				catch   // Exception may occur if process finishing or already finished
-				{
-				}
-			}
-
-			if (waitForExit)
-			{
-				ArrayList lines = new ArrayList();
-				string line;
-
-				// Read output stream
-				while ((line = er.process.StandardOutput.ReadLine()) != null)
-					lines.Add(line);
-
-				er.processOutput = String.Join("\n", (string[])lines.ToArray(typeof(string)));
-				lines.Clear();
-
-				// Read error stream
-				while ((line = er.process.StandardError.ReadLine()) != null)
-					lines.Add(line);
-
-				er.processError = String.Join("\n", (string[])lines.ToArray(typeof(string)));
-				lines.Clear();
-
-				if (er.processError.Length > 0)
-					ErrorAdded(workingPath, er.processError);
-
-				int timeoutMs = (useTimeout && Config.SvnCommandTimeout > 0) ? Config.SvnCommandTimeout * 1000 : -1;
-				bool exited = er.process.WaitForExit(timeoutMs);
-				if (!exited)
-				{
-					try { er.process.Kill(); } catch { }
-					string timeoutError = $"SVN command timed out after {Config.SvnCommandTimeout} seconds.";
-					ErrorAdded(workingPath, timeoutError);
-				}
-				else if ((uint)er.process.ExitCode == 0xc0000142)   // STATUS_DLL_INIT_FAILED - Occurs when Windows shutdown in progress
-				{
-					Application.Exit();
-					// Thread.Abort() is not supported in .NET 5+; background thread exits with the process.
-				}
-
-				backgroundProcess = null;
-			}
-			else
-			{
-				er.processOutput = "";
-				er.processError = "";
-			}
-
-			return er;
-		}
-
-
-		public static void KillBackgroundProcess()
-		{
-			if (backgroundProcess != null)
-			{
-				try
-				{
-					backgroundProcess.Kill();
-				}
-				catch
-				{
-				}
-			}
-		}
-
-
-		private struct ExecuteResult
-		{
-			public Process process;
-			public string processError;
-			public string processOutput;
-		}
-	}
+        public static void KillBackgroundProcess() => _ = StopAsync();
+    }
 }

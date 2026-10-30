@@ -204,8 +204,20 @@ namespace CHD.SVN_Notifier
 		}
 
 
-		private void ExitMenuItem_Click(object sender, EventArgs e)
+		private async void ExitMenuItem_Click(object sender, EventArgs e)
 		{
+			await ExitSafelyAsync();
+		}
+
+		/// <summary>Beendet Leseprüfungen und wartet vor dem Programmende auf bereits gestartete Schreibvorgänge.</summary>
+		private async Task ExitSafelyAsync()
+		{
+			if (sessionEndInProgress) return;
+			sessionEndInProgress = true;
+			StatusUpdateTimer.Stop();
+			PauseTimer.Stop();
+			StatusLabel.Text = Loc.Status_WaitingForOperations;
+			await SvnTools.StopAsync();
 			Application.Exit();
 		}
 
@@ -494,9 +506,9 @@ namespace CHD.SVN_Notifier
 		}
 
 
-		private void TrayExitMenuItem_Click(object sender, EventArgs e)
+		private async void TrayExitMenuItem_Click(object sender, EventArgs e)
 		{
-			Application.Exit();
+			await ExitSafelyAsync();
 		}
 
 		private void TrayUpdateAllMenuItem_Click(object sender, EventArgs e)
@@ -666,6 +678,7 @@ namespace CHD.SVN_Notifier
 		private void MainForm_FormClosed(object sender, FormClosedEventArgs e)
 		{
 			StopApplicationUpdates();
+			SvnTools.ErrorAdded -= OnErrorAdded;
 			RemovePowerEventListener();
 		}
 
@@ -769,7 +782,7 @@ namespace CHD.SVN_Notifier
 
 		private void BeginUpdateFolderStatuses()
 		{
-			if (applicationInstallationInProgress)
+			if (applicationInstallationInProgress || sessionEndInProgress)
 				return;
 			if (folders.Count > 0)
 			{
@@ -803,37 +816,29 @@ namespace CHD.SVN_Notifier
 
 				while (true)
 				{
+					if (sessionEndInProgress) break;
 					SafeInvoke(new MethodInvoker(BeginUpdateListView));
+					// Check commit and update processes for finishing, auch bei entfernten oder deaktivierten Einträgen.
+					foreach (var sfp in SvnTools.TakeCompleted())
+					{
+						if (sfp.isUpdateCommand && sfp.updateError)
+						{
+							sfp.folder._IsAutoUpdating = false;
+							SafeInvoke(new ShowUpdateErrorsMethod(ShowUpdateErrors), new object[] { sfp }, Int32.MaxValue);
+						}
+						forcedFolders.Enqueue(sfp.folder);
+					}
 					foreach (SvnItem folder in (SvnItem[])folders.ToArray().Clone())
 					{
 						if (!folder.Enabled)
 							continue;
 						updateNotInProgress.WaitOne();
-						bool skipUpdateStatus = false;
-						// Check commit and update processes for finishing
-						for (int i = 0; i < SvnTools.svnFolderProcesses.Count; i++)
-						{
-							var sfp = (SvnFolderProcess)SvnTools.svnFolderProcesses[i];
-
-							if (sfp.process.HasExited)
-							{
-								if (sfp.isUpdateCommand && sfp.updateError)
-									SafeInvoke(new ShowUpdateErrorsMethod(ShowUpdateErrors), new object[] { sfp }, Int32.MaxValue);
-
-								UpdateFolderStatus(sfp.folder);
-								SvnTools.svnFolderProcesses.RemoveAt(i--);
-							}
-							else if ((folder.Path == sfp.folder.Path) && sfp.isUpdateCommand)
-							{
-								skipUpdateStatus = true;        // Because updating is still in progress
-								SvnTools.ReadProcessOutput(sfp);
-							}
-						}
+						// Because updating is still in progress, entscheidet die gemeinsame Reservierung über jeden Start.
 
 						while (forcedFolders.TryDequeue(out var forcedFolder))
 							UpdateFolderStatus(forcedFolder);
 
-						if ((folder.StatusTime + new TimeSpan(0, 0, folder.GetInterval(formIsActive)) <= DateTime.Now) && !skipUpdateStatus)
+						if (folder.NextCheckTime(formIsActive) <= DateTime.Now)
 							UpdateFolderStatus(folder);
 					}
 
@@ -928,11 +933,13 @@ namespace CHD.SVN_Notifier
 		/// </summary>
 		private void UpdateFolderStatus(SvnItem folder)
 		{
+			if (!folder.RetryReady) return;
 			SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_Checking(folder.Path) });
 			DateTime statusTime = DateTime.Now;
 			if (sessionEndInProgress) return;       // Need to avoid error on svn.exe invoking
-			SvnStatus status = SvnTools.GetSvnFolderStatus(folder);
-			SafeInvoke(new UpdateListViewMethod(UpdateListView), new object[] { folder, status, statusTime });
+			SvnStatus? status = SvnTools.GetSvnFolderStatus(folder);
+			if (status.HasValue)
+				SafeInvoke(new UpdateListViewMethod(UpdateListView), new object[] { folder, status.Value, statusTime });
 		}
 
 
@@ -965,18 +972,11 @@ namespace CHD.SVN_Notifier
 					newNonUpdatedFolders.Add(folder);
 					UpdateTray(true);
 					
-					// Auto-Update: if enabled for this folder, update it silently in the background
-					if (folder.AutoUpdate)
-					{
-						folder.Status = SvnStatus.Unknown;
-						folder._IsAutoUpdating = true;
-						SvnTools.BeginUpdateSilently(folder);
-					}
 				}
 				else
 				{
 					// If auto-update was in progress and is now complete, show toast
-					if (folder._IsAutoUpdating)
+					if (folder._IsAutoUpdating && (folderStatus == SvnStatus.UpToDate || folderStatus == SvnStatus.UpToDate_Modified))
 					{
 						folder._IsAutoUpdating = false;
 						TrayNotifyIcon.ShowBalloonTip(3000, Loc.Tooltip_AutoUpdate, Loc.Toast_AutoUpdateCompleted(folder.VisiblePath), ToolTipIcon.Info);
@@ -989,6 +989,14 @@ namespace CHD.SVN_Notifier
 			}
 			else
 				folder.Status = folderStatus;       // Update status time only
+			// Auto-Update: if enabled for this folder, update it silently in the background.
+			// Nach belegter Koordination auch bei unverändertem Änderungsstatus erneut versuchen.
+			if ((folderStatus == SvnStatus.NeedUpdate || folderStatus == SvnStatus.NeedUpdate_Modified)
+				&& folder.AutoUpdate && !folder._IsAutoUpdating && folder.RetryReady && SvnTools.BeginUpdateSilently(folder))
+			{
+				folder.Status = SvnStatus.Unknown;
+				folder._IsAutoUpdating = true;
+			}
 		}
 
 
@@ -1131,7 +1139,9 @@ namespace CHD.SVN_Notifier
 
 		private void OnErrorAdded(string path, string error)
 		{
-			SafeInvoke(new UpdateErrorLogMethod(UpdateErrorLog), new object[] { path, error });
+			if (IsDisposed || sessionEndInProgress) return;
+			if (InvokeRequired) BeginInvoke(new UpdateErrorLogMethod(UpdateErrorLog), path, error);
+			else UpdateErrorLog(path, error);
 		}
 
 
@@ -1232,6 +1242,7 @@ namespace CHD.SVN_Notifier
 				Thread.CurrentThread.Name = "Main";
 				Application.ThreadException += OnThreadException;
 				Application.Run(form);
+				SvnTools.StopAsync().GetAwaiter().GetResult();
 			}
 			catch (Exception e)
 			{
@@ -1293,8 +1304,7 @@ namespace CHD.SVN_Notifier
 			}
 			if (column == ColumnAutoUpdate)
 			{
-				// Show green checkmark if AutoUpdate is enabled
-				e.Value = (bool?)e.Value == true ? "✓" : "";
+				// Show green checkmark if AutoUpdate is enabled. Die Checkbox zeigt auch den ausgeschalteten Zustand.
 				e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
 				e.CellStyle.ForeColor = ApplicationTheme.Success;  // Grüner Indikator für aktive automatische Updates
 				e.CellStyle.SelectionForeColor = SystemInformation.HighContrast ? SystemColors.HighlightText : ApplicationTheme.Success;
@@ -1342,7 +1352,7 @@ namespace CHD.SVN_Notifier
 			
 			if (column == ColumnAutoUpdate)
 			{
-				e.ToolTipText = Loc.Tooltip_AutoUpdate;
+				e.ToolTipText = Loc.Tooltip_AutoUpdateState(((SvnItem)grid.Rows[e.RowIndex].DataBoundItem).AutoUpdate);
 			}
 		}
 

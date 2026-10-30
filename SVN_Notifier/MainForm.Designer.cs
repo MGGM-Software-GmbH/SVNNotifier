@@ -90,7 +90,7 @@
 			this.PauseTimer = new System.Windows.Forms.Timer(this.components);
 			this.ItemListView = new System.Windows.Forms.DataGridView();
 			this.ColumnEnabled = new System.Windows.Forms.DataGridViewCheckBoxColumn();
-			this.ColumnAutoUpdate = new System.Windows.Forms.DataGridViewTextBoxColumn();
+			this.ColumnAutoUpdate = new System.Windows.Forms.DataGridViewCheckBoxColumn();
 			this.ImageColumn = new System.Windows.Forms.DataGridViewImageColumn();
 			this.StatusColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
 			this.ColumnVisiblePath = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -782,7 +782,7 @@
 		private System.Windows.Forms.ToolStripButton PropertiesButton;
 		private System.Windows.Forms.ToolStripSeparator CommitButtonSeparator;
 		private System.Windows.Forms.DataGridViewCheckBoxColumn ColumnEnabled;
-		private System.Windows.Forms.DataGridViewTextBoxColumn ColumnAutoUpdate;
+		private System.Windows.Forms.DataGridViewCheckBoxColumn ColumnAutoUpdate;
 		private System.Windows.Forms.DataGridViewImageColumn ImageColumn;
 		private System.Windows.Forms.DataGridViewTextBoxColumn StatusColumn;
 		private System.Windows.Forms.DataGridViewTextBoxColumn ColumnVisiblePath;

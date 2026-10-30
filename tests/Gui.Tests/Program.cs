@@ -48,6 +48,7 @@ internal static class Program
                     folders.Add(new SvnItem($@"C:\Projekte\{new[] { "Kundenportal", "Office", "Abrechnung", "Schnittstellen", "Archiv", "Testumgebung" }[index]}", PathType.Directory)
                     { Status = statuses[index], AutoUpdate = index % 2 == 0 });
                 folders.Add(new SvnItem(@"C:\Projekte\Pausiertes Projekt", PathType.Directory) { Enabled = false, AutoUpdate = false });
+                foreach (var folder in folders) folder.VisiblePath = folder.Path;
                 Show(main);
                 var grid = Control<DataGridView>(main, "ItemListView");
                 if (args.Contains("--negative-missing-command"))
@@ -67,14 +68,35 @@ internal static class Program
                 grid.CurrentCell = grid.Rows[0].Cells["PathColumn"];
                 Assert(!((ToolStripButton)Field(main, "UpdateButton").GetValue(main)!).Enabled, "Synchronisierte Repositories brauchen kein Update");
                 bool previousAutoUpdate = folders[0].AutoUpdate;
+                Assert(grid.Columns["ColumnAutoUpdate"] is DataGridViewCheckBoxColumn
+                    && (bool)grid.Rows[0].Cells["ColumnAutoUpdate"].Value == folders[0].AutoUpdate
+                    && (bool)grid.Rows[1].Cells["ColumnAutoUpdate"].Value == folders[1].AutoUpdate,
+                    "Auto-Update hat sichtbare aktivierte und deaktivierte Checkboxen");
                 ClickCell(grid, "ColumnAutoUpdate");
                 Assert(folders[0].AutoUpdate != previousAutoUpdate, "Repository-Auto-Update lässt sich umschalten");
                 Assert(Config.ReadSvnFolders().Single(folder => folder.Path == folders[0].Path).AutoUpdate == folders[0].AutoUpdate, "Repository-Auto-Update wird gespeichert");
                 ClickCell(grid, "ColumnAutoUpdate");
+                grid.CurrentCell = grid.Rows[0].Cells["ColumnAutoUpdate"];
+                typeof(DataGridView).GetMethod("OnKeyDown", BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .Invoke(grid, new object[] { new KeyEventArgs(Keys.Space) });
+                Assert(folders[0].AutoUpdate != previousAutoUpdate, "Auto-Update lässt sich per Leertaste umschalten");
+                typeof(DataGridView).GetMethod("OnKeyDown", BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .Invoke(grid, new object[] { new KeyEventArgs(Keys.Space) });
                 ClickCell(grid, "ColumnEnabled");
                 Assert(!folders[0].Enabled, "Repository-Prüfung lässt sich ausschalten");
                 ClickCell(grid, "ColumnEnabled");
                 Assert(folders[0].Enabled, "Repository-Prüfung lässt sich einschalten");
+                var tray = (NotifyIcon)Field(main, "TrayNotifyIcon").GetValue(main)!;
+                bool trayVisible = tray.Visible;
+                tray.Visible = false;
+                typeof(MainForm).GetMethod("UpdateListView", BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .Invoke(main, new object[] { folders[5], SvnStatus.NeedUpdate, DateTime.Now });
+                Assert(folders[5].Status == SvnStatus.NeedUpdate
+                    && (string?)Field(main, "firstBalloonPath").GetValue(main) == folders[5].VisiblePath,
+                    "Eingehende Änderungen erzeugen bei ausgeschaltetem Auto-Update weiterhin Benachrichtigungen");
+                tray.Visible = trayVisible;
+                folders[5].Status = SvnStatus.Unknown;
+                ((BindingList<SvnItem>)Field(main, "newNonUpdatedFolders").GetValue(main)!).Clear();
                 grid.CurrentCell = grid.Rows[1].Cells["PathColumn"];
                 main.Text = $"SVN Notifier {typeof(MainForm).Assembly.GetName().Version}";
                 Capture(main, output, $"main-{language}", args);

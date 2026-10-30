@@ -68,6 +68,14 @@ namespace CHD.SVN_Notifier
 		public static string Col_Path            => T("Path",                          "Pfad");
 		public static string Col_AutoUpdate      => T("Auto Update",                   "Auto-Update");
 		public static string Tooltip_AutoUpdate  => T("Auto-update when changes are detected", "Automatisches Aktualisieren wenn Änderungen erkannt werden");
+		public static string Tooltip_AutoUpdateState(bool enabled) => enabled
+			? T("Automatic SVN updates enabled. Click to disable.", "Automatische SVN-Updates aktiv. Zum Ausschalten anklicken.")
+			: T("Automatic SVN updates disabled. Click to enable.", "Automatische SVN-Updates ausgeschaltet. Zum Einschalten anklicken.");
+		public static string Status_WaitingForOperations => T("Waiting for SVN operations to finish...", "Warte auf das Ende laufender SVN-Vorgänge...");
+		public static string Svn_CoordinationError(string reason) => T("SVN coordination unavailable: ", "SVN-Koordination nicht möglich: ") + reason;
+		public static string Svn_InvalidInfo => T("Invalid SVN info response.", "Ungültige SVN-Info-Antwort.");
+		public static string Svn_Cancelled => T("SVN check cancelled or timed out.", "SVN-Prüfung abgebrochen oder Zeitlimit erreicht.");
+		public static string Svn_ProcessError(int? exitCode) => T("SVN operation failed. Exit code: ", "SVN-Vorgang fehlgeschlagen. Exit-Code: ") + exitCode;
 		public static string Toast_AutoUpdateCompleted(string path) => IsDe ? $"✓ Aktualisiert: {path}" : $"✓ Updated: {path}";
 
 		// Context menu

@@ -386,8 +386,11 @@ namespace CHD.SVN_Notifier
 		/// <param name="arguments"></param>
 		public static void WriteLog(string section, string arguments)
 		{
-			File.AppendAllText(logFileName, string.Format("{0}\t{1}\t{2}\r\n", DateTime.Now, section, arguments));
+			lock (logSync)
+				File.AppendAllText(logFileName, string.Format("{0}\t{1}\t{2}\r\n", DateTime.Now, section, arguments));
 		}
+
+		private static readonly object logSync = new();
 
 
 		/// <summary>

@@ -1,11 +1,14 @@
-SVN Notifier 3.0.0.5
+SVN Notifier 3.0.0.6
 
-- Modernisierte Windows-Forms-Oberfläche mit einheitlichen Symbolen, beschrifteten Listenspalten und flachen Symbolleisten ohne zusätzliches UI-Toolkit.
-- Neu angeordnete Einstellungen, Repository-Eigenschaften, Info- und Protokolldialoge mit kompakten Schaltflächen und an Inhalt, Schriftgröße und Bildschirmauflösung angepassten Größen.
-- Scrollbare Einstellungsseiten bei großen Schriften und erreichbare Symbolleistenbefehle über das Überlaufmenü bei schmalen Fenstern.
-- Vorhandene Repository-Aktionen, Kontextmenüs, Tray-Menüs, konfigurierbare Schriften und deutsche sowie englische Oberflächentexte bleiben erhalten.
-- Automatische Programmupdates bleiben abschaltbar. Eine sofortige Versionsprüfung ist unter Hilfe > Nach Updates suchen möglich.
-- Windows-Builds für x64 und x86 prüfen GUI-Bedienfunktionen bei 8,5, 12 und 24 Punkt großer Schrift sowie Programmupdates einschließlich EXE-Austausch, Neustart und Ablehnung manipulierter Downloads.
+- Automatische SVN-Updates benötigen eine aktivierte Checkbox. Neue Einträge und ältere INI-Einträge ohne Auto-Update-Feld beginnen ausgeschaltet. Bereits gespeicherte Werte bleiben erhalten.
+- Status, Info, stille Updates und aus dem Notifier gestartete TortoiseSVN-Dialoge werden je Arbeitskopiewurzel koordiniert. Unterordner, normalisierte Windows-Pfade und eingebettete Arbeitskopien werden berücksichtigt.
+- Reservierung vor dem Prozessstart und Freigabe erst nach Prozessende. Bei belegter Koordination kein weiterer Prozessstart; Hintergrundaktionen warten vor einem erneuten Versuch mindestens 15 Sekunden.
+- Statusbenachrichtigungen bleiben bei ausgeschaltetem Auto-Update erhalten. Die Checkbox zeigt den aktiven und inaktiven Zustand und ist auch per Leertaste bedienbar.
+- Gemeinsames Dateiprotokoll für ausdrücklich teilnehmende externe Aufrufe. Optionaler Python-Wrapper und [Einrichtungsvertrag](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.6/docs/SVN-Koordination.md) im Repository. Direkte SVN-, Explorer- und IDE-Aufrufe ohne dieses Verfahren werden nicht erfasst.
+- Diagnose mit Arbeitskopie, Aktion, Beginn/Ende, Prozess-ID, Exit-Code und Überspringgrund ohne Befehlsargumente oder Zugangsdaten. Keine automatischen Cleanups oder Änderungen an Arbeitskopiedatenbanken.
+- Regressionstests für konkurrierende Starts, Belegung, Prozessfehler, Abbruch, Freigabe und Konfiguration. Windows-/Container-Gegenproben wurden lokal auf einer isolierten 9p-Testablage ausgeführt; die konkrete KLIMM-Container-Konfiguration bleibt gesondert zu prüfen.
+
+Bereits gespeichert aktivierte Auto-Updates bleiben aktiv. Bei gemeinsam genutzten Arbeitskopien sollte diese Einstellung bewusst geprüft werden. Die Änderungen liefern keinen Ursachennachweis für den ursprünglich gemeldeten SQLite-I/O-Fehler. Nach einem Absturz oder erzwungenen Ende kann eine Reservierung zur sicheren Blockierung bestehen bleiben; sie wird nicht automatisch entfernt.
 
 Programmupdates und automatische SVN-Updates sind getrennte Funktionen. Versionen bis einschließlich 3.0.0.3 müssen einmal manuell durch diese Ausgabe ersetzt werden, um den Programmupdater zu erhalten.
 

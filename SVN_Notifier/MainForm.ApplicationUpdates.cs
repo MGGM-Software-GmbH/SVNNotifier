@@ -83,7 +83,7 @@ public partial class MainForm
     {
         lock (this)
         {
-            if (statusThread is not null || SvnTools.svnFolderProcesses.Count > 0 || !updateNotInProgress.WaitOne(0))
+            if (statusThread is not null || SvnTools.HasActiveOperations || !updateNotInProgress.WaitOne(0))
                 throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
             StatusUpdateTimer.Stop();
             PauseTimer.Stop();

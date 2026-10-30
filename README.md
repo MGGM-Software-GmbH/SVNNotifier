@@ -4,7 +4,17 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.0.0.5** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+**SVN Notifier 3.0.0.6** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.0.0.6
+
+- Automatische SVN-Updates benötigen eine aktivierte Checkbox. Neue Einträge und ältere Einstellungen ohne Auto-Update-Feld beginnen ausgeschaltet. Ausdrücklich gespeicherte Werte bleiben erhalten.
+- Alle vom Notifier gestarteten SVN-Prüfungen, Updates, Commits und Protokolldialoge reservieren die Arbeitskopiewurzel vor dem Prozessstart. Mehrere konfigurierte Unterordner teilen dieselbe Reservierung.
+- Belegte Arbeitskopien werden ohne konkurrierenden Prozessstart übersprungen und frühestens nach 15 Sekunden erneut geprüft. Benachrichtigungen bleiben bei ausgeschaltetem Auto-Update nutzbar.
+- Ein gemeinsames Dateiprotokoll und ein optionaler Python-Wrapper ermöglichen die Koordination ausdrücklich teilnehmender Windows- und Container-Aufrufe. Direkte externe SVN- oder TortoiseSVN-Aufrufe werden nicht erfasst.
+- Diagnose mit Arbeitskopie, Aktion, Prozess-ID, Beginn, Ende und Exit-Code ohne Befehlsargumente oder Zugangsdaten. Keine automatischen Cleanups und keine Änderungen an SVN-Datenbanken oder SQLite-Einstellungen.
+
+Vertrag, Einrichtung, Tests und Grenzen stehen in [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/master/docs/SVN-Koordination.md). Die Absicherung ist kein Ursachennachweis für einen SQLite-I/O-Fehler. Bereits gespeichert aktivierte Auto-Updates bleiben aktiv und sollten bei gemeinsam genutzten Arbeitskopien bewusst geprüft werden.
 
 ### Neu in v3.0.0.5
 
@@ -44,7 +54,7 @@ Versionen bis einschließlich 3.0.0.3 enthalten diesen Programmupdater noch nich
 
 Das zur Windows-Architektur passende ZIP-Paket unter [Releases](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases) herunterladen, entpacken und `SVN_Notifier.exe` starten. Subversion-Kommandozeilenclient (`svn.exe`) und TortoiseSVN werden weiterhin separat benötigt und in den Einstellungen ausgewählt. Die erzeugten EXE-Dateien sind nicht digital signiert.
 
-Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.0.0.5-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
+Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.0.0.6-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
 
 ### Windows-Build und Veröffentlichung
 
@@ -56,20 +66,22 @@ pwsh -File .github/scripts/Build-Windows.ps1 -RuntimeIdentifier win-x64
 pwsh -File .github/scripts/Build-Windows.ps1 -RuntimeIdentifier win-x86
 pwsh -File .github/scripts/Test-Gui.ps1 -RuntimeIdentifier win-x64
 pwsh -File .github/scripts/Test-Gui.ps1 -RuntimeIdentifier win-x86
+powershell -File .github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier win-x64
+powershell -File .github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier win-x86
 powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier win-x64
 powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier win-x86
 ```
 
 Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages/`. Mit `-ArtifactsDirectory` kann ein eigener Ausgabeordner gewählt werden. Für jeden Prüflauf muss dieser neue Installations-Testverzeichnisse erlauben. Der Workflow stellt die Pakete auch bei normalen Builds als herunterladbare Actions-Artefakte zur Verfügung und prüft den Anwendungsstart beider Architekturen. Die Updater-Prüfungen verwenden isolierte HTTP-Testdaten und separate Installationsordner. Sie prüfen auch den tatsächlichen EXE-Austausch mit Neustart und eine Manipulation zwischen Downloadprüfung und Installation.
 
-Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.5` die Veröffentlichung aus:
+Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.6` die Veröffentlichung aus:
 
 ```powershell
-git tag v3.0.0.5
-git push mggm v3.0.0.5
+git tag v3.0.0.6
+git push mggm v3.0.0.6
 ```
 
-Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests und GUI-Prüfungen. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.
+Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests, GUI-Prüfungen und den SVN-Koordinationsprüfungen unter Windows und Linux. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.
 
 Der Release-Job überprüft die Prüfsummen, lädt die Pakete zunächst in einen Release-Entwurf hoch und veröffentlicht diesen anschließend. Dafür genügt das automatische `GITHUB_TOKEN`; zusätzliche Repository-Secrets sind nicht erforderlich.
 
@@ -77,7 +89,7 @@ Der Release-Job überprüft die Prüfsummen, lädt die Pakete zunächst in einen
 
 - **Auto-Update per repository** — new column in the repository list with a green ✓ indicator; when enabled, the repository is automatically updated silently in the background as soon as incoming changes are detected (no popup window)
 - **Toast notification after auto-update** — a system tray balloon tip confirms each completed silent update, so you always know what happened
-- Auto-Update state is **persisted** in the INI configuration and restored on next launch (default: enabled)
+- Auto-Update wird je Eintrag in der INI-Konfiguration gespeichert und beim nächsten Start wiederhergestellt. Neue Einträge und ältere Einstellungen ohne Auto-Update-Feld beginnen ausgeschaltet.
 
 ### What's new in v3.0.0.1
 

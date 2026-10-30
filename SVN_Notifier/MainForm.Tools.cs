@@ -55,14 +55,15 @@ namespace CHD.SVN_Notifier
 			int selectedIndex = ItemListView.Rows.IndexOf(ItemListView.SelectedRows[0]);
 			SvnItem folder = folders[selectedIndex];
 
-			if (Config.ChangeLogBeforeUpdate && (folder.reviewedRevision < SvnTools.GetRepositoryHeadRevision(folder)))
+			int headRevision = Config.ChangeLogBeforeUpdate ? SvnTools.GetRepositoryHeadRevision(folder) : 0;
+			if (headRevision < 0) return;
+			if (Config.ChangeLogBeforeUpdate && (folder.reviewedRevision < headRevision))
 			{
 				MessageBox.Show("You need to see ChangeLog first!", "SVN Notifier", MessageBoxButtons.OK, MessageBoxIcon.Stop);
 				return;
 			}
 
 			UpdateButton.Enabled = UpdateMenuItem.Enabled = CheckNowMenuItem.Enabled = false;
-			folder.Status = SvnStatus.Unknown;
 			newNonUpdatedFolders.Clear();
 			StatusLabel.Text = Loc.Status_Updating(folder.Path);
 			UpdateTray(true);
@@ -71,11 +72,15 @@ namespace CHD.SVN_Notifier
 			updateNotInProgress.Reset();
 			BeginUpdateFolderStatuses();
 
-			SvnTools.Update(folder, false);
-
-			forcedFolders.Enqueue(folder);
-
-			updateNotInProgress.Set();
+			try
+			{
+				if (SvnTools.Update(folder, false))
+				{
+					folder.Status = SvnStatus.Unknown;
+					forcedFolders.Enqueue(folder);
+				}
+			}
+			finally { updateNotInProgress.Set(); }
 		}
 
 
@@ -102,15 +107,22 @@ namespace CHD.SVN_Notifier
 			foreach (SvnItem folder in folders)
 				if ((folder.Status == SvnStatus.NeedUpdate) || (folder.Status == SvnStatus.NeedUpdate_Modified))
 				{
-					folder.Status = SvnStatus.Unknown;
 					if (Config.UpdateAllSilently)
-						SvnTools.BeginUpdateSilently(folder);
+					{
+						if (SvnTools.BeginUpdateSilently(folder)) folder.Status = SvnStatus.Unknown;
+					}
 					else
 					{
 						updateNotInProgress.Reset();
-						SvnTools.Update(folder, true);
-						forcedFolders.Enqueue(folder);
-						updateNotInProgress.Set();
+						try
+						{
+							if (SvnTools.Update(folder, true))
+							{
+								folder.Status = SvnStatus.Unknown;
+								forcedFolders.Enqueue(folder);
+							}
+						}
+						finally { updateNotInProgress.Set(); }
 					}
 				}
 			UpdateTray(true);

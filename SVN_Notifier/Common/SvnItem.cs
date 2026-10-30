@@ -29,7 +29,7 @@ namespace CHD.SVN_Notifier
 		public SvnItem()
 		{
 			Enabled = true;
-			AutoUpdate = true;
+			AutoUpdate = false;
 		}
 
 		public string origPath;
@@ -114,7 +114,7 @@ namespace CHD.SVN_Notifier
 				ActiveStatusUpdateInterval = int.Parse(p[1]),
 				IdleStatusUpdateInterval = int.Parse(p[2]),
 				Enabled = !Boolean.Parse(p[3]),
-				AutoUpdate = (p.Length > 5) ? !Boolean.Parse(p[5]) : true
+				AutoUpdate = (p.Length > 5) ? !Boolean.Parse(p[5]) : false
 			};
 			return f;
 		}
@@ -157,6 +157,20 @@ namespace CHD.SVN_Notifier
 					   : (formIsActive ? ActiveStatusUpdateInterval : IdleStatusUpdateInterval);
 		}
 
+		private long retryAfterUtcTicks;
+
+		/// <summary>Belegte Arbeitskopien frühestens nach 15 Sekunden erneut prüfen, auch bei manuellen Auslösern.</summary>
+		internal void DeferOperation() => System.Threading.Interlocked.Exchange(ref retryAfterUtcTicks, DateTime.UtcNow.AddSeconds(15).Ticks);
+
+		internal bool RetryReady => DateTime.UtcNow.Ticks >= System.Threading.Interlocked.Read(ref retryAfterUtcTicks);
+
+		internal DateTime NextCheckTime(bool active)
+		{
+			var scheduled = StatusTime.AddSeconds(GetInterval(active));
+			var retry = new DateTime(System.Threading.Interlocked.Read(ref retryAfterUtcTicks), DateTimeKind.Utc).ToLocalTime();
+			return scheduled > retry ? scheduled : retry;
+		}
+
 		public static int FindNextStatusUpdateTimeMs(BindingList<SvnItem> list, bool formIsActive)
 		{
 			if (list.Count == 0) return 3000;                           // Return just some good value
@@ -166,8 +180,8 @@ namespace CHD.SVN_Notifier
 
 			foreach (SvnItem folder in list)
 			{
-				TimeSpan ts = new TimeSpan(0, 0, folder.GetInterval(formIsActive));
-				DateTime nextTime = folder.StatusTime + ts;
+				if (!folder.Enabled) continue;
+				DateTime nextTime = folder.NextCheckTime(formIsActive);
 
 				if (nextTime <= now)
 					return 0;
@@ -176,7 +190,7 @@ namespace CHD.SVN_Notifier
 					minNextTime = nextTime;
 			}
 
-			return (int)(minNextTime - now).TotalMilliseconds;
+			return minNextTime == DateTime.MaxValue ? 3000 : (int)Math.Clamp((minNextTime - now).TotalMilliseconds, 1, int.MaxValue);
 		}
 
 		internal int updateRevision;

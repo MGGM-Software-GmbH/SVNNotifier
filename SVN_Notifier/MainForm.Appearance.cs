@@ -32,6 +32,15 @@ public partial class MainForm
         ColumnAutoUpdate.HeaderText = Loc.Col_AutoUpdate;
         ColumnAutoUpdate.ToolTipText = Loc.Tooltip_AutoUpdate;
         ColumnAutoUpdate.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        ItemListView.KeyDown += (sender, eventArgs) =>
+        {
+            if (eventArgs.KeyCode == Keys.Space && ItemListView.CurrentCell?.OwningColumn == ColumnAutoUpdate)
+            {
+                ItemListView_CellClick(ItemListView, new DataGridViewCellEventArgs(ColumnAutoUpdate.Index, ItemListView.CurrentCell.RowIndex));
+                eventArgs.Handled = true;
+                eventArgs.SuppressKeyPress = true;
+            }
+        };
         PathColumn.MinimumWidth = 180;
         ImageColumn.DefaultCellStyle.Padding = Padding.Empty;
         ImageColumn.ImageLayout = DataGridViewImageCellLayout.Normal;

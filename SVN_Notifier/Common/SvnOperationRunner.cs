@@ -1,0 +1,148 @@
+using System.Diagnostics;
+using System.Text.Json;
+
+namespace CHD.SVN_Notifier;
+
+internal sealed record SvnProcessResult(int? ExitCode, string Output, string Error, bool Cancelled)
+{
+    internal bool Success => ExitCode == 0 && !Cancelled;
+}
+
+/// <summary>Hält die Reservierung vom angenommenen Auftrag bis zum nachgewiesenen Prozessende.</summary>
+internal sealed class SvnOperationRunner
+{
+    private readonly object gate = new();
+    private readonly HashSet<Task<SvnProcessResult>> active = new();
+    private readonly CancellationTokenSource stop = new();
+    private readonly Action<string> diagnostic;
+    private readonly Func<ProcessStartInfo, Process?> start;
+    private readonly Action<string, string>? rejected;
+    private bool stopping;
+
+    internal SvnOperationRunner(Action<string> diagnostic, Func<ProcessStartInfo, Process?>? start = null, Action<string, string>? rejected = null)
+    {
+        this.diagnostic = diagnostic;
+        this.start = start ?? Process.Start;
+        this.rejected = rejected;
+    }
+
+    internal bool HasActiveOperations { get { lock (gate) return active.Any(task => !task.IsCompleted); } }
+
+    /// <summary>Reserviert synchron, bevor ein verzögerter Worker den Prozess starten darf.</summary>
+    internal Task<SvnProcessResult>? TryStart(string path, string action, string executable, IEnumerable<string> arguments,
+        bool readOnly, int timeoutSeconds = 0, CancellationToken cancellation = default, bool captureOutput = true)
+    {
+        lock (gate)
+        {
+            if (stopping)
+            {
+                Log(path, action, "skip", null, null, "application-stopping");
+                return null;
+            }
+            var lease = WorkingCopyLease.TryAcquire(path, action, out string root, out string reason);
+            if (lease is null)
+            {
+                Log(root, action, "skip", null, null, reason);
+                rejected?.Invoke(root, reason);
+                return null;
+            }
+            try
+            {
+                Log(root, action, "reserve", null, null, "");
+                var values = arguments.ToArray();
+                var completion = Task.Run(() => ExecuteAsync(lease, action, executable, values, readOnly, timeoutSeconds, cancellation, captureOutput));
+                active.RemoveWhere(task => task.IsCompleted);
+                active.Add(completion);
+                return completion;
+            }
+            catch
+            {
+                lease.Dispose();
+                throw;
+            }
+        }
+    }
+
+    /// <summary>Bricht nur lesende Prüfungen ab. Schreibende Vorgänge behalten die Reservierung bis zum Ende.</summary>
+    internal Task StopAsync()
+    {
+        lock (gate)
+        {
+            stopping = true;
+            stop.Cancel();
+            return Task.WhenAll(active.ToArray());
+        }
+    }
+
+    /// <summary>Liest beide Streams parallel und gibt auch bei Timeout erst nach dem Prozessende frei.</summary>
+    private async Task<SvnProcessResult> ExecuteAsync(WorkingCopyLease lease, string action, string executable,
+        string[] arguments, bool readOnly, int timeoutSeconds, CancellationToken cancellation, bool captureOutput)
+    {
+        Process? process = null;
+        bool cancelled = false;
+        int? exitCode = null;
+        string outcome = "process-start-error";
+        try
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop.Token, cancellation);
+            if (readOnly && timeoutSeconds > 0) linked.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+            if (linked.IsCancellationRequested)
+            {
+                outcome = "cancelled-before-start";
+                return new(null, "", "Vorgang abgebrochen.", true);
+            }
+            var info = new ProcessStartInfo(executable)
+            {
+                CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = captureOutput, RedirectStandardError = captureOutput
+            };
+            foreach (string argument in arguments) info.ArgumentList.Add(argument);
+            process = start(info) ?? throw new InvalidOperationException("Prozess nicht gestartet.");
+            // Beide Streams werden sofort parallel gelesen. Ein voller Fehlerstream darf weder Timeout noch Freigabe blockieren.
+            // GUI-Programme erhalten keine Pipes: länger lebende GUI-Hilfsprozesse können geerbte Handles offen halten.
+            var output = captureOutput ? process.StandardOutput.ReadToEndAsync() : Task.FromResult("");
+            var error = captureOutput ? process.StandardError.ReadToEndAsync() : Task.FromResult("");
+            Log(lease.Root, action, "begin", process.Id, null, "");
+            try
+            {
+                await process.WaitForExitAsync(readOnly ? linked.Token : CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { /* Der Prozess kann inzwischen beendet sein. */ }
+                catch (System.ComponentModel.Win32Exception) { /* Reservierung bleibt bis zum tatsächlichen Ende bestehen. */ }
+                await process.WaitForExitAsync().ConfigureAwait(false);
+            }
+            exitCode = process.ExitCode;
+            outcome = cancelled ? "cancelled-or-timeout" : exitCode == 0 ? "completed" : "process-error";
+            return new(exitCode, await output.ConfigureAwait(false), await error.ConfigureAwait(false), cancelled);
+        }
+        catch (Exception exception)
+        {
+            // Keine Argumente oder SVN-Ausgaben in die Diagnose übernehmen: Diese können Zugangsdaten enthalten.
+            outcome = "process-error:" + exception.GetType().Name;
+            return new(exitCode, "", "SVN-Prozessfehler: " + exception.GetType().Name, cancelled);
+        }
+        finally
+        {
+            // Auch ein Diagnosefehler nach Process.Start darf die Reservierung niemals vorzeitig freigeben.
+            if (process is not null)
+            {
+                await process.WaitForExitAsync().ConfigureAwait(false);
+                exitCode = process.ExitCode;
+            }
+            try { Log(lease.Root, action, "end", process?.Id, exitCode, outcome); }
+            finally
+            {
+                process?.Dispose();
+                lease.Dispose();
+                if (lease.ReleaseFailed) Log(lease.Root, action, "release-error", null, exitCode, "claim-retained");
+            }
+        }
+    }
+
+    /// <summary>Protokolliert ausschließlich freigegebene Metadaten, niemals Befehlszeilen oder Ausgaben.</summary>
+    private void Log(string root, string action, string phase, int? processId, int? exitCode, string reason) =>
+        diagnostic(JsonSerializer.Serialize(new { utc = DateTimeOffset.UtcNow, workingCopy = root, action, phase, processId, exitCode, reason }));
+}

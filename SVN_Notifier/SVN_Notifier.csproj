@@ -10,10 +10,10 @@
     <AssemblyName>SVN_Notifier</AssemblyName>
     <ApplicationIcon>App.ico</ApplicationIcon>
     <AssemblyTitle>SVN Notifier</AssemblyTitle>
-    <AssemblyVersion>3.0.0.5</AssemblyVersion>
-    <FileVersion>3.0.0.5</FileVersion>
-    <Version>3.0.0.5</Version>
-    <InformationalVersion>3.0.0.5</InformationalVersion>
+    <AssemblyVersion>3.0.0.6</AssemblyVersion>
+    <FileVersion>3.0.0.6</FileVersion>
+    <Version>3.0.0.6</Version>
+    <InformationalVersion>3.0.0.6</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Company>CHD</Company>
     <Product>SVN Notifier</Product>
@@ -35,6 +35,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Svn.Tests" />
     <!-- Designer-generated files: disable nullable analysis to avoid noise -->
     <Compile Update="AboutForm.Designer.cs">
       <DependentUpon>AboutForm.cs</DependentUpon>
