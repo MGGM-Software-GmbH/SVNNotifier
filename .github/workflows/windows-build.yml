@@ -87,6 +87,11 @@ jobs:
         env:
           RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
         run: ./.github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER
+      - name: Oberfläche und bestehende Bedienfunktionen prüfen
+        shell: powershell
+        env:
+          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
+        run: ./.github/scripts/Test-Gui.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER
       - name: Pakete und Prüfsummen hochladen
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

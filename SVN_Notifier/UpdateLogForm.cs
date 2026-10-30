@@ -70,6 +70,16 @@ namespace CHD.SVN_Notifier
 			CloseButton.Text            = Loc.ULF_Btn_Cancel;
 			ActionColumn.Text           = Loc.ULF_Col_Action;
 			PathColumn.Text             = Loc.ULF_Col_Path;
+			Padding = new Padding(12, 12, 12, 0);
+			LogListView.Dock = DockStyle.Fill;
+			ResultsLabel.Dock = DockStyle.Bottom;
+			ResultsLabel.Height = 30;
+			ResultsLabel.Padding = new Padding(0, 6, 0, 0);
+			DialogLayout.Buttons(this, OkButton, CloseButton, ShowLogButton);
+			ApplicationTheme.Apply(this, OkButton);
+			// Aktionsnamen müssen auch in der deutschen Oberfläche ohne Abschneiden lesbar sein.
+			ActionColumn.Width = 130;
+			LogListView.Resize += (sender, eventArgs) => PathColumn.Width = Math.Max(200, LogListView.ClientSize.Width - ActionColumn.Width - 24);
 
 			FillList();
 			PlaySound();
@@ -78,7 +88,7 @@ namespace CHD.SVN_Notifier
 
 		private void FillList()
 		{
-			Text = folderProcess.folder.Path + " - Update... Finished!";
+			Text = Loc.ULF_Title + " - " + folderProcess.folder.Path;
 			bool conflict = false;
 
 			foreach (string line in folderProcess.processOutput)

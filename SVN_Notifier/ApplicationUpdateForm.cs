@@ -58,6 +58,7 @@ internal sealed class ApplicationUpdateForm : Form
         Controls.Add(layout);
         AcceptButton = installButton;
         CancelButton = cancelButton;
+        ApplicationTheme.Apply(this, installButton);
         FormClosing += (sender, eventArgs) =>
         {
             if (downloadCancellation is not null && !closingToInstall)

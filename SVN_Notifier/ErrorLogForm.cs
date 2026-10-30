@@ -34,6 +34,11 @@ namespace CHD.SVN_Notifier
 			InitializeComponent();
 			ClearButton.Text = Loc.ELF_Btn_Clear;
 			CloseButton.Text = Loc.ELF_Btn_Close;
+			Text = Loc.ELF_Title;
+			Padding = new Padding(12, 12, 12, 0);
+			LogTextBox.Dock = DockStyle.Fill;
+			DialogLayout.Buttons(this, ClearButton, CloseButton);
+			ApplicationTheme.Apply(this, CloseButton);
 			foreach (var entry in errorLog.Values)
 			{
 				LogTextBox.Text += entry;

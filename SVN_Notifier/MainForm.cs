@@ -60,6 +60,7 @@ namespace CHD.SVN_Notifier
 			FormInit();
 			ApplyLocalization();
 			InitializeApplicationUpdates();
+			InitializeAppearance();
 		}
 
 		private void AddPowerEventListener()
@@ -1196,6 +1197,7 @@ namespace CHD.SVN_Notifier
 				}
 				return;
 			}
+			Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 			// Load config early so font settings are available before any UI is created
 			const string iniFileName = "SVN_Notifier.ini";
 			Config.Init(File.Exists(iniFileName)
@@ -1271,6 +1273,7 @@ namespace CHD.SVN_Notifier
 				e.Effect = DragDropEffects.Copy;
 		}
 
+		/// <summary>Verbindet die Repository-Zustände mit lesbaren Texten, Statussymbolen und dem Auto-Update-Schalter.</summary>
 		private void ItemListView_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
 		{
 			if (e.RowIndex < 0 || e.ColumnIndex < 0)
@@ -1282,77 +1285,19 @@ namespace CHD.SVN_Notifier
 			if (column == StatusColumn)
 			{
 				e.Value = Loc.SvnStatusText(item.Status, item.Enabled);
-				Color color = Color.Gray;
-				switch (item.Status)
-				{
-					case SvnStatus.Unknown:
-						color = Color.Gray;
-						break;
-					case SvnStatus.Error:
-						color = Color.Gray;
-						break;
-					case SvnStatus.NeedUpdate:
-						color = Color.Gray;
-						break;
-					case SvnStatus.NeedUpdate_Modified:
-						color = Color.Gray;
-						break;
-					case SvnStatus.UpToDate:
-						color = Color.Gray;
-						break;
-					case SvnStatus.UpToDate_Modified:
-						color = Color.Gray;
-						break;
-					default:
-						color = Color.Gray;
-						break;
-				}
-				e.CellStyle.ForeColor = color;
+				e.CellStyle.ForeColor = item.Enabled ? ApplicationTheme.Muted : SystemColors.GrayText;
 			}
 			if (column == ImageColumn)
 			{
-				if (item.Enabled)
-				{
-					switch (item.Status)
-					{
-						case SvnStatus.Unknown:
-							e.Value = Properties.Resources.FolderStatus_Unknown;
-							break;
-						case SvnStatus.Error:
-							e.Value = Properties.Resources.FolderStatus_Error;
-							break;
-						case SvnStatus.NeedUpdate:
-							e.Value = Properties.Resources.FolderStatus_NeedUpdate;
-							break;
-						case SvnStatus.NeedUpdate_Modified:
-							e.Value = Properties.Resources.FolderStatus_NeedUpdate_Modified;
-							break;
-						case SvnStatus.UpToDate:
-							e.Value = Properties.Resources.FolderStatus_UpToDate;
-							break;
-						case SvnStatus.UpToDate_Modified:
-							e.Value = Properties.Resources.FolderStatus_UpToDate_Modified;
-							break;
-						default:
-							e.Value = Properties.Resources.FolderStatus_Unknown;
-							break;
-					}
-				}
-				else
-				{
-					e.Value = Properties.Resources.FolderStatus_Unknown;
-				}
-
+				e.Value = StatusImage(item);
 			}
 			if (column == ColumnAutoUpdate)
 			{
 				// Show green checkmark if AutoUpdate is enabled
 				e.Value = (bool?)e.Value == true ? "✓" : "";
 				e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-				e.CellStyle.BackColor = Color.FromArgb(200, 240, 200);
-				e.CellStyle.SelectionBackColor = Color.FromArgb(100, 200, 100);
-				e.CellStyle.ForeColor = Color.FromArgb(34, 139, 34);  // Forest Green
-				e.CellStyle.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+				e.CellStyle.ForeColor = ApplicationTheme.Success;  // Grüner Indikator für aktive automatische Updates
+				e.CellStyle.SelectionForeColor = SystemInformation.HighContrast ? SystemColors.HighlightText : ApplicationTheme.Success;
 			}
 		}
 

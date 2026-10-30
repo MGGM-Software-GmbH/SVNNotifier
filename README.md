@@ -6,6 +6,12 @@ Small and portable application which notifies you about other people's commits t
 
 **SVN Notifier 3.0.0.4** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
 
+### Benutzeroberfläche
+
+Die C#-Anwendung verwendet Windows Forms ohne zusätzliches UI-Toolkit. Eine helle Oberfläche, flache Symbolleisten und einheitliche, für die Bildschirmauflösung gezeichnete Symbole kennzeichnen die Aktionen. Die Repository-Liste zeigt beschriftete Spalten für Prüfung, Status, Pfad und Auto-Update. Auch in schmalen Fenstern bleiben die Symbolleistenbefehle über das Überlaufmenü erreichbar.
+
+Einstellungen, Repository-Eigenschaften und Protokolle verwenden dieselben vorhandenen Aktionen in neu angeordneten Dialogen. Schriftfamilie, Schriftgröße und Sprache bleiben konfigurierbar. Die Einstellungstabellen richten sich nach ihrem Inhalt; bei knappem Platz können die Einstellungsseiten gescrollt werden.
+
 ### Neu in v3.0.0.4
 
 - Versionsprüfung für die Anwendung beim Start, anschließend alle zwölf Stunden und manuell unter **Hilfe > Nach Updates suchen**.
@@ -41,6 +47,8 @@ Voraussetzung für einen lokalen Build ist das .NET-10-SDK unter Windows. Im Rep
 dotnet build SVN_Notifier.sln --configuration Release
 pwsh -File .github/scripts/Build-Windows.ps1 -RuntimeIdentifier win-x64
 pwsh -File .github/scripts/Build-Windows.ps1 -RuntimeIdentifier win-x86
+pwsh -File .github/scripts/Test-Gui.ps1 -RuntimeIdentifier win-x64
+pwsh -File .github/scripts/Test-Gui.ps1 -RuntimeIdentifier win-x86
 powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier win-x64
 powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier win-x86
 ```
@@ -54,7 +62,9 @@ git tag v3.0.0.4
 git push mggm v3.0.0.4
 ```
 
-Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen und Updater-Tests. Er überprüft die Prüfsummen, lädt die Pakete zunächst in einen Release-Entwurf hoch und veröffentlicht diesen anschließend. Dafür genügt das automatische `GITHUB_TOKEN`; zusätzliche Repository-Secrets sind nicht erforderlich.
+Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests und GUI-Prüfungen. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.
+
+Der Release-Job überprüft die Prüfsummen, lädt die Pakete zunächst in einen Release-Entwurf hoch und veröffentlicht diesen anschließend. Dafür genügt das automatische `GITHUB_TOKEN`; zusätzliche Repository-Secrets sind nicht erforderlich.
 
 ### What's new in v3.0.0.2
 

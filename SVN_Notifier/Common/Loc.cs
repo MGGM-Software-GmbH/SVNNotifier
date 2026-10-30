@@ -63,6 +63,7 @@ namespace CHD.SVN_Notifier
 
 		// Grid column headers
 		public static string Col_Status          => T("Status",                        "Status");
+		public static string Col_Enabled         => T("Monitor",                       "Prüfen");
 		public static string Col_VisiblePath     => T("Visible Path",                  "Angezeigter Pfad");
 		public static string Col_Path            => T("Path",                          "Pfad");
 		public static string Col_AutoUpdate      => T("Auto Update",                   "Auto-Update");
@@ -156,8 +157,7 @@ namespace CHD.SVN_Notifier
 		public static string SF_DblClick_Update  => T("Update",                        "Aktualisieren");
 		public static string SF_DblClick_Commit  => T("Commit",                        "Übertragen");
 		public static string SF_DblClick_Check   => T("CheckNow",                      "Jetzt prüfen");
-		public static string SF_Label_HideTray   => T("Hide system tray balloon after                 seconds",
-		                                               "Tray-Hinweis ausblenden nach                 Sekunden");
+		public static string SF_Label_HideTray   => T("Hide tray notification after:", "Tray-Hinweis ausblenden nach:");
 		public static string SF_Chk_HideOnStart  => T("Hide program to system tray on startup",
 		                                               "Beim Start in die Taskleiste minimieren");
 		public static string SF_Chk_ShowTaskbar  => T("Show in taskbar",               "In Taskleiste anzeigen");
@@ -170,16 +170,15 @@ namespace CHD.SVN_Notifier
 		public static string SF_Label_FontSize   => T("Font size:",                    "Schriftgröße:");
 		public static string SF_Label_SvnTimeout => T("Status check timeout:",              "Statusprüfungs-Timeout:");
 		public static string SF_Label_SvnTimeoutSec => T("sec.",                              "Sek.");
-		public static string SF_Group_Status     => T("Default status checking interval when...",
-		                                               "Standard-Prüfintervall wenn...");
-		public static string SF_Label_Active     => T("... form is active:",           "... Fenster aktiv:");
-		public static string SF_Label_Inactive   => T("... form is not active:",       "... Fenster nicht aktiv:");
+		public static string SF_Group_Status     => T("Default check intervals",      "Standard-Prüfintervalle");
+		public static string SF_Label_Active     => T("Window active:",               "Fenster aktiv:");
+		public static string SF_Label_Inactive   => T("Window inactive:",             "Fenster nicht aktiv:");
 		public static string SF_Label_Hours      => T("Hours",                         "Stunden");
 		public static string SF_Label_Minutes    => T("Minutes",                       "Minuten");
 		public static string SF_Label_Seconds    => T("Seconds",                       "Sekunden");
-		public static string SF_Group_Pause      => T("Pause update after...",         "Update pausieren nach...");
-		public static string SF_Chk_Resume       => T("... Windows resume",            "... Windows Fortsetzen");
-		public static string SF_Chk_Startup      => T("... SVN Notifier startup",      "... SVN Notifier Start");
+		public static string SF_Group_Pause      => T("Pause checks",                 "Prüfung pausieren");
+		public static string SF_Chk_Resume       => T("After Windows resumes",        "Nach Windows-Fortsetzung");
+		public static string SF_Chk_Startup      => T("After application startup",    "Nach dem Programmstart");
 		public static string SF_Label_DialogAction => T("TortoiseSVN dialog action after update:",
 		                                                 "TortoiseSVN-Dialog-Aktion nach Update:");
 		public static string SF_Label_RequiresTortoise => T("(Requires TortoiseSVN v1.5 or higher)",
@@ -193,9 +192,9 @@ namespace CHD.SVN_Notifier
 		public static string PF_Title            => T("Properties",                    "Eigenschaften");
 		public static string PF_Label_Path       => T("Path:",                         "Pfad:");
 		public static string PF_Chk_Enable       => T("Enable checking",               "Prüfung aktivieren");
-		public static string PF_Chk_CustomInterval => T("Status update interval when...", "Status-Prüfintervall wenn...");
-		public static string PF_Label_Active     => T("... form is active:",           "... Fenster aktiv:");
-		public static string PF_Label_Inactive   => T("... form is not active:",       "... Fenster nicht aktiv:");
+		public static string PF_Chk_CustomInterval => T("Custom check intervals",      "Eigene Prüfintervalle");
+		public static string PF_Label_Active     => T("Window active:",               "Fenster aktiv:");
+		public static string PF_Label_Inactive   => T("Window inactive:",             "Fenster nicht aktiv:");
 		public static string PF_Label_Hours      => T("Hours",                         "Stunden");
 		public static string PF_Label_Minutes    => T("Minutes",                       "Minuten");
 		public static string PF_Label_Seconds    => T("Seconds",                       "Sekunden");
@@ -209,6 +208,7 @@ namespace CHD.SVN_Notifier
 		// ----------------------------------------------------------------
 		public static string ELF_Btn_Clear       => T("Clear",                         "Leeren");
 		public static string ELF_Btn_Close       => T("Close",                         "Schließen");
+		public static string ELF_Title           => T("Error log",                    "Fehlerprotokoll");
 
 		// ----------------------------------------------------------------
 		// UpdateLogForm
@@ -222,6 +222,7 @@ namespace CHD.SVN_Notifier
 
 		// ----------------------------------------------------------------
 		// AboutForm
+		public static string AF_Title            => T("About SVN Notifier",           "Über SVN Notifier");
 		// ----------------------------------------------------------------
 		public static string AF_Description      => T("SVN Notifier is Open Source Software released under the GNU General Public License v3.",
 		                                               "SVN Notifier ist Open-Source-Software unter der GNU General Public License v3.");

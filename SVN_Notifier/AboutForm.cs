@@ -31,6 +31,7 @@ namespace CHD.SVN_Notifier
 		public AboutForm()
 		{
 			InitializeComponent();
+			InitializeAppearance();
 			if (Parent == null)
 				StartPosition = FormStartPosition.CenterScreen;
 		}

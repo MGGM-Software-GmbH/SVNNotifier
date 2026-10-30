@@ -689,7 +689,7 @@
 			// MainForm
 			// 
 			this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
-			this.ClientSize = new System.Drawing.Size(544, 141);
+			this.ClientSize = new System.Drawing.Size(880, 340);
 			this.Controls.Add(this.ItemListView);
 			this.Controls.Add(this.MenuToolStrip);
 			this.Controls.Add(this.MainMenu);

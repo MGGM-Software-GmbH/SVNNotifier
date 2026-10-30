@@ -58,6 +58,7 @@ namespace CHD.SVN_Notifier
 			}
 			EnableCheckBox.Checked = folder.Enabled;
 			StatusUpdateCheckBox.Enabled = EnableCheckBox.Checked;
+			InitializeAppearance();
 		}
 
 

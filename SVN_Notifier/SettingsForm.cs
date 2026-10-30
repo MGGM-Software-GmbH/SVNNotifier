@@ -43,8 +43,7 @@ namespace CHD.SVN_Notifier
 			checkApplicationVersionCheckBox.Location = new Point(6, 195);
 			checkApplicationVersionCheckBox.TabIndex = 36;
 			OtherOptionsGroupBox.Controls.Add(checkApplicationVersionCheckBox);
-			ClientSize = new Size(ClientSize.Width, ClientSize.Height + 28);
-			MinimumSize = new Size(MinimumSize.Width, Height);
+			InitializeAppearance();
 		}
 
 		private void ApplyLocalization()
