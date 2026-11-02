@@ -1,10 +1,9 @@
-SVN Notifier 3.0.0.11
+SVN Notifier 3.0.0.12
 
-- **Cleanup** im Repository-Kontextmenü öffnet den TortoiseSVN-Auswahldialog für den ausgewählten Eintrag. Der Eintrag steht auch bei fehlerhaftem oder unbekanntem Status sowie ausgeschalteter Prüfung zur Verfügung.
-- Der Cleanupdialog reserviert die Arbeitskopie bis zum tatsächlichen Prozessende und wird beim Programmupdate wie die anderen eigenen TortoiseSVN-Dialoge beendet. Die Bereinigung wird erst im Dialog bestätigt.
-- Regressionstests prüfen Menüauswahl und Klick, konkurrierende Zugriffe, Auto-Update-Zustände sowie Pfade mit Leerzeichen, Umlauten und abschließendem Verzeichnistrenner. Lokale Tests mit echtem TortoiseSVN verwenden ausschließlich isolierte Arbeitskopien.
+- Der Repository-Kontextmenüeintrag heißt in Deutsch und Englisch **Cleanup**. Er öffnet den TortoiseSVN-Auswahldialog für den ausgewählten Eintrag.
+- GUI-Regressionstests prüfen die genaue Beschriftung in beiden Sprachen sowie den Menüaufruf und die Reservierung der Arbeitskopie.
 
-Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.11/docs/SVN-Koordination.md) beschreibt die interne Reservierung und ihre Grenzen. Es gibt keine automatischen Cleanups. Python wird nicht benötigt.
+Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.12/docs/SVN-Koordination.md) beschreibt die interne Reservierung und ihre Grenzen. Es gibt keine automatischen Cleanups. Python wird nicht benötigt.
 
 Die automatische Beendigung eigener SVN-Vorgänge beim Programmupdate gilt ab 3.0.0.10. Beim Update von einer älteren Version müssen deren laufende Notifier-SVN-Vorgänge einmal vorher beendet werden. Alternativ die neue portable Ausgabe manuell installieren.
 
