@@ -20,6 +20,16 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "/command:cleanup")
+        {
+            if (!args[1].StartsWith("/path:")) return 8;
+            string target = args[1]["/path:".Length..];
+            if (!File.Exists(Path.Combine(target, ".svn", "wc.db"))) return 9;
+            File.WriteAllText(Path.Combine(target, "cleanup-started"), Environment.CommandLine);
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (!File.Exists(Path.Combine(target, "cleanup-release")) && DateTime.UtcNow < deadline) Thread.Sleep(20);
+            return File.Exists(Path.Combine(target, "cleanup-release")) ? 0 : 10;
+        }
         Console.OutputEncoding = new System.Text.UTF8Encoding(false);
         oversizedButtonCounterexample = args.Contains("--negative-button-size");
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
@@ -58,7 +68,14 @@ internal static class Program
                 AssertMenu(main, "FileMenuItem", new[] { "AddFolderMenuItem", "AddFileMenuItem", "RemoveMenuItem", "ImportConfigurationMenuItem", "ExportConfigurationMenuItem", "ExitMenuItem" });
                 AssertMenu(main, "ToolsMenuItem", new[] { "UpdateAllMenuItem", "SettingsMenuItem" });
                 AssertMenu(main, "HelpMenuItem", new[] { "CheckApplicationUpdatesMenuItem", "AboutMenuItem" });
-                AssertMenu(main, "ItemMenu", new[] { "CheckNowMenuItem", "ChangeLogMenuItem", "UpdateMenuItem", "CommitMenuItem", "OpenMenuItem", "LogMenuItem", "PropertiesMenuItem" });
+                if (args.Contains("--negative-cleanup-command"))
+                    ((ContextMenuStrip)Field(main, "ItemMenu").GetValue(main)!).Items.RemoveByKey("CleanupMenuItem");
+                AssertMenu(main, "ItemMenu", new[] { "CheckNowMenuItem", "ChangeLogMenuItem", "UpdateMenuItem", "CommitMenuItem", "CleanupMenuItem", "OpenMenuItem", "LogMenuItem", "PropertiesMenuItem" });
+                if (args.Contains("--negative-cleanup-click"))
+                    ((ToolStripMenuItem)Field(main, "CleanupMenuItem").GetValue(main)!).Click -=
+                        (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), main,
+                            typeof(MainForm).GetMethod("CleanupMenuItem_Click", BindingFlags.NonPublic | BindingFlags.Instance)!);
+                CheckCleanupMenu(main, grid, folders, output, language);
                 AssertMenu(main, "TrayMenu", new[] { "TrayShowProgramMenuItem", "TrayUpdateAllMenuItem", "TrayExitMenuItem" });
                 var toolbar = Control<ToolStrip>(main, "MenuToolStrip");
                 Assert(new[] { "AddFolderButton", "AddFileButton", "RemoteButton", "ChangeLogButton", "UpdateButton", "CommitButton", "OpenButton", "LogButton", "PropertiesButton" }
@@ -115,11 +132,17 @@ internal static class Program
                     Pump();
                     Capture(fileMenu.DropDown, output, $"file-menu-{language}", args);
                     fileMenu.HideDropDown();
+                }
+                if (args.Contains("--capture") || args.Contains("--capture-cleanup"))
+                {
                     var itemMenu = (ContextMenuStrip)Field(main, "ItemMenu").GetValue(main)!;
                     itemMenu.Show(main, new Point(180, 100));
                     Pump();
                     Capture(itemMenu, output, $"repository-menu-{language}", args);
                     itemMenu.Close();
+                }
+                if (args.Contains("--capture"))
+                {
                     var trayMenu = (ContextMenuStrip)Field(main, "TrayMenu").GetValue(main)!;
                     trayMenu.Show(main, new Point(180, 100));
                     Pump();
@@ -295,10 +318,52 @@ internal static class Program
         do { Application.DoEvents(); Thread.Sleep(10); } while (DateTime.UtcNow < deadline);
     }
 
+    /// <summary>Prüft den Menüaufruf mit einem eigenen Dialogersatz und einer isolierten Arbeitskopiemarkierung.</summary>
+    private static void CheckCleanupMenu(MainForm main, DataGridView grid, BindingList<SvnItem> folders, string output, int language)
+    {
+        var menu = (ToolStripMenuItem)Field(main, "CleanupMenuItem").GetValue(main)!;
+        var updateMenu = typeof(MainForm).GetMethod("UpdateContextMenuItem", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        grid.ClearSelection();
+        updateMenu.Invoke(main, null);
+        Assert(!menu.Enabled, "Cleanup benötigt einen ausgewählten Eintrag");
+        foreach (int index in Enumerable.Range(0, folders.Count))
+        {
+            grid.CurrentCell = grid.Rows[index].Cells["PathColumn"];
+            updateMenu.Invoke(main, null);
+            Assert(menu.Enabled, "Cleanup ist auch bei Fehlern, unbekanntem Status und pausierter Prüfung verfügbar");
+        }
+        string target = Path.Combine(output, $"Cleanup Arbeitskopie ä-ß {language}");
+        Directory.CreateDirectory(Path.Combine(target, ".svn"));
+        File.WriteAllText(Path.Combine(target, ".svn", "wc.db"), "Isolierte Testmarkierung.");
+        string previousPath = folders[4].Path;
+        string previousTool = Config.TortoiseSVNpath;
+        try
+        {
+            folders[4].Path = target;
+            grid.CurrentCell = grid.Rows[4].Cells["PathColumn"];
+            updateMenu.Invoke(main, null);
+            Config.TortoiseSVNpath = Environment.ProcessPath!;
+            menu.PerformClick();
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (!File.Exists(Path.Combine(target, "cleanup-started")) && DateTime.UtcNow < deadline) Pump();
+            Assert(File.Exists(Path.Combine(target, "cleanup-started")), "Cleanup-Menüklick startet den Dialog mit dem ausgewählten Pfad");
+            Assert(File.Exists(Path.Combine(target, ".svn", "svnnotifier-operation-v1.lock")), "Der geöffnete Cleanupdialog reserviert die Arbeitskopie");
+        }
+        finally
+        {
+            File.WriteAllText(Path.Combine(target, "cleanup-release"), "Dialog schließen.");
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (File.Exists(Path.Combine(target, ".svn", "svnnotifier-operation-v1.lock")) && DateTime.UtcNow < deadline) Pump();
+            folders[4].Path = previousPath;
+            Config.TortoiseSVNpath = previousTool;
+        }
+        Assert(!File.Exists(Path.Combine(target, ".svn", "svnnotifier-operation-v1.lock")), "Dialogende gibt die Arbeitskopie frei");
+    }
+
     private static void Capture(Control form, string output, string name, string[] args)
     {
         inventories[name] = Descendants(form).Select(control => control.Name).Where(controlName => controlName.Length > 0).Order().ToArray();
-        if (!args.Contains("--capture")) return;
+        if (!args.Contains("--capture") && !(args.Contains("--capture-cleanup") && name.StartsWith("repository-menu-"))) return;
         using var image = new Bitmap(form.Width, form.Height);
         using var graphics = Graphics.FromImage(image);
         graphics.CopyFromScreen(form is Form ? form.Location : form.PointToScreen(Point.Empty), Point.Empty, image.Size);

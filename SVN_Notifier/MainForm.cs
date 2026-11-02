@@ -382,6 +382,17 @@ namespace CHD.SVN_Notifier
 		}
 
 
+		/// <summary>Öffnet den Cleanup-Auswahldialog für den ausgewählten Eintrag, auch bei fehlerhaftem SVN-Status.</summary>
+		private void CleanupMenuItem_Click(object sender, EventArgs e)
+		{
+			if (ItemListView.SelectedRows.Count == 0)
+				return;
+
+			int selectedIndex = ItemListView.Rows.IndexOf(ItemListView.SelectedRows[0]);
+			SvnTools.Cleanup(folders[selectedIndex]);
+		}
+
+
 		private void OpenMenuItem_Click(object sender, EventArgs e)
 		{
 			OpenFolder();
@@ -426,6 +437,7 @@ namespace CHD.SVN_Notifier
 		{
 			CheckNowMenuItem.Enabled =
 				CommitMenuItem.Enabled =
+				CleanupMenuItem.Enabled =
 				UpdateMenuItem.Enabled =
 				OpenMenuItem.Enabled =
 				ChangeLogMenuItem.Enabled =
@@ -437,6 +449,8 @@ namespace CHD.SVN_Notifier
 				return;
 
 			int selectedIndex = ItemListView.Rows.IndexOf(ItemListView.SelectedRows[0]);
+
+			CleanupMenuItem.Enabled = true;
 
 			switch (folders[selectedIndex].Status)
 			{
@@ -1413,6 +1427,7 @@ namespace CHD.SVN_Notifier
 			ChangeLogMenuItem.Text   = Loc.Ctx_ChangeLog;
 			UpdateMenuItem.Text      = Loc.Ctx_Update;
 			CommitMenuItem.Text      = Loc.Ctx_Commit;
+			CleanupMenuItem.Text     = Loc.Ctx_Cleanup;
 			OpenMenuItem.Text        = Loc.Ctx_Open;
 			LogMenuItem.Text         = Loc.Ctx_Log;
 			PropertiesMenuItem.Text  = Loc.Ctx_Properties;

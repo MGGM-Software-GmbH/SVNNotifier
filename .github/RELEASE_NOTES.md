@@ -1,13 +1,12 @@
-SVN Notifier 3.0.0.10
+SVN Notifier 3.0.0.11
 
-- Der Programmupdater sperrt vor der Installation neue SVN-Aufträge und beendet alle vom Notifier gestarteten SVN-Prozesse samt Unterprozessen. Auch laufende stille Updates und TortoiseSVN-Dialoge werden beendet.
-- Der Installer startet erst nach dem Ende der eigenen Prozesse und der Hintergrundprüfung. Bei nicht bestätigtem Prozessende wird die Installation abgebrochen. Nach einem Installationsfehler wird die SVN-Verarbeitung wieder freigegeben.
-- Extern gestartete SVN- und TortoiseSVN-Prozesse bleiben unberührt. Das normale Beenden der Anwendung wartet weiterhin auf Schreibvorgänge.
-- Regressionstests prüfen laufende Lese-, Schreib- und Dialogprozesse, Unterprozesse, verzögerte Starts, Fehler und den tatsächlichen WinForms-Installationsübergang. Schreibende SVN-Tests verwenden ausschließlich isolierte Arbeitskopien und lokale Test-Repositories.
+- **SVN Cleanup...** im Repository-Kontextmenü öffnet den TortoiseSVN-Auswahldialog für den ausgewählten Eintrag. Der Eintrag steht auch bei fehlerhaftem oder unbekanntem Status sowie ausgeschalteter Prüfung zur Verfügung.
+- Der Cleanupdialog reserviert die Arbeitskopie bis zum tatsächlichen Prozessende und wird beim Programmupdate wie die anderen eigenen TortoiseSVN-Dialoge beendet. Die Bereinigung wird erst im Dialog bestätigt.
+- Regressionstests prüfen Menüauswahl und Klick, konkurrierende Zugriffe, Auto-Update-Zustände sowie Pfade mit Leerzeichen, Umlauten und abschließendem Verzeichnistrenner. Lokale Tests mit echtem TortoiseSVN verwenden ausschließlich isolierte Arbeitskopien.
 
-Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.10/docs/SVN-Koordination.md) beschreibt die interne Reservierung und ihre Grenzen. Der Notifier verändert weder den TortoiseSVN-Statuscache noch Arbeitskopiedatenbanken und führt keine automatischen Cleanups aus. Python wird nicht benötigt.
+Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.11/docs/SVN-Koordination.md) beschreibt die interne Reservierung und ihre Grenzen. Es gibt keine automatischen Cleanups. Python wird nicht benötigt.
 
-Die automatische Beendigung eigener SVN-Vorgänge gilt ab dieser Ausgabe. Beim Update von einer älteren Version müssen deren laufende Notifier-SVN-Vorgänge einmal vorher beendet werden. Alternativ die neue portable Ausgabe manuell installieren.
+Die automatische Beendigung eigener SVN-Vorgänge beim Programmupdate gilt ab 3.0.0.10. Beim Update von einer älteren Version müssen deren laufende Notifier-SVN-Vorgänge einmal vorher beendet werden. Alternativ die neue portable Ausgabe manuell installieren.
 
 Programmupdates und automatische SVN-Updates sind getrennte Funktionen. Versionen bis einschließlich 3.0.0.3 müssen einmal manuell durch diese Ausgabe ersetzt werden, um den Programmupdater zu erhalten.
 

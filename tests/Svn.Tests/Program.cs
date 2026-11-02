@@ -65,6 +65,7 @@ internal static class Program
                 // TortoiseSVN wertet die rohe Befehlszeile aus, nicht die vom .NET-Argumentparser aufbereitete Liste.
                 var path = System.Text.RegularExpressions.Regex.Match(Marshal.PtrToStringUni(GetCommandLineW())!, "(?:^| )/path:(?:\"(?<path>[^\"]*)\"|(?<path>[^ ]*))");
                 if (!path.Success || !Directory.Exists(path.Groups["path"].Value)) return 9;
+                if (args[0] == "/command:cleanup" && (args.Length != 2 || !args[1].StartsWith("/path:"))) return 12;
             }
             if (args[0] == "status") Console.WriteLine("<status><target><entry path='fixture'><wc-status item='normal' props='none'><commit revision='1'/></wc-status><repos-status item='modified'/></entry><against revision='2'/></target></status>");
             if (args[0] == "info") Console.WriteLine("<info><entry revision='2'><url>file:///fixture</url></entry></info>");
@@ -375,10 +376,16 @@ internal static class Program
     private static async Task CheckEntryPointsAsync(string root)
     {
         var item = new SvnItem(Path.Combine(root, "first"), PathType.Directory);
+        using (var invalid = Start("/command:cleanup", "/path:" + root, "/nodlg"))
+        {
+            await invalid.WaitForExitAsync();
+            Assert(invalid.ExitCode == 12, "Cleanup-Gegenprobe erkennt unterdrückte Auswahldialoge und zusätzliche Optionen");
+        }
         using (var claim = WorkingCopyLease.TryAcquire(root, "other", out _, out _))
         {
             Assert(SvnTools.GetSvnFolderStatus(item) is null, "Belegte Statusprüfung wird ohne neuen Status übersprungen");
             Assert(!SvnTools.BeginUpdateSilently(item) && !SvnTools.Commit(item) && !SvnTools.Update(item, true), "Alle Update- und Commit-Einstiege beachten Belegung");
+            Assert(!SvnTools.Cleanup(item), "Cleanup startet bei belegter Arbeitskopie keinen Prozess");
             Assert(SvnTools.GetRepositoryHeadRevision(item) == -1, "Revisionsabfrage startet bei Belegung nicht");
             SvnTools.OpenLogWindow(item.Path);
             SvnTools.OpenChangeLogWindow(item, true);
@@ -402,6 +409,10 @@ internal static class Program
                 manual.AutoUpdate = autoUpdate;
                 Assert(SvnTools.Update(manual, false), "Manuelles Update funktioniert unabhängig von Auto-Update und Leerzeichen im Pfad");
                 Assert(manual.AutoUpdate == autoUpdate, "Manuelles Update verändert Auto-Update nicht");
+                Assert(SvnTools.Cleanup(manual), "Cleanup öffnet unabhängig von Auto-Update den Auswahldialog");
+                await WaitAsync(() => !SvnTools.HasActiveOperations);
+                Assert(!SvnTools.TakeCompleted().Single().updateError && manual.AutoUpdate == autoUpdate,
+                    "Cleanup erhält den Pfad und übergibt ausschließlich Dialog und Ziel ohne automatische Bereinigungsoptionen");
             }
             SvnTools.OpenLogWindow(path);
             await WaitAsync(() => !SvnTools.HasActiveOperations);
@@ -481,9 +492,13 @@ internal static class Program
             Assert(SvnTools.Commit(item), "Echter TortoiseSVN-Commitdialog auf isolierter Arbeitskopie startet");
             await CloseOwnTortoiseDialogAsync("commit-dialog", working);
             Assert(SvnTools.TakeCompleted().Length == 1, "Abbrechen des echten Commitdialogs gibt Reservierung frei");
-            foreach (string action in new[] { "log", "commit-dialog" })
+            Assert(SvnTools.Cleanup(item), "Echter Cleanup-Auswahldialog auf isolierter Arbeitskopie startet");
+            await CloseOwnTortoiseDialogAsync("cleanup-dialog", working);
+            Assert(SvnTools.TakeCompleted().Length == 1, "Abbrechen des echten Cleanupdialogs gibt Reservierung frei");
+            foreach (string action in new[] { "log", "commit-dialog", "cleanup-dialog" })
             {
                 if (action == "log") SvnTools.OpenLogWindow(item.Path);
+                else if (action == "cleanup-dialog") Assert(SvnTools.Cleanup(item), "Echter Cleanupdialog startet für den isolierten Programmupdate-Test");
                 else Assert(SvnTools.Commit(item), "Echter Commitdialog startet für den isolierten Programmupdate-Test");
                 await CloseOwnTortoiseDialogAsync(action, working, applicationUpdate: true);
                 Assert(SvnTools.TakeCompleted().Single().Completion!.Result.Cancelled,
@@ -592,7 +607,7 @@ internal static class Program
                 return;
             }
             // TortoiseSVN verwendet im Protokoll einen eigenen Cancel/OK-Button statt des versteckten IDOK.
-            // Im Commitdialog ausschließlich Abbrechen verwenden.
+            // Im Commit- und Cleanupdialog ausschließlich Abbrechen verwenden.
             int buttonId = action == "log" ? 1383 : action == "update-dialog" ? 1 : 2;
             IntPtr button = IntPtr.Zero;
             await WaitAsync(() =>
@@ -603,6 +618,22 @@ internal static class Program
                 return button != IntPtr.Zero && IsWindowEnabled(button) &&
                     (action != "update-dialog" || !IsWindowEnabled(GetDlgItem(own.MainWindowHandle, 2)));
             }, 90);
+            if (action == "cleanup-dialog")
+            {
+                SetForegroundWindow(own!.MainWindowHandle);
+                await Task.Delay(300);
+                // Bildschirmaufnahme und native Fensterkoordinaten benötigen dieselbe DPI-Skalierung.
+                IntPtr previousDpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
+                try
+                {
+                    Assert(GetWindowRect(own.MainWindowHandle, out var bounds), "Cleanup-Auswahldialog ist sichtbar erfassbar");
+                    using var image = new System.Drawing.Bitmap(bounds.Right - bounds.Left, bounds.Bottom - bounds.Top);
+                    using var graphics = System.Drawing.Graphics.FromImage(image);
+                    graphics.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, image.Size);
+                    image.Save(Path.Combine(Path.GetDirectoryName(root)!, "cleanup-dialog.png"));
+                }
+                finally { SetThreadDpiAwarenessContext(previousDpi); }
+            }
             SendMessageTimeout(own!.MainWindowHandle, 0x0111, (IntPtr)buttonId, button, 2, 5000, out _);
             var deadline = DateTime.UtcNow.AddSeconds(90);
             while (SvnTools.HasActiveOperations && !own.HasExited && DateTime.UtcNow < deadline)
@@ -620,6 +651,14 @@ internal static class Program
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetDlgItem(IntPtr window, int identifier);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowBounds { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr window, out WindowBounds bounds);
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool QueryFullProcessImageNameW(Microsoft.Win32.SafeHandles.SafeProcessHandle process,
         int flags, System.Text.StringBuilder name, ref int size);

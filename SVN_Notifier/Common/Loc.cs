@@ -83,6 +83,7 @@ namespace CHD.SVN_Notifier
 		public static string Ctx_ChangeLog       => T("Change Log...",                 "Änderungsprotokoll...");
 		public static string Ctx_Update          => T("Update",                        "Aktualisieren");
 		public static string Ctx_Commit          => T("Commit...",                     "Übertragen...");
+		public static string Ctx_Cleanup         => T("SVN Cleanup...",                "SVN Cleanup...");
 		public static string Ctx_Open            => T("Open...",                       "Öffnen...");
 		public static string Ctx_Log             => T("Log...",                        "Protokoll...");
 		public static string Ctx_Properties      => T("Properties",                    "Eigenschaften");

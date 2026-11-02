@@ -19,13 +19,13 @@ if ($LASTEXITCODE -ne 0) { throw 'Die GUI-Prüfung konnte nicht gebaut werden.' 
 $executablePath = Join-Path $driverPath 'Gui.Tests.exe'
 foreach ($font in @('default', 'large', 'maximum')) {
     $testPath = Join-Path $artifactsPath "gui-checks/$RuntimeIdentifier/$font"
-    $arguments = @($testPath)
+    $arguments = @($testPath, '--capture-cleanup')
     if ($font -eq 'large') { $arguments += '--large-font' }
     if ($font -eq 'maximum') { $arguments += '--maximum-font' }
     & $executablePath @arguments
     if ($LASTEXITCODE -ne 0) { throw "GUI-Prüfung fehlgeschlagen: $RuntimeIdentifier, $font" }
 }
-foreach ($scenario in @('missing-command', 'save-option', 'button-size')) {
+foreach ($scenario in @('missing-command', 'save-option', 'button-size', 'cleanup-command', 'cleanup-click')) {
     $testPath = Join-Path $artifactsPath "gui-checks/$RuntimeIdentifier/$scenario"
     New-Item -ItemType Directory -Path $testPath -Force | Out-Null
     $outputPath = Join-Path $testPath 'output.log'
@@ -36,6 +36,8 @@ foreach ($scenario in @('missing-command', 'save-option', 'button-size')) {
         'missing-command' { '*Befehle erhalten: FileMenuItem*' }
         'save-option' { '*Benachrichtigungsdauer werden gespeichert*' }
         'button-size' { '*Schriftbedarf*' }
+        'cleanup-command' { '*Befehle erhalten: ItemMenu*' }
+        'cleanup-click' { '*Cleanup-Menüklick startet den Dialog*' }
     }
     if ($process.ExitCode -eq 0 -or (Get-Content -LiteralPath $errorPath -Raw -Encoding UTF8) -notlike $expected) { throw "GUI-Gegenprobe hat den Fehler nicht erkannt: $scenario" }
     Write-Host "GUI-Gegenprobe erkannt: $RuntimeIdentifier, $scenario"

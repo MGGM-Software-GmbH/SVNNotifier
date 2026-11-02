@@ -6,7 +6,7 @@ internal enum UiIcon
 {
     Folder, AddFolder, AddFile, Remove, Update, UpdateAll, Commit, Log, Changes,
     Settings, Properties, Import, Export, Check, Info, Close, Window, Error,
-    Unknown, Current, Modified, Incoming, IncomingModified
+    Unknown, Current, Modified, Incoming, IncomingModified, Cleanup
 }
 
 /// <summary>Zeichnet die Anwendungssymbole unabhängig von installierten Symbolschriften und Bildpaketen.</summary>
@@ -52,6 +52,12 @@ internal static class UiIcons
                 break;
             case UiIcon.Commit:
                 Arrow(false); Line(5, 21, 19, 21);
+                break;
+            case UiIcon.Cleanup:
+                Line(13, 12, 21, 4);
+                Lines(new(4, 17), new(9, 10), new(15, 16), new(8, 21), new(4, 17));
+                Line(7, 17, 9, 19);
+                Line(9, 15, 11, 17);
                 break;
             case UiIcon.Import:
             case UiIcon.Export:

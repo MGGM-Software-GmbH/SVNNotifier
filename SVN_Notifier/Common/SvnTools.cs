@@ -164,6 +164,10 @@ namespace CHD.SVN_Notifier
         public static bool Commit(SvnItem folder) =>
             StartTracked(folder, "commit-dialog", new[] { "/command:commit", "/path:" + folder.Path, "/notempfile" }, false, false);
 
+        /// <summary>Öffnet die TortoiseSVN-Cleanup-Auswahl und reserviert die Arbeitskopie bis zum Prozessende.</summary>
+        public static bool Cleanup(SvnItem folder) =>
+            StartTracked(folder, "cleanup-dialog", new[] { "/command:cleanup", "/path:" + folder.Path }, false, false);
+
         /// <summary>Ein belegter Koordinationspfad ändert weder den Status noch vorhandene Benachrichtigungen.</summary>
         public static SvnStatus? GetSvnFolderStatus(SvnItem folder)
         {

@@ -97,6 +97,7 @@ public partial class MainForm
         Assign(UiIcon.Log, LogButton, LogMenuItem);
         Assign(UiIcon.Folder, OpenButton, OpenMenuItem);
         Assign(UiIcon.Commit, CommitButton, CommitMenuItem);
+        Assign(UiIcon.Cleanup, CleanupMenuItem);
         Assign(UiIcon.Update, UpdateButton, UpdateMenuItem);
         Assign(UiIcon.Changes, ChangeLogButton, ChangeLogMenuItem);
         Assign(UiIcon.UpdateAll, UpdateAllMenuItem, TrayUpdateAllMenuItem);

@@ -64,6 +64,7 @@
 			this.UpdateMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.CommitSeparator = new System.Windows.Forms.ToolStripSeparator();
 			this.CommitMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+			this.CleanupMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.OpenSeparator = new System.Windows.Forms.ToolStripSeparator();
 			this.OpenMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.LogMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -317,6 +318,7 @@
             this.UpdateMenuItem,
             this.CommitSeparator,
             this.CommitMenuItem,
+            this.CleanupMenuItem,
             this.OpenSeparator,
             this.OpenMenuItem,
             this.LogMenuItem,
@@ -367,6 +369,12 @@
 			this.CommitMenuItem.Size = new System.Drawing.Size(147, 22);
 			this.CommitMenuItem.Text = "Commit...";
 			this.CommitMenuItem.Click += new System.EventHandler(this.CommitMenuItem_Click);
+			//
+			// CleanupMenuItem
+			//
+			this.CleanupMenuItem.Name = "CleanupMenuItem";
+			this.CleanupMenuItem.Text = "SVN Cleanup...";
+			this.CleanupMenuItem.Click += new System.EventHandler(this.CleanupMenuItem_Click);
 			// 
 			// OpenSeparator
 			// 
@@ -757,6 +765,7 @@
 		private System.Windows.Forms.ToolStripMenuItem UpdateMenuItem;
 		private System.Windows.Forms.ToolStripSeparator CommitSeparator;
 		private System.Windows.Forms.ToolStripMenuItem CommitMenuItem;
+		private System.Windows.Forms.ToolStripMenuItem CleanupMenuItem;
 		private System.Windows.Forms.ToolStripSeparator OpenSeparator;
 		private System.Windows.Forms.ToolStripMenuItem OpenMenuItem;
 		private System.Windows.Forms.ToolStripMenuItem LogMenuItem;
