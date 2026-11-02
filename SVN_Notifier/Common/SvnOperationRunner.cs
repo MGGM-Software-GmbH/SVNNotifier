@@ -30,7 +30,7 @@ internal sealed class SvnOperationRunner
 
     /// <summary>Reserviert synchron, bevor ein verzögerter Worker den Prozess starten darf.</summary>
     internal Task<SvnProcessResult>? TryStart(string path, string action, string executable, IEnumerable<string> arguments,
-        bool readOnly, int timeoutSeconds = 0, CancellationToken cancellation = default, bool captureOutput = true)
+        bool readOnly, int timeoutSeconds = 0, CancellationToken cancellation = default, bool captureOutput = true, bool tortoiseSyntax = false)
     {
         lock (gate)
         {
@@ -50,7 +50,7 @@ internal sealed class SvnOperationRunner
             {
                 Log(root, action, "reserve", null, null, "");
                 var values = arguments.ToArray();
-                var completion = Task.Run(() => ExecuteAsync(lease, action, executable, values, readOnly, timeoutSeconds, cancellation, captureOutput));
+                var completion = Task.Run(() => ExecuteAsync(lease, action, executable, values, readOnly, timeoutSeconds, cancellation, captureOutput, tortoiseSyntax));
                 active.RemoveWhere(task => task.IsCompleted);
                 active.Add(completion);
                 return completion;
@@ -76,7 +76,7 @@ internal sealed class SvnOperationRunner
 
     /// <summary>Liest beide Streams parallel und gibt auch bei Timeout erst nach dem Prozessende frei.</summary>
     private async Task<SvnProcessResult> ExecuteAsync(WorkingCopyLease lease, string action, string executable,
-        string[] arguments, bool readOnly, int timeoutSeconds, CancellationToken cancellation, bool captureOutput)
+        string[] arguments, bool readOnly, int timeoutSeconds, CancellationToken cancellation, bool captureOutput, bool tortoiseSyntax)
     {
         Process? process = null;
         bool cancelled = false;
@@ -95,7 +95,10 @@ internal sealed class SvnOperationRunner
             {
                 CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = captureOutput, RedirectStandardError = captureOutput
             };
-            foreach (string argument in arguments) info.ArgumentList.Add(argument);
+            if (tortoiseSyntax)
+                info.Arguments = string.Join(" ", arguments.Select(FormatTortoiseArgument));
+            else
+                foreach (string argument in arguments) info.ArgumentList.Add(argument);
             process = start(info) ?? throw new InvalidOperationException("Prozess nicht gestartet.");
             // Beide Streams werden sofort parallel gelesen. Ein voller Fehlerstream darf weder Timeout noch Freigabe blockieren.
             // GUI-Programme erhalten keine Pipes: länger lebende GUI-Hilfsprozesse können geerbte Handles offen halten.
@@ -140,6 +143,17 @@ internal sealed class SvnOperationRunner
                 if (lease.ReleaseFailed) Log(lease.Root, action, "release-error", null, exitCode, "claim-retained");
             }
         }
+    }
+
+    /// <summary>Der TortoiseSVN-Parser erwartet /path:"Wert" statt eines als Ganzes zitierten Arguments.</summary>
+    private static string FormatTortoiseArgument(string argument)
+    {
+        if (!argument.StartsWith('/') || argument.IndexOfAny(new[] { '"', '\r', '\n', '\0' }) >= 0)
+            throw new ArgumentException("Ungültiges TortoiseSVN-Argument.");
+        int separator = argument.IndexOf(':');
+        string key = separator < 0 ? argument : argument[..separator];
+        if (key.Contains(' ')) throw new ArgumentException("Ungültiger TortoiseSVN-Schalter.");
+        return separator < 0 ? key : key + ":\"" + argument[(separator + 1)..] + "\"";
     }
 
     /// <summary>Protokolliert ausschließlich freigegebene Metadaten, niemals Befehlszeilen oder Ausgaben.</summary>

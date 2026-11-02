@@ -36,6 +36,12 @@ internal static class Program
         }
         if (args[0] is "status" or "info" or "update" || args[0].StartsWith("/command:"))
         {
+            if (args[0].StartsWith("/command:"))
+            {
+                // TortoiseSVN wertet die rohe Befehlszeile aus, nicht die vom .NET-Argumentparser aufbereitete Liste.
+                var path = System.Text.RegularExpressions.Regex.Match(Marshal.PtrToStringUni(GetCommandLineW())!, "(?:^| )/path:(?:\"(?<path>[^\"]*)\"|(?<path>[^ ]*))");
+                if (!path.Success || !Directory.Exists(path.Groups["path"].Value)) return 9;
+            }
             if (args[0] == "status") Console.WriteLine("<status><target><entry path='fixture'><wc-status item='normal' props='none'><commit revision='1'/></wc-status><repos-status item='modified'/></entry><against revision='2'/></target></status>");
             if (args[0] == "info") Console.WriteLine("<info><entry revision='2'><url>file:///fixture</url></entry></info>");
             await Task.Delay(100);
@@ -130,6 +136,9 @@ internal static class Program
         var failed = await runner.TryStart(root, "update", Path.Combine(root, "missing.exe"), Array.Empty<string>(), false)!;
         Assert(!failed.Success && failed.ExitCode is null, "Startfehler wird erkannt");
         using (var claim = WorkingCopyLease.TryAcquire(root, "status", out _, out _)) Assert(claim is not null, "Startfehler gibt Reservierung frei");
+        var invalid = await runner.TryStart(root, "update-dialog", executable, new[] { "/command:update", "/path:invalid\"path" }, false, tortoiseSyntax: true)!;
+        Assert(!invalid.Success && invalid.ExitCode is null, "Ungültige Anführungszeichen verhindern den TortoiseSVN-Prozessstart");
+        using (var claim = WorkingCopyLease.TryAcquire(root, "status", out _, out _)) Assert(claim is not null, "Ungültige Argumente geben die Reservierung frei");
         using var cancellation = new CancellationTokenSource();
         int begins = logs.Count(line => line.Contains("\"phase\":\"begin\""));
         var cancelled = runner.TryStart(root, "status", executable, new[] { "--child", "10000", "0" }, true, cancellation: cancellation.Token)!;
@@ -182,6 +191,24 @@ internal static class Program
         Assert(SvnTools.Commit(item), "Manueller Commit startet nach Freigabe");
         await WaitAsync(() => !SvnTools.HasActiveOperations);
         Assert(SvnTools.TakeCompleted().Length == 1, "Manueller Prozess wird ohne Statusprüfung freigegeben");
+        string spaced = Path.Combine(root, "Ordner mit Leerzeichen ä-ß");
+        Directory.CreateDirectory(spaced);
+        foreach (string path in new[] { item.Path, spaced, spaced + Path.DirectorySeparatorChar })
+        {
+            var manual = new SvnItem(path, PathType.Directory);
+            foreach (bool autoUpdate in new[] { false, true })
+            {
+                manual.AutoUpdate = autoUpdate;
+                Assert(SvnTools.Update(manual, false), "Manuelles Update funktioniert unabhängig von Auto-Update und Leerzeichen im Pfad");
+                Assert(manual.AutoUpdate == autoUpdate, "Manuelles Update verändert Auto-Update nicht");
+            }
+            SvnTools.OpenLogWindow(path);
+            await WaitAsync(() => !SvnTools.HasActiveOperations);
+            Assert(!SvnTools.TakeCompleted().Single().updateError, "TortoiseSVN-Protokoll erhält den unveränderten Pfad");
+            Assert(SvnTools.Commit(manual), "TortoiseSVN-Commit kann mit Leerzeichen gestartet werden");
+            await WaitAsync(() => !SvnTools.HasActiveOperations);
+            Assert(!SvnTools.TakeCompleted().Single().updateError, "TortoiseSVN-Commit erhält den unveränderten Pfad");
+        }
     }
 
     private static async Task CheckRealSvnAsync(string output, string directory)
@@ -189,7 +216,7 @@ internal static class Program
         string svn = Path.Combine(directory, "svn.exe");
         string admin = Path.Combine(directory, "svnadmin.exe");
         string repository = Path.Combine(output, "repository");
-        string working = Path.Combine(output, "working");
+        string working = Path.Combine(output, "working copy");
         string author = Path.Combine(output, "author");
         await RawAsync(admin, "create", repository);
         string url = new Uri(repository + Path.DirectorySeparatorChar).AbsoluteUri.TrimEnd('/');
@@ -203,14 +230,25 @@ internal static class Program
         File.AppendAllText(Path.Combine(author, "first", "fixture.txt"), "\nchanged");
         await RawAsync(svn, "commit", author, "-m", "Isolierte eingehende Änderung");
         Config.SVNpath = svn;
+        Config.TortoiseSVNpath = Path.Combine(directory, "TortoiseProc.exe");
         var item = new SvnItem(Path.Combine(working, "first"), PathType.Directory);
         Assert(SvnTools.GetSvnFolderStatus(item) == SvnStatus.NeedUpdate && !item.AutoUpdate, "Echtes lokales SVN meldet Änderungen ohne automatisches Schreiben");
         using (var claim = WorkingCopyLease.TryAcquire(working, "other", out _, out _)) Assert(!SvnTools.BeginUpdateSilently(item), "Echtes SVN-Update startet bei belegter Arbeitskopie nicht");
+        if (File.Exists(Config.TortoiseSVNpath))
+        {
+            Config.UpdateWindowAction = 0;
+            var manual = Task.Run(() => SvnTools.Update(item, false));
+            await CloseOwnTortoiseDialogAsync("update-dialog", working);
+            Assert(await manual && !item.AutoUpdate && File.ReadAllText(Path.Combine(item.Path, "fixture.txt")).Contains("changed"),
+                "Manuelles TortoiseSVN-Update mit ausgeschaltetem Auto-Update und Leerzeichen im Pfad übernimmt Änderung");
+            File.AppendAllText(Path.Combine(author, "first", "fixture.txt"), "\nautomatic-update-test");
+            await RawAsync(svn, "commit", author, "-m", "Weitere isolierte eingehende Änderung");
+            Assert(SvnTools.GetSvnFolderStatus(item) == SvnStatus.NeedUpdate, "Weitere Änderung bleibt vor explizitem Auto-Update erkennbar");
+        }
         item.AutoUpdate = true;
         Assert(SvnTools.BeginUpdateSilently(item), "Explizit aktiviertes Update im lokalen Test-Repository");
         await WaitAsync(() => !SvnTools.HasActiveOperations);
         Assert(!SvnTools.TakeCompleted().Single().updateError && SvnTools.GetSvnFolderStatus(item) == SvnStatus.UpToDate, "Echtes Update abgeschlossen und erneute Statusprüfung nutzbar");
-        Config.TortoiseSVNpath = Path.Combine(directory, "TortoiseProc.exe");
         if (File.Exists(Config.TortoiseSVNpath))
         {
             SvnTools.OpenLogWindow(item.Path);
@@ -250,7 +288,7 @@ internal static class Program
             Assert(WorkingCopyLease.TryAcquire(root, "status", out _, out _) is null, "Echter TortoiseSVN-Dialog blockiert konkurrierende Aktion");
             // TortoiseSVN verwendet im Protokoll einen eigenen Cancel/OK-Button statt des versteckten IDOK.
             // Im Commitdialog ausschließlich Abbrechen verwenden.
-            int buttonId = action == "log" ? 1383 : 2;
+            int buttonId = action == "log" ? 1383 : action == "update-dialog" ? 1 : 2;
             IntPtr button = IntPtr.Zero;
             await WaitAsync(() =>
             {
@@ -275,6 +313,8 @@ internal static class Program
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetDlgItem(IntPtr window, int identifier);
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCommandLineW();
     [DllImport("user32.dll")]
     private static extern bool IsWindowEnabled(IntPtr window);
     [DllImport("user32.dll", SetLastError = true)]

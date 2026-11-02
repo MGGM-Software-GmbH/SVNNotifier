@@ -104,7 +104,7 @@ namespace CHD.SVN_Notifier
             var arguments = new[] { "/command:update", "/path:" + folder.Path, "/notempfile", "/closeonend:" + Config.UpdateWindowAction };
             if (Config.ChangeLogBeforeUpdate && !updateAll)
                 arguments = arguments.Concat(new[] { "/rev:" + folder.reviewedRevision }).ToArray();
-            var completion = runner.TryStart(folder.Path, "update-dialog", Config.TortoiseSVNpath, arguments, false, captureOutput: false);
+            var completion = runner.TryStart(folder.Path, "update-dialog", Config.TortoiseSVNpath, arguments, false, captureOutput: false, tortoiseSyntax: true);
             if (completion is null) { folder.DeferOperation(); return false; }
             var result = completion.GetAwaiter().GetResult();
             if (!result.Success) ReportFailure(folder, result);
@@ -123,7 +123,7 @@ namespace CHD.SVN_Notifier
         private static bool StartTracked(SvnItem folder, string action, string[] arguments, bool update, bool commandLine)
         {
             // Skip this folder if update or commit is in progress. Die Reservierung gilt auch für andere Unterordner.
-            var completion = runner.TryStart(folder.Path, action, commandLine ? Config.SVNpath : Config.TortoiseSVNpath, arguments, false, captureOutput: commandLine);
+            var completion = runner.TryStart(folder.Path, action, commandLine ? Config.SVNpath : Config.TortoiseSVNpath, arguments, false, captureOutput: commandLine, tortoiseSyntax: !commandLine);
             if (completion is null) { folder.DeferOperation(); return false; }
             lock (svnFolderProcesses.SyncRoot)
                 svnFolderProcesses.Add(new SvnFolderProcess(folder, new Process(), update) { Completion = completion });
