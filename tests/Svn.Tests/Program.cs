@@ -62,10 +62,10 @@ internal static class Program
             }
             if (args[0].StartsWith("/command:"))
             {
+                if (args[0] == "/command:cleanup" && (args.Length != 2 || !args[1].StartsWith("/path:"))) return 12;
                 // TortoiseSVN wertet die rohe Befehlszeile aus, nicht die vom .NET-Argumentparser aufbereitete Liste.
                 var path = System.Text.RegularExpressions.Regex.Match(Marshal.PtrToStringUni(GetCommandLineW())!, "(?:^| )/path:(?:\"(?<path>[^\"]*)\"|(?<path>[^ ]*))");
                 if (!path.Success || !Directory.Exists(path.Groups["path"].Value)) return 9;
-                if (args[0] == "/command:cleanup" && (args.Length != 2 || !args[1].StartsWith("/path:"))) return 12;
             }
             if (args[0] == "status") Console.WriteLine("<status><target><entry path='fixture'><wc-status item='normal' props='none'><commit revision='1'/></wc-status><repos-status item='modified'/></entry><against revision='2'/></target></status>");
             if (args[0] == "info") Console.WriteLine("<info><entry revision='2'><url>file:///fixture</url></entry></info>");
@@ -376,8 +376,11 @@ internal static class Program
     private static async Task CheckEntryPointsAsync(string root)
     {
         var item = new SvnItem(Path.Combine(root, "first"), PathType.Directory);
-        using (var invalid = Start("/command:cleanup", "/path:" + root, "/nodlg"))
+        string spaced = Path.Combine(root, "Ordner mit Leerzeichen ä-ß");
+        Directory.CreateDirectory(spaced);
+        foreach (string path in new[] { root, spaced })
         {
+            using var invalid = Start("/command:cleanup", "/path:" + path, "/nodlg");
             await invalid.WaitForExitAsync();
             Assert(invalid.ExitCode == 12, "Cleanup-Gegenprobe erkennt unterdrückte Auswahldialoge und zusätzliche Optionen");
         }
@@ -399,8 +402,6 @@ internal static class Program
         Assert(SvnTools.Commit(item), "Manueller Commit startet nach Freigabe");
         await WaitAsync(() => !SvnTools.HasActiveOperations);
         Assert(SvnTools.TakeCompleted().Length == 1, "Manueller Prozess wird ohne Statusprüfung freigegeben");
-        string spaced = Path.Combine(root, "Ordner mit Leerzeichen ä-ß");
-        Directory.CreateDirectory(spaced);
         foreach (string path in new[] { item.Path, spaced, spaced + Path.DirectorySeparatorChar })
         {
             var manual = new SvnItem(path, PathType.Directory);
