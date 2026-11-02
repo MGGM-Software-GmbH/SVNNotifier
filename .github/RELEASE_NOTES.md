@@ -1,14 +1,11 @@
-SVN Notifier 3.0.0.6
+SVN Notifier 3.0.0.7
 
-- Automatische SVN-Updates benötigen eine aktivierte Checkbox. Neue Einträge und ältere INI-Einträge ohne Auto-Update-Feld beginnen ausgeschaltet. Bereits gespeicherte Werte bleiben erhalten.
-- Status, Info, stille Updates und aus dem Notifier gestartete TortoiseSVN-Dialoge werden je Arbeitskopiewurzel koordiniert. Unterordner, normalisierte Windows-Pfade und eingebettete Arbeitskopien werden berücksichtigt.
-- Reservierung vor dem Prozessstart und Freigabe erst nach Prozessende. Bei belegter Koordination kein weiterer Prozessstart; Hintergrundaktionen warten vor einem erneuten Versuch mindestens 15 Sekunden.
-- Statusbenachrichtigungen bleiben bei ausgeschaltetem Auto-Update erhalten. Die Checkbox zeigt den aktiven und inaktiven Zustand und ist auch per Leertaste bedienbar.
-- Gemeinsames Dateiprotokoll für ausdrücklich teilnehmende externe Aufrufe. Optionaler Python-Wrapper und [Einrichtungsvertrag](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.6/docs/SVN-Koordination.md) im Repository. Direkte SVN-, Explorer- und IDE-Aufrufe ohne dieses Verfahren werden nicht erfasst.
-- Diagnose mit Arbeitskopie, Aktion, Beginn/Ende, Prozess-ID, Exit-Code und Überspringgrund ohne Befehlsargumente oder Zugangsdaten. Keine automatischen Cleanups oder Änderungen an Arbeitskopiedatenbanken.
-- Regressionstests für konkurrierende Starts, Belegung, Prozessfehler, Abbruch, Freigabe und Konfiguration. Windows-/Container-Gegenproben wurden lokal auf einer isolierten 9p-Testablage ausgeführt; die konkrete KLIMM-Container-Konfiguration bleibt gesondert zu prüfen.
+- Manuelles Aktualisieren über TortoiseSVN erhält Pfade im vom TortoiseSVN-Parser benötigten Format. Damit werden Pfade mit Leerzeichen korrekt übergeben.
+- Die korrigierte Übergabe gilt ebenfalls für Commit- und Protokolldialoge sowie Pfade mit Umlauten und abschließendem Verzeichnistrenner.
+- Manuelles Aktualisieren funktioniert bei ein- und ausgeschaltetem Auto-Update und verändert die Checkbox nicht. Die arbeitskopieweite Reservierung bleibt bis zum tatsächlichen Prozessende bestehen.
+- Regressionstests für Pfadformen, beide Auto-Update-Zustände sowie abgewiesene ungültige Argumente mit anschließender Freigabe. Lokale Windows-Prüfungen für x64 und x86 enthalten ein echtes manuelles TortoiseSVN-Update auf einer isolierten Arbeitskopie.
 
-Bereits gespeichert aktivierte Auto-Updates bleiben aktiv. Bei gemeinsam genutzten Arbeitskopien sollte diese Einstellung bewusst geprüft werden. Die Änderungen liefern keinen Ursachennachweis für den ursprünglich gemeldeten SQLite-I/O-Fehler. Nach einem Absturz oder erzwungenen Ende kann eine Reservierung zur sicheren Blockierung bestehen bleiben; sie wird nicht automatisch entfernt.
+Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.7/docs/SVN-Koordination.md) erfasst weiterhin nur teilnehmende Aufrufe. Direkte externe SVN- und TortoiseSVN-Aufrufe werden nicht erfasst. Es gibt keine automatischen Cleanups oder Änderungen an Arbeitskopiedatenbanken.
 
 Programmupdates und automatische SVN-Updates sind getrennte Funktionen. Versionen bis einschließlich 3.0.0.3 müssen einmal manuell durch diese Ausgabe ersetzt werden, um den Programmupdater zu erhalten.
 
