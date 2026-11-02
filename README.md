@@ -8,7 +8,7 @@ Small and portable application which notifies you about other people's commits t
 
 ### Neu in v3.0.0.11
 
-- **SVN Cleanup...** im Repository-Kontextmenü öffnet den TortoiseSVN-Auswahldialog für den ausgewählten Eintrag, auch bei fehlerhaftem oder unbekanntem Status.
+- **Cleanup** im Repository-Kontextmenü öffnet den TortoiseSVN-Auswahldialog für den ausgewählten Eintrag, auch bei fehlerhaftem oder unbekanntem Status.
 - Die Arbeitskopie bleibt bis zum Ende des Dialogprozesses reserviert. Die Bereinigung wird erst im TortoiseSVN-Dialog bestätigt; es gibt keine automatische Bereinigung.
 
 ### Neu in v3.0.0.10

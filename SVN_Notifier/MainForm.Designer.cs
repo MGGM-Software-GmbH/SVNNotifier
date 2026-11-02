@@ -373,7 +373,7 @@
 			// CleanupMenuItem
 			//
 			this.CleanupMenuItem.Name = "CleanupMenuItem";
-			this.CleanupMenuItem.Text = "SVN Cleanup...";
+			this.CleanupMenuItem.Text = "Cleanup";
 			this.CleanupMenuItem.Click += new System.EventHandler(this.CleanupMenuItem_Click);
 			// 
 			// OpenSeparator

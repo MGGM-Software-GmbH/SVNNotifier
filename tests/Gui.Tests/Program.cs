@@ -322,6 +322,7 @@ internal static class Program
     private static void CheckCleanupMenu(MainForm main, DataGridView grid, BindingList<SvnItem> folders, string output, int language)
     {
         var menu = (ToolStripMenuItem)Field(main, "CleanupMenuItem").GetValue(main)!;
+        Assert(menu.Text == "Cleanup", "Cleanup-Menütext entspricht in beiden Sprachen der Beschriftung");
         var updateMenu = typeof(MainForm).GetMethod("UpdateContextMenuItem", BindingFlags.NonPublic | BindingFlags.Instance)!;
         grid.ClearSelection();
         updateMenu.Invoke(main, null);
