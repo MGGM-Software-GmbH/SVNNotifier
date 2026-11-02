@@ -332,7 +332,7 @@ internal static class Program
             updateMenu.Invoke(main, null);
             Assert(menu.Enabled, "Cleanup ist auch bei Fehlern, unbekanntem Status und pausierter Prüfung verfügbar");
         }
-        string target = Path.Combine(output, $"Cleanup Arbeitskopie ä-ß {language}");
+        string target = Path.Combine(output, $"Cleanup Arbeitskopie ä-ß {language}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(target, ".svn"));
         File.WriteAllText(Path.Combine(target, ".svn", "wc.db"), "Isolierte Testmarkierung.");
         string previousPath = folders[4].Path;
