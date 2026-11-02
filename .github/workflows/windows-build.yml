@@ -97,18 +97,6 @@ jobs:
         env:
           RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
         run: ./.github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER
-      - name: Externen SVN-Aufrufvertrag unter Windows prüfen
-        env:
-          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
-        run: >-
-          python tests/Svn.Tests/test_coordination.py --shared-directory "$env:RUNNER_TEMP/svn-protocol-tests"
-          --windows-driver "artifacts/svn-driver/$env:RUNTIME_IDENTIFIER/Svn.Tests.exe"
-          CoordinationTests.test_subfolders_are_exclusive CoordinationTests.test_foreign_claim_is_preserved
-          CoordinationTests.test_process_failure_releases_claim CoordinationTests.test_start_failure_releases_claim
-          CoordinationTests.test_diagnostics_exclude_arguments CoordinationTests.test_changed_claim_is_preserved
-          CoordinationTests.test_parent_crash_keeps_fail_closed_claim CoordinationTests.test_invalid_arguments_are_not_logged
-          CoordinationTests.test_tortoise_command_line_preserves_values CoordinationTests.test_tortoise_rejects_ambiguous_arguments
-          CoordinationTests.test_windows_tortoise_process_and_release -v
       - name: Pakete und Prüfsummen hochladen
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -117,22 +105,10 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
-  svn-protocol:
-    name: SVN-Aufrufvertrag unter Linux prüfen
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Quellcode auschecken
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Lokalen SVN-Testclient installieren
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq subversion
-      - name: Koordination, Fehlerfälle und lokales Test-Repository prüfen
-        run: python3 tests/Svn.Tests/test_coordination.py --shared-directory "$RUNNER_TEMP/svn-protocol-tests" -v
-
   release:
     name: GitHub Release veröffentlichen
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [build, svn-protocol]
+    needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

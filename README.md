@@ -4,14 +4,19 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.0.0.8** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+**SVN Notifier 3.0.0.9** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.0.0.9
+
+- Der optionale Python-Wrapper samt zugehörigen Tests und CI-Schritten ist entfernt. Python wird nicht benötigt.
+- Die arbeitskopieweite Reservierung aller vom Notifier gestarteten SVN-Vorgänge bleibt erhalten, auch zwischen mehreren aktuellen Notifier-Instanzen. Extern gestartete SVN-, TortoiseSVN- und Container-Vorgänge werden nicht koordiniert.
+- Manuelles Aktualisieren bei ausgeschaltetem Auto-Update, Benachrichtigungen und die korrigierte Pfadübergabe bleiben erhalten.
 
 ### Neu in v3.0.0.8
 
 - SVN-Kommandozeilenaufrufe behandeln `@` im Arbeitskopiepfad als Dateinamenbestandteil. Auch relative Pfade mit führendem Minus werden als lokale Ziele übergeben.
 - Eine Arbeitskopie mit abschließendem `@` wird unabhängig von einer danebenliegenden ähnlich benannten Arbeitskopie ohne `@` reserviert und aktualisiert.
-- Der optionale Python-Wrapper verwendet unter Windows für `TortoiseProc.exe` die benötigte Argumentübergabe, auch bei Leerzeichen und Umlauten. Ungültige Argumente werden vor dem Prozessstart abgewiesen.
-- Regressionstests mit isolierten Arbeitskopien prüfen insbesondere, dass eine andere reservierte Arbeitskopie unverändert bleibt. Der Aufrufvertrag für externe Werkzeuge steht in der SVN-Koordinationsdokumentation.
+- Regressionstests mit isolierten Arbeitskopien prüfen insbesondere, dass eine andere reservierte Arbeitskopie unverändert bleibt. Verhalten und Grenzen stehen in der SVN-Koordinationsdokumentation.
 
 ### Neu in v3.0.0.7
 
@@ -24,10 +29,10 @@ Small and portable application which notifies you about other people's commits t
 - Automatische SVN-Updates benötigen eine aktivierte Checkbox. Neue Einträge und ältere Einstellungen ohne Auto-Update-Feld beginnen ausgeschaltet. Ausdrücklich gespeicherte Werte bleiben erhalten.
 - Alle vom Notifier gestarteten SVN-Prüfungen, Updates, Commits und Protokolldialoge reservieren die Arbeitskopiewurzel vor dem Prozessstart. Mehrere konfigurierte Unterordner teilen dieselbe Reservierung.
 - Belegte Arbeitskopien werden ohne konkurrierenden Prozessstart übersprungen und frühestens nach 15 Sekunden erneut geprüft. Benachrichtigungen bleiben bei ausgeschaltetem Auto-Update nutzbar.
-- Ein gemeinsames Dateiprotokoll und ein optionaler Python-Wrapper ermöglichen die Koordination ausdrücklich teilnehmender Windows- und Container-Aufrufe. Direkte externe SVN- oder TortoiseSVN-Aufrufe werden nicht erfasst.
+- Eine gemeinsame Reservierungsdatei verhindert überlappende Zugriffe mehrerer aktueller Notifier-Instanzen. Externe SVN- oder TortoiseSVN-Aufrufe werden nicht erfasst.
 - Diagnose mit Arbeitskopie, Aktion, Prozess-ID, Beginn, Ende und Exit-Code ohne Befehlsargumente oder Zugangsdaten. Keine automatischen Cleanups und keine Änderungen an SVN-Datenbanken oder SQLite-Einstellungen.
 
-Vertrag, Einrichtung, Tests und Grenzen stehen in [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/master/docs/SVN-Koordination.md). Die Absicherung ist kein Ursachennachweis für einen SQLite-I/O-Fehler. Bereits gespeichert aktivierte Auto-Updates bleiben aktiv und sollten bei gemeinsam genutzten Arbeitskopien bewusst geprüft werden.
+Verhalten, Tests und Grenzen stehen in [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/master/docs/SVN-Koordination.md). Bereits gespeichert aktivierte Auto-Updates bleiben aktiv und sollten bei gemeinsam genutzten Arbeitskopien bewusst geprüft werden. Der Notifier verändert den TortoiseSVN-Statuscache nicht.
 
 ### Neu in v3.0.0.5
 
@@ -67,7 +72,7 @@ Versionen bis einschließlich 3.0.0.3 enthalten diesen Programmupdater noch nich
 
 Das zur Windows-Architektur passende ZIP-Paket unter [Releases](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases) herunterladen, entpacken und `SVN_Notifier.exe` starten. Subversion-Kommandozeilenclient (`svn.exe`) und TortoiseSVN werden weiterhin separat benötigt und in den Einstellungen ausgewählt. Die erzeugten EXE-Dateien sind nicht digital signiert.
 
-Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.0.0.8-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
+Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.0.0.9-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
 
 ### Windows-Build und Veröffentlichung
 
@@ -87,14 +92,14 @@ powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier 
 
 Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages/`. Mit `-ArtifactsDirectory` kann ein eigener Ausgabeordner gewählt werden. Für jeden Prüflauf muss dieser neue Installations-Testverzeichnisse erlauben. Der Workflow stellt die Pakete auch bei normalen Builds als herunterladbare Actions-Artefakte zur Verfügung und prüft den Anwendungsstart beider Architekturen. Die Updater-Prüfungen verwenden isolierte HTTP-Testdaten und separate Installationsordner. Sie prüfen auch den tatsächlichen EXE-Austausch mit Neustart und eine Manipulation zwischen Downloadprüfung und Installation.
 
-Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.8` die Veröffentlichung aus:
+Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.9` die Veröffentlichung aus:
 
 ```powershell
-git tag v3.0.0.8
-git push mggm v3.0.0.8
+git tag v3.0.0.9
+git push mggm v3.0.0.9
 ```
 
-Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests, GUI-Prüfungen und den SVN-Koordinationsprüfungen unter Windows und Linux. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.
+Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests, GUI-Prüfungen und den SVN-Koordinationsprüfungen unter Windows. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.
 
 Der Release-Job überprüft die Prüfsummen, lädt die Pakete zunächst in einen Release-Entwurf hoch und veröffentlicht diesen anschließend. Dafür genügt das automatische `GITHUB_TOKEN`; zusätzliche Repository-Secrets sind nicht erforderlich.
 
