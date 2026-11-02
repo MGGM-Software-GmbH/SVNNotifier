@@ -21,6 +21,7 @@
 using System;
 using System.Collections;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -62,8 +63,9 @@ namespace CHD.SVN_Notifier
         // void int GetRepositoryRevisions (string path, out int headRevision, out int committedRevision)
         private static int GetRepositoryRevision(SvnItem folder, string revision)
         {
-            var arguments = new[] { "info", "--non-interactive", "--xml", folder.Path };
+            var arguments = new[] { "info", "--non-interactive", "--xml" };
             if (!string.IsNullOrEmpty(revision)) arguments = arguments.Concat(new[] { "-r", revision }).ToArray();
+            arguments = arguments.Concat(new[] { "--", CommandLineTarget(folder.Path) }).ToArray();
             var completion = runner.TryStart(folder.Path, "info", Config.SVNpath, arguments, true, Config.SvnCommandTimeout);
             if (completion is null) { folder.DeferOperation(); return -1; }
             var result = completion.GetAwaiter().GetResult();
@@ -117,7 +119,7 @@ namespace CHD.SVN_Notifier
             int committed = GetRepositoryCommitedRevision(folder);
             if (committed < 0) return false;
             folder.updateRevision = committed;
-            return StartTracked(folder, "update", new[] { "update", "--non-interactive", folder.Path }, true, true);
+            return StartTracked(folder, "update", new[] { "update", "--non-interactive", "--", CommandLineTarget(folder.Path) }, true, true);
         }
 
         private static bool StartTracked(SvnItem folder, string action, string[] arguments, bool update, bool commandLine)
@@ -166,7 +168,7 @@ namespace CHD.SVN_Notifier
         public static SvnStatus? GetSvnFolderStatus(SvnItem folder)
         {
             var completion = runner.TryStart(folder.Path, "status", Config.SVNpath,
-                new[] { "status", "-u", "--non-interactive", "--xml", folder.Path }, true, Config.SvnCommandTimeout);
+                new[] { "status", "-u", "--non-interactive", "--xml", "--", CommandLineTarget(folder.Path) }, true, Config.SvnCommandTimeout);
             if (completion is null) { folder.DeferOperation(); return null; }
             var result = completion.GetAwaiter().GetResult();
             if (!result.Success) { ReportFailure(folder, result); return SvnStatus.Error; }
@@ -194,6 +196,9 @@ namespace CHD.SVN_Notifier
             }
             catch { folder.DeferOperation(); return SvnStatus.Error; }
         }
+
+        /// <summary>SVN erhält denselben lokalen Pfad wie die Reservierung, ohne Options- oder Peg-Revisionsauswertung des Dateinamens.</summary>
+        private static string CommandLineTarget(string path) => Path.GetFullPath(path) + "@";
 
         /// <summary>Die Fehleranzeige erhält keine ungefilterten SVN-Ausgaben mit möglicherweise enthaltenen Zugangsdaten.</summary>
         private static void ReportFailure(SvnItem folder, SvnProcessResult result)

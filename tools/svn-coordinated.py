@@ -4,6 +4,7 @@
 import argparse
 import datetime
 import json
+import ntpath
 import os
 from pathlib import Path
 import signal
@@ -39,6 +40,19 @@ def diagnostic(root, action, phase, process_id=None, exit_code=None, reason=""):
                           workingCopy=str(root), action=action, phase=phase,
                           processId=process_id, exitCode=exit_code, reason=reason)),
           file=sys.stderr, flush=True)
+
+
+def tortoise_command_line(command):
+    """Zitiert Werte nach dem Doppelpunkt für den eigenen Windows-Parser von TortoiseSVN."""
+    arguments = [subprocess.list2cmdline(command[:1])]
+    for argument in command[1:]:
+        if not argument.startswith("/") or any(character in argument for character in ('"', '\r', '\n', '\0')):
+            raise ValueError("Ungültiges TortoiseSVN-Argument")
+        key, separator, value = argument.partition(":")
+        if any(character.isspace() for character in key):
+            raise ValueError("Ungültiger TortoiseSVN-Schalter")
+        arguments.append(key + ':"' + value + '"' if separator else key)
+    return " ".join(arguments)
 
 
 def main():
@@ -80,7 +94,10 @@ def main():
 
         for number in (signal.SIGINT, signal.SIGTERM):
             previous_handlers[number] = signal.signal(number, forward_signal)
-        process = subprocess.Popen(command)
+        # Andere Programme behalten ihre normale Argumentliste. TortoiseProc verwendet unter Windows einen eigenen Parser.
+        start_command = (tortoise_command_line(command)
+                         if os.name == "nt" and ntpath.basename(command[0]).casefold() == "tortoiseproc.exe" else command)
+        process = subprocess.Popen(start_command)
         diagnostic(root, options.action, "begin", process.pid)
         exit_code = process.wait()
         diagnostic(root, options.action, "end", process.pid, exit_code)

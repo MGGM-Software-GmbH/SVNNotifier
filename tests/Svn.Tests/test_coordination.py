@@ -1,10 +1,12 @@
 """Protokolltests mit isolierten Arbeitskopien und optional Windows-/Container-Gegenstelle."""
 
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -84,6 +86,44 @@ class CoordinationTests(unittest.TestCase):
         result = subprocess.run([sys.executable, OPTIONS.script, "--working-copy", str(self.wc), "--action", "parser-secret-sentinel"], capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
         self.assertNotIn("parser-secret-sentinel", result.stderr)
+
+    def test_tortoise_command_line_preserves_values(self):
+        specification = importlib.util.spec_from_file_location("coordinated", OPTIONS.script)
+        wrapper = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(wrapper)
+        executable = r"C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
+        path = "C:\\Arbeitskopie mit Leerzeichen ä-ß@\\"
+        self.assertEqual(wrapper.tortoise_command_line([executable, "/command:update", "/path:" + path, "/notempfile"]),
+                         '"' + executable + '" /command:"update" /path:"' + path + '" /notempfile')
+
+    def test_tortoise_rejects_ambiguous_arguments(self):
+        specification = importlib.util.spec_from_file_location("coordinated", OPTIONS.script)
+        wrapper = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(wrapper)
+        for argument in ['/path:invalid"value', '/path:invalid\nvalue', '/path:invalid\rvalue', '/path:invalid\0value', '--invalid', '/invalid key:value']:
+            with self.subTest(argument=repr(argument)):
+                with self.assertRaises(ValueError):
+                    wrapper.tortoise_command_line(["TortoiseProc.exe", argument])
+
+    @unittest.skipUnless(os.name == "nt", "Windows-Parser benötigt einen Windows-Testprozess")
+    def test_windows_tortoise_process_and_release(self):
+        if not OPTIONS.windows_driver:
+            self.skipTest("Windows-Testprozess fehlt")
+        tool_directory = self.root / "tool with spaces"
+        tool_directory.mkdir()
+        executable = tool_directory / "TortoiseProc.exe"
+        shutil.copyfile(OPTIONS.windows_driver, executable)
+        working = self.wc / "Leerzeichen ä-ß@"
+        working.mkdir()
+        for path in [str(working), str(working) + "\\"]:
+            result = self.run_command(working, str(executable), "/command:update", "/path:" + path)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(self.claim.exists())
+        result = self.run_command(working, str(executable), "/command:update", '/path:invalid"parser-secret-sentinel')
+        self.assertEqual(result.returncode, 74)
+        self.assertNotIn("parser-secret-sentinel", result.stderr)
+        self.assertNotIn('"phase": "begin"', result.stderr)
+        self.assertFalse(self.claim.exists())
 
     def test_signal_waits_for_child_and_releases(self):
         holder = self.holder(self.wc)

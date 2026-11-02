@@ -6,6 +6,8 @@ Automatische SVN-Updates benötigen eine aktivierte Checkbox in der Spalte **Aut
 
 Manuelles **Aktualisieren** bleibt bei ausgeschaltetem Auto-Update verfügbar und verändert die Checkbox nicht. TortoiseSVN erhält seine Schalter im Format `/path:"Wert"`, da sein eigener Befehlszeilenparser andere Anführungszeichen erwartet als der SVN-Kommandozeilenclient. Pfade mit Leerzeichen und abschließendem Verzeichnistrenner bleiben erhalten.
 
+Für `svn.exe` übergibt der Notifier absolute lokale Ziele hinter dem Optionsabschluss `--` mit angehängtem `@` für eine leere Peg-Revision. Ein im Dateinamen enthaltenes `@` bleibt dadurch erhalten, und ein relativer Name wie `-r2` wird nicht als Option ausgewertet. Reservierung und SVN-Befehl beziehen sich auf dieselbe Arbeitskopie, auch wenn daneben eine ähnlich benannte Arbeitskopie ohne abschließendes `@` existiert.
+
 Status, Info, stille Updates und vom Notifier gestartete TortoiseSVN-Dialoge für Update, Commit und Protokoll reservieren die Arbeitskopie vor dem Prozessstart. Die Reservierung gilt bis zum tatsächlichen Prozessende, unabhängig vom eingestellten Prüfintervall und von später entfernten Listeneinträgen. Eine belegte Arbeitskopie startet keinen weiteren teilnehmenden Vorgang. Der vorhandene Status und ausstehende Änderungsbenachrichtigungen bleiben erhalten. Hintergrundprüfungen warten vor einem erneuten Versuch mindestens 15 Sekunden. Übersprungene manuelle Aktionen werden nicht automatisch als Commit oder Dialog nachgeholt; sie können nach Freigabe erneut ausgelöst werden.
 
 Die Identität ist die nächste übergeordnete Arbeitskopiewurzel mit `.svn/wc.db`. Die Datenbank wird dabei nicht geöffnet. Windows-Verzeichnishandles vereinheitlichen auch Junctions, Laufwerksaliase und UNC-Pfade; das Dateisystem berücksichtigt unterschiedliche Groß-/Kleinschreibung. Eingebettete Arbeitskopien reservieren zusätzlich alle äußeren Arbeitskopiewurzeln. Dadurch teilen Unterordner derselben Arbeitskopie und darin liegende Externals die äußere Reservierung. Arbeitskopien im alten SVN-Format ohne zentrale `wc.db` werden mit einem Koordinationsfehler abgewiesen.
@@ -23,17 +25,21 @@ Für teilnehmende externe Aufrufe steht [tools/svn-coordinated.py](../tools/svn-
 ```bash
 python3 /pfad/zu/svn-coordinated.py \
   --working-copy /workspaces/klimm --action commit -- \
-  svn commit /workspaces/klimm -m "Commit-Nachricht"
+  svn commit -m "Commit-Nachricht" -- /workspaces/klimm@
 ```
 
 Unter Windows, wenn Python 3 installiert ist:
 
 ```powershell
-python .\tools\svn-coordinated.py --working-copy D:\Entwicklung\Anwendungen\klimm --action update -- svn.exe update D:\Entwicklung\Anwendungen\klimm
+python .\tools\svn-coordinated.py --working-copy D:\Entwicklung\Anwendungen\klimm --action update -- svn.exe update -- D:\Entwicklung\Anwendungen\klimm@
 python .\tools\svn-coordinated.py --working-copy D:\Entwicklung\Anwendungen\klimm --action commit -- 'C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe' /command:commit /path:D:\Entwicklung\Anwendungen\klimm
 ```
 
-Dies sind Aufrufbeispiele, keine im KLIMM-Projekt vorgenommenen Änderungen. Für den Container-Aufrufweg müssten alle beteiligten Werkzeuge den Wrapper vor dem eigentlichen SVN-Prozess verwenden. Das Arbeitsverzeichnis des Aufrufers bleibt erhalten. Das gestartete Programm muss im Vordergrund bleiben, bis sein Zugriff beendet ist. Kein `&`, kein `Start-Process` ohne Warten und keine abgekoppelten Hintergrundprozesse innerhalb des Wrappers. Bei mehreren betroffenen Arbeitskopien muss `--working-copy` für jede Arbeitskopie angegeben werden. Der Aufrufer muss sämtliche Ziele seiner Befehlszeile und gegebenenfalls zusätzlich erreichte Arbeitskopien deklarieren. Der Wrapper interpretiert keine beliebigen SVN- oder TortoiseSVN-Argumente.
+Dies sind Aufrufbeispiele, keine im KLIMM-Projekt vorgenommenen Änderungen. Für den Container-Aufrufweg müssten alle beteiligten Werkzeuge den Wrapper vor dem eigentlichen SVN-Prozess verwenden. Das Arbeitsverzeichnis des Aufrufers bleibt erhalten. Das gestartete Programm muss im Vordergrund bleiben, bis sein Zugriff beendet ist. Kein `&`, kein `Start-Process` ohne Warten und keine abgekoppelten Hintergrundprozesse innerhalb des Wrappers. Bei mehreren betroffenen Arbeitskopien muss `--working-copy` für jede Arbeitskopie angegeben werden. Der Aufrufer muss sämtliche Ziele seiner Befehlszeile und gegebenenfalls zusätzlich erreichte Arbeitskopien deklarieren. Der Wrapper ermittelt die betroffenen Arbeitskopien nicht aus beliebigen SVN- oder TortoiseSVN-Argumenten.
+
+Die Werte für `--working-copy` sind tatsächliche Dateisystempfade. Für nachfolgende SVN-Kommandozeilenbefehle muss der Aufrufer lokale Ziele selbst korrekt als literale Pfade übergeben, bei Bedarf mit `--` und zusätzlichem abschließendem `@` wie in den Beispielen. Der Wrapper ändert diese Befehlsargumente nicht, da ausdrücklich angegebene Peg-Revisionen bei anderen SVN-Befehlen beabsichtigt sein können.
+
+Unter Windows erkennt der Wrapper den Dateinamen `TortoiseProc.exe` unabhängig von Groß-/Kleinschreibung und verwendet dessen eigenen Befehlszeilenparser. Jeder Schalter wird als einzelnes Argument übergeben, beispielsweise `'/path:D:\Projekte\Arbeitskopie mit Leerzeichen@'` in PowerShell. Keine zusätzlichen Anführungszeichen innerhalb des Argumentwerts angeben. Eingebettete Anführungszeichen, Zeilenumbrüche und ungültige Schalter werden vor dem Prozessstart abgewiesen; die eigene Reservierung wird freigegeben. Umbenannte Programme werden nicht als TortoiseSVN erkannt. Andere Programme behalten ihre normale Argumentliste; es wird keine Shell gestartet.
 
 Alle Teilnehmer müssen dieselbe physische `.svn`-Ablage sehen und dürfen die Koordinationsdatei weder ausblenden noch kopieren, zurücksetzen oder entfernen. Exit-Code `75` bedeutet belegte Koordination, `74` einen Koordinations- oder Startfehler. Der eigentliche Befehl läuft in diesen Fällen nicht. Bei einem gestarteten Befehl wird dessen Exit-Code weitergegeben. Der Wrapper wiederholt keine schreibenden Aktionen automatisch. Für zeitgesteuerte Aufrufer ist ein erneuter Versuch frühestens nach 15 Sekunden vorzusehen.
 
@@ -51,13 +57,15 @@ Die bestehende Logdatei neben der verwendeten INI-Datei enthält unter `SvnOpera
 
 ## Prüfungen
 
-Die Windows-Konsole `tests/Svn.Tests` verwendet dieselben Produktklassen wie die Anwendung. Sie prüft Opt-in und INI-Erhalt, Unterordner und normalisierte Pfade, eingebettete Arbeitskopien, konkurrierende und verzögerte Starts, externe Belegung, Start- und Prozessfehler, volle Streams, Timeout, Abbruch, Programmende, Diagnosefehler und Freigabe. TortoiseSVN-Aufrufe werden zusätzlich mit Leerzeichen, Umlauten und abschließendem Verzeichnistrenner sowie mit ein- und ausgeschaltetem Auto-Update geprüft. Ein optionaler echter SVN-Lauf verwendet ausschließlich ein eigenes lokales Repository und zwei isolierte Arbeitskopien:
+Die Windows-Konsole `tests/Svn.Tests` verwendet dieselben Produktklassen wie die Anwendung. Sie prüft Opt-in und INI-Erhalt, Unterordner und normalisierte Pfade, eingebettete Arbeitskopien, konkurrierende und verzögerte Starts, externe Belegung, Start- und Prozessfehler, volle Streams, Timeout, Abbruch, Programmende, Diagnosefehler und Freigabe. TortoiseSVN-Aufrufe werden zusätzlich mit Leerzeichen, Umlauten und abschließendem Verzeichnistrenner sowie mit ein- und ausgeschaltetem Auto-Update geprüft. Ein optionaler echter SVN-Lauf verwendet ausschließlich ein eigenes lokales Repository und isolierte Arbeitskopien:
 
 ```powershell
 powershell -File .github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier win-x64 -ArtifactsDirectory artifacts/svn-check -SvnDirectory 'C:\Program Files\TortoiseSVN\bin'
 ```
 
 Ohne `-SvnDirectory` laufen die Prozess- und Konfigurationstests mit synthetischen Arbeitskopiemarkierungen und eigenen Testprozessen. In GitHub Actions laufen diese für x64 und x86. Die GUI-Prüfungen testen zusätzlich sichtbare Checkboxzustände, Maus und Leertaste sowie Änderungsbenachrichtigungen bei ausgeschaltetem Auto-Update. Der Linux-Job prüft den Wrapper einschließlich echter SVN-Aktionen gegen ein lokales Test-Repository. Die Windows-Jobs prüfen den Python-Wrapper zusätzlich auf gegenseitigen Ausschluss und Fehlerverhalten.
+
+Die CLI-Prüfungen erfassen `@name`, `@123`, abschließendes `@` und einen relativen Pfad `-r2`. Die echte SVN-Gegenprobe hält eine Reservierung auf `collision`, während `collision@` aktualisiert wird: Nur `collision@` darf sich ändern. Eine Reservierung auf dem tatsächlichen Ziel muss den Start verhindern. Die Windows-Wrappertests starten einen eigenen Parser-Testprozess als `TortoiseProc.exe` aus einem Pfad mit Leerzeichen und prüfen auch die Freigabe nach abgewiesenen Argumenten. Zusätzlich wurde der Wrapper mit echtem Windows-TortoiseSVN bei einem Pfad mit Leerzeichen geprüft.
 
 Der lokale Plattformtest wurde unter Windows mit .NET 10 und im separaten Debian-Testcontainer mit Python 3.11 und SVN 1.14.2 auf derselben Windows-Ablage über `9p`/`v9fs` ausgeführt. Beide Belegungsrichtungen und zehn gleichzeitige Startversuche wurden geprüft. Unter WSL lief zusätzlich der Wrapper mit SVN 1.14.3. Windows-SVN 1.15.0 wurde gegen ein separates lokales Test-Repository geprüft. Echte TortoiseSVN-Protokoll-, Update- und Commitdialoge wurden auf dieser Test-Arbeitskopie geöffnet und geschlossen beziehungsweise abgebrochen; die Reservierung wurde jeweils erst nach Prozessende freigegeben. Das manuelle Update übernimmt bei ausgeschaltetem Auto-Update eine eingehende Änderung in einem Pfad mit Leerzeichen. Weder KLIMM-Quelltexte noch dessen Arbeitskopiedatenbank wurden dafür verwendet.
 

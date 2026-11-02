@@ -36,6 +36,14 @@ internal static class Program
         }
         if (args[0] is "status" or "info" or "update" || args[0].StartsWith("/command:"))
         {
+            if (args[0] is "status" or "info" or "update")
+            {
+                // Der SVN-Parser behandelt @ als Peg-Revision und führendes Minus als Option.
+                int separator = Array.IndexOf(args, "--");
+                if (separator != args.Length - 2 || !args[^1].EndsWith('@')) return 10;
+                string target = args[^1][..^1];
+                if (!Path.IsPathFullyQualified(target) || !(Directory.Exists(target) || File.Exists(target))) return 11;
+            }
             if (args[0].StartsWith("/command:"))
             {
                 // TortoiseSVN wertet die rohe Befehlszeile aus, nicht die vom .NET-Argumentparser aufbereitete Liste.
@@ -62,6 +70,7 @@ internal static class Program
             await CheckCoordinationAsync(root);
             await CheckProcessesAsync(root);
             await CheckEntryPointsAsync(root);
+            await CheckLiteralTargetsAsync(root);
             if (args.Length == 3 && args[1] == "--svn-directory") await CheckRealSvnAsync(output, args[2]);
             Console.WriteLine($"SVN-Prüfungen: {checks} erfolgreich.");
             return 0;
@@ -211,6 +220,28 @@ internal static class Program
         }
     }
 
+    /// <summary>Prüft die Zielübergabe an den CLI-Parser unabhängig von der weiterhin unveränderten Arbeitskopieidentität.</summary>
+    private static async Task CheckLiteralTargetsAsync(string root)
+    {
+        string previousDirectory = Environment.CurrentDirectory;
+        try
+        {
+            Environment.CurrentDirectory = root;
+            foreach (string name in new[] { "literal@name", "literal@123", "literal@", "-r2" })
+            {
+                Directory.CreateDirectory(Path.Combine(root, name));
+                var item = new SvnItem(name.StartsWith('-') ? name : Path.Combine(root, name), PathType.Directory);
+                Assert(SvnTools.GetSvnFolderStatus(item) == SvnStatus.NeedUpdate, "Status übergibt Sonderzeichen und relative Pfade als literale Ziele");
+                Assert(SvnTools.GetRepositoryHeadRevision(item) == 2 && SvnTools.GetRepositoryCommitedRevision(item) == 2,
+                    "Beide Revisionsabfragen übergeben literale Ziele hinter den Optionen");
+                Assert(SvnTools.BeginUpdateSilently(item), "Stilles Update mit literalem oder relativem Ziel startet");
+                await WaitAsync(() => !SvnTools.HasActiveOperations);
+                Assert(!SvnTools.TakeCompleted().Single().updateError, "Update erhält den absoluten Pfad mit leerer Peg-Revision");
+            }
+        }
+        finally { Environment.CurrentDirectory = previousDirectory; }
+    }
+
     private static async Task CheckRealSvnAsync(string output, string directory)
     {
         string svn = Path.Combine(directory, "svn.exe");
@@ -259,6 +290,55 @@ internal static class Program
             await CloseOwnTortoiseDialogAsync("commit-dialog", working);
             Assert(SvnTools.TakeCompleted().Length == 1, "Abbrechen des echten Commitdialogs gibt Reservierung frei");
         }
+        await CheckRealLiteralTargetsAsync(output, svn, url);
+    }
+
+    /// <summary>Gegenproben verwenden nur lokale Test-Arbeitskopien. Eine ähnlich benannte reservierte Arbeitskopie muss unverändert bleiben.</summary>
+    private static async Task CheckRealLiteralTargetsAsync(string output, string svn, string url)
+    {
+        string previousDirectory = Environment.CurrentDirectory;
+        try
+        {
+            Environment.CurrentDirectory = output;
+            foreach (string name in new[] { "literal@name", "literal@123", "literal@", "-r2" })
+            {
+                string path = Path.Combine(output, name);
+                await RawAsync(svn, "checkout", "-r", "1", url, path);
+                var item = new SvnItem(name.StartsWith('-') ? name : path, PathType.Directory);
+                Assert(SvnTools.GetSvnFolderStatus(item) == SvnStatus.NeedUpdate, "Echtes SVN erkennt Änderungen bei @ und relativen Optionsnamen");
+                Assert(SvnTools.GetRepositoryHeadRevision(item) >= 2 && SvnTools.GetRepositoryCommitedRevision(item) == 1,
+                    "Echte Revisionsabfragen treffen das unveränderte literale Ziel");
+                Assert(SvnTools.BeginUpdateSilently(item), "Echtes Update mit @ oder relativem Minus-Pfad startet");
+                await WaitAsync(() => !SvnTools.HasActiveOperations);
+                Assert(!SvnTools.TakeCompleted().Single().updateError && SvnTools.GetSvnFolderStatus(item) == SvnStatus.UpToDate,
+                    "Echtes Update und erneute Statusprüfung treffen dieselbe Arbeitskopie");
+                if (File.Exists(Config.TortoiseSVNpath))
+                {
+                    var manual = Task.Run(() => SvnTools.Update(item, false));
+                    await CloseOwnTortoiseDialogAsync("update-dialog", path);
+                    Assert(await manual, "Manuelles TortoiseSVN-Update erhält auch @ und relative Minus-Pfade unverändert");
+                }
+            }
+            string other = Path.Combine(output, "collision");
+            string intended = other + "@";
+            await RawAsync(svn, "checkout", "-r", "1", url, other);
+            await RawAsync(svn, "checkout", "-r", "1", url, intended);
+            var target = new SvnItem(intended, PathType.Directory);
+            using (var own = WorkingCopyLease.TryAcquire(intended, "other", out _, out _))
+                Assert(own is not null && !SvnTools.BeginUpdateSilently(target), "Reservierung des tatsächlichen @-Ziels verhindert einen zweiten Start");
+            using (var own = WorkingCopyLease.TryAcquire(other, "other", out _, out _))
+            {
+                Assert(own is not null && SvnTools.BeginUpdateSilently(target), "@-Ziel ist von ähnlich benannter reservierter Arbeitskopie unabhängig");
+                await WaitAsync(() => !SvnTools.HasActiveOperations);
+                Assert(!SvnTools.TakeCompleted().Single().updateError, "Update des literalen @-Ziels wird erfolgreich beendet");
+                Assert(!File.ReadAllText(Path.Combine(other, "first", "fixture.txt")).Contains("changed") &&
+                    File.ReadAllText(Path.Combine(intended, "first", "fixture.txt")).Contains("changed"),
+                    "Nur die beabsichtigte Arbeitskopie wird aktualisiert, die andere bleibt unverändert");
+                Assert(File.Exists(Path.Combine(other, ".svn", WorkingCopyLease.FileName)) &&
+                    !File.Exists(Path.Combine(intended, ".svn", WorkingCopyLease.FileName)), "Fremde Reservierung bleibt bestehen und eigene Reservierung ist freigegeben");
+            }
+        }
+        finally { Environment.CurrentDirectory = previousDirectory; }
     }
 
     /// <summary>Schließt ausschließlich den anhand der eigenen aktuellen Diagnose identifizierten Testdialog, ohne Commit auszulösen.</summary>
@@ -294,7 +374,9 @@ internal static class Program
             {
                 own!.Refresh();
                 button = GetDlgItem(own.MainWindowHandle, buttonId);
-                return button != IntPtr.Zero && IsWindowEnabled(button);
+                // Der Fortschrittsdialog aktiviert OK zunächst vor dem Workerstart. Erst deaktiviertes Abbrechen zeigt dessen Ende an.
+                return button != IntPtr.Zero && IsWindowEnabled(button) &&
+                    (action != "update-dialog" || !IsWindowEnabled(GetDlgItem(own.MainWindowHandle, 2)));
             }, 90);
             SendMessageTimeout(own!.MainWindowHandle, 0x0111, (IntPtr)buttonId, button, 2, 5000, out _);
             var deadline = DateTime.UtcNow.AddSeconds(90);
