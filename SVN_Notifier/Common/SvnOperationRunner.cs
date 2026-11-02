@@ -14,10 +14,12 @@ internal sealed class SvnOperationRunner
     private readonly object gate = new();
     private readonly HashSet<Task<SvnProcessResult>> active = new();
     private readonly CancellationTokenSource stop = new();
+    private CancellationTokenSource applicationUpdateStop = new();
     private readonly Action<string> diagnostic;
     private readonly Func<ProcessStartInfo, Process?> start;
     private readonly Action<string, string>? rejected;
     private bool stopping;
+    private bool pausedForApplicationUpdate;
 
     internal SvnOperationRunner(Action<string> diagnostic, Func<ProcessStartInfo, Process?>? start = null, Action<string, string>? rejected = null)
     {
@@ -34,9 +36,9 @@ internal sealed class SvnOperationRunner
     {
         lock (gate)
         {
-            if (stopping)
+            if (stopping || pausedForApplicationUpdate)
             {
-                Log(path, action, "skip", null, null, "application-stopping");
+                Log(path, action, "skip", null, null, stopping ? "application-stopping" : "application-update");
                 return null;
             }
             var lease = WorkingCopyLease.TryAcquire(path, action, out string root, out string reason);
@@ -50,7 +52,8 @@ internal sealed class SvnOperationRunner
             {
                 Log(root, action, "reserve", null, null, "");
                 var values = arguments.ToArray();
-                var completion = Task.Run(() => ExecuteAsync(lease, action, executable, values, readOnly, timeoutSeconds, cancellation, captureOutput, tortoiseSyntax));
+                var updateCancellation = applicationUpdateStop.Token;
+                var completion = Task.Run(() => ExecuteAsync(lease, action, executable, values, readOnly, timeoutSeconds, cancellation, captureOutput, tortoiseSyntax, updateCancellation));
                 active.RemoveWhere(task => task.IsCompleted);
                 active.Add(completion);
                 return completion;
@@ -74,17 +77,43 @@ internal sealed class SvnOperationRunner
         }
     }
 
+    /// <summary>Sperrt neue Aufträge und beendet für ein bestätigtes Programmupdate auch eigene Schreibvorgänge und Dialoge.</summary>
+    internal Task PauseForApplicationUpdateAsync(TimeSpan? timeout = null)
+    {
+        lock (gate)
+        {
+            pausedForApplicationUpdate = true;
+            applicationUpdateStop.Cancel();
+            return Task.WhenAll(active.ToArray()).WaitAsync(timeout ?? TimeSpan.FromSeconds(30));
+        }
+    }
+
+    /// <summary>Erlaubt nach einem Installationsfehler neue Aufträge; alte Prozesse behalten ihre Reservierung bis zum Ende.</summary>
+    internal void ResumeAfterApplicationUpdate()
+    {
+        lock (gate)
+        {
+            if (!pausedForApplicationUpdate) return;
+            var previous = applicationUpdateStop;
+            applicationUpdateStop = new CancellationTokenSource();
+            pausedForApplicationUpdate = false;
+            _ = Task.WhenAll(active.ToArray()).ContinueWith(_ => previous.Dispose(), TaskScheduler.Default);
+        }
+    }
+
     /// <summary>Liest beide Streams parallel und gibt auch bei Timeout erst nach dem Prozessende frei.</summary>
     private async Task<SvnProcessResult> ExecuteAsync(WorkingCopyLease lease, string action, string executable,
-        string[] arguments, bool readOnly, int timeoutSeconds, CancellationToken cancellation, bool captureOutput, bool tortoiseSyntax)
+        string[] arguments, bool readOnly, int timeoutSeconds, CancellationToken cancellation, bool captureOutput, bool tortoiseSyntax,
+        CancellationToken updateCancellation)
     {
         Process? process = null;
+        CancellationTokenRegistration updateRegistration = default;
         bool cancelled = false;
         int? exitCode = null;
         string outcome = "process-start-error";
         try
         {
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop.Token, cancellation);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop.Token, cancellation, updateCancellation);
             if (readOnly && timeoutSeconds > 0) linked.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
             if (linked.IsCancellationRequested)
             {
@@ -100,6 +129,14 @@ internal sealed class SvnOperationRunner
             else
                 foreach (string argument in arguments) info.ArgumentList.Add(argument);
             process = start(info) ?? throw new InvalidOperationException("Prozess nicht gestartet.");
+            // Die Registrierung greift auch bei einem verzögerten Start und bei einem anschließenden Diagnosefehler.
+            // Nur das bestätigte Programmupdate beendet Schreibprozesse; normales Beenden wartet weiterhin darauf.
+            updateRegistration = updateCancellation.Register(() =>
+            {
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { /* Der Prozess kann inzwischen beendet sein. */ }
+                catch (System.ComponentModel.Win32Exception) { /* Ohne nachgewiesenes Ende darf der Installer nicht starten. */ }
+            });
             // Beide Streams werden sofort parallel gelesen. Ein voller Fehlerstream darf weder Timeout noch Freigabe blockieren.
             // GUI-Programme erhalten keine Pipes: länger lebende GUI-Hilfsprozesse können geerbte Handles offen halten.
             var output = captureOutput ? process.StandardOutput.ReadToEndAsync() : Task.FromResult("");
@@ -107,7 +144,7 @@ internal sealed class SvnOperationRunner
             Log(lease.Root, action, "begin", process.Id, null, "");
             try
             {
-                await process.WaitForExitAsync(readOnly ? linked.Token : CancellationToken.None).ConfigureAwait(false);
+                await process.WaitForExitAsync(readOnly ? linked.Token : updateCancellation).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -118,7 +155,8 @@ internal sealed class SvnOperationRunner
                 await process.WaitForExitAsync().ConfigureAwait(false);
             }
             exitCode = process.ExitCode;
-            outcome = cancelled ? "cancelled-or-timeout" : exitCode == 0 ? "completed" : "process-error";
+            cancelled |= updateCancellation.IsCancellationRequested;
+            outcome = updateCancellation.IsCancellationRequested ? "application-update" : cancelled ? "cancelled-or-timeout" : exitCode == 0 ? "completed" : "process-error";
             return new(exitCode, await output.ConfigureAwait(false), await error.ConfigureAwait(false), cancelled);
         }
         catch (Exception exception)
@@ -138,6 +176,7 @@ internal sealed class SvnOperationRunner
             try { Log(lease.Root, action, "end", process?.Id, exitCode, outcome); }
             finally
             {
+                updateRegistration.Dispose();
                 process?.Dispose();
                 lease.Dispose();
                 if (lease.ReleaseFailed) Log(lease.Root, action, "release-error", null, exitCode, "claim-retained");

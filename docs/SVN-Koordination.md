@@ -14,6 +14,8 @@ Die Identität ist die nächste übergeordnete Arbeitskopiewurzel mit `.svn/wc.d
 
 Beim normalen Beenden stoppt die Anwendung neue Aufträge, bricht laufende Leseprüfungen ab und wartet auf bereits gestartete Schreibvorgänge und Dialoge. Schreibende Prozesse werden nicht wegen eines Programmendes oder Status-Zeitlimits gewaltsam beendet. Auch bei Timeout wird erst nach dem nachgewiesenen Ende des Leseprozesses freigegeben. Ein voller Ausgabe- oder Fehlerstream blockiert das Zeitlimit nicht.
 
+Bei einem bestätigten Programmupdate beendet der Notifier nach erfolgreicher Paketprüfung dagegen alle von ihm gestarteten SVN-Prozesse samt Unterprozessen, auch laufende Schreibvorgänge und TortoiseSVN-Dialoge. Neue SVN-Aufträge bleiben während des Installationsübergangs gesperrt. Der Installer startet erst nach Prozessende, Freigabe der Reservierungen und Ende der Hintergrundprüfung. Auch ein bereits angenommener, aber verzögert gestarteter Prozess wird abgebrochen. Kann das Prozessende nicht innerhalb von 30 Sekunden bestätigt werden, startet der Installer nicht. Nach einem Installationsfehler sind neue SVN-Aufträge wieder zulässig; noch laufende Prozesse behalten ihre Reservierung. Es gibt keine automatischen Cleanups.
+
 ## Interne Reservierung
 
 Der Notifier legt in jeder betroffenen Wurzel exklusiv die Datei `.svn/svnnotifier-operation-v1.lock` mit `FileMode.CreateNew` an. Mehrere aktuelle Notifier-Instanzen mit derselben physischen Arbeitskopie teilen diese Reservierung. Eine vorhandene Datei ist immer belegt, unabhängig von Inhalt, Alter oder PID. Andere Fehler beim Ermitteln oder Anlegen der Reservierung erlauben ebenfalls keinen Prozessstart. Es gibt keinen unkoordinierten Ersatzpfad.
@@ -45,5 +47,7 @@ powershell -File .github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier win-x
 Ohne `-SvnDirectory` laufen die Prozess- und Konfigurationstests mit synthetischen Arbeitskopiemarkierungen und eigenen Testprozessen. In GitHub Actions laufen diese für x64 und x86. Die GUI-Prüfungen testen zusätzlich sichtbare Checkboxzustände, Maus und Leertaste sowie Änderungsbenachrichtigungen bei ausgeschaltetem Auto-Update.
 
 Die CLI-Prüfungen erfassen `@name`, `@123`, abschließendes `@` und einen relativen Pfad `-r2`. Die echte SVN-Gegenprobe hält eine Reservierung auf `collision`, während `collision@` aktualisiert wird: Nur `collision@` darf sich ändern. Eine Reservierung auf dem tatsächlichen Ziel muss den Start verhindern.
+
+Die Updater-Gegenproben verwenden eigene lang laufende Testprozesse für Status, Schreiben, Dialoge und Unterprozesse. Sie prüfen das Ende vor der Installerübergabe, gesperrte neue Starts, einen verzögerten Prozessstart, Zeitüberschreitung und Diagnosefehler. Ein separat gestarteter Testprozess muss weiterlaufen. Ein echter WinForms-Installationsübergang mit laufender Hintergrundprüfung prüft die Wiederfreigabe nach einem absichtlich ausgelösten Installerfehler und die erneute Installation.
 
 Mit `-SvnDirectory` prüfen die lokalen Windows-Tests echte TortoiseSVN-Protokoll-, Update- und Commitdialoge auf isolierten Test-Arbeitskopien. Die Reservierung wird jeweils erst nach Prozessende freigegeben. Das manuelle Update übernimmt bei ausgeschaltetem Auto-Update eine eingehende Änderung in einem Pfad mit Leerzeichen. Benutzer-Repositories werden dafür nicht verwendet.

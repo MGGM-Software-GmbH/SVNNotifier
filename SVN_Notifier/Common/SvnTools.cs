@@ -210,6 +210,12 @@ namespace CHD.SVN_Notifier
         /// <summary>Stoppt neue Aufträge und wartet auf die Freigabe aller bereits angenommenen Vorgänge.</summary>
         internal static Task StopAsync() => runner.StopAsync();
 
+        /// <summary>Beendet vor dem Programmupdate alle eigenen SVN-Vorgänge und verhindert weitere Starts.</summary>
+        internal static Task PauseForApplicationUpdateAsync() => runner.PauseForApplicationUpdateAsync();
+
+        /// <summary>Gibt die SVN-Verarbeitung nach einem fehlgeschlagenen Programmupdate wieder frei.</summary>
+        internal static void ResumeAfterApplicationUpdate() => runner.ResumeAfterApplicationUpdate();
+
         public static void KillBackgroundProcess() => _ = StopAsync();
     }
 }

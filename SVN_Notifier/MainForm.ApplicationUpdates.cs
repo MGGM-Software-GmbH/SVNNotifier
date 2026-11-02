@@ -9,7 +9,7 @@ public partial class MainForm
     private readonly CancellationTokenSource applicationUpdateCancellation = new();
     private ToolStripMenuItem checkApplicationUpdatesMenuItem = null!;
     private bool checkingApplicationUpdate;
-    private bool applicationInstallationInProgress;
+    private volatile bool applicationInstallationInProgress;
     private Version? announcedApplicationVersion;
 
     /// <summary>Verbindet die manuelle Prüfung und die abschaltbare regelmäßige Programmprüfung.</summary>
@@ -78,27 +78,41 @@ public partial class MainForm
         }
     }
 
-    /// <summary>Beendet die Anwendung erst nach der Bereitschaft des Installers und ohne laufende SVN-Vorgänge.</summary>
+    /// <summary>Beendet eigene SVN-Vorgänge vor dem Installer und die Anwendung erst nach dessen Bereitschaft.</summary>
     private async Task InstallApplicationUpdateAsync(PreparedApplicationUpdate update)
     {
+        await PrepareApplicationInstallationAsync(() => ApplicationUpdateInstaller.StartAsync(update, Config.Language));
+        sessionEndInProgress = true;
+        Application.Exit();
+    }
+
+    /// <summary>Hält Hintergrundprüfungen und Prozessstarts während des Installationsübergangs gesperrt.</summary>
+    private async Task PrepareApplicationInstallationAsync(Func<Task> startInstaller)
+    {
+        Thread? pendingStatus;
         lock (this)
         {
-            if (statusThread is not null || SvnTools.HasActiveOperations || !updateNotInProgress.WaitOne(0))
+            if (applicationInstallationInProgress || sessionEndInProgress)
                 throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
+            applicationInstallationInProgress = true;
             StatusUpdateTimer.Stop();
             PauseTimer.Stop();
-            applicationInstallationInProgress = true;
+            pendingStatus = statusThread;
         }
         try
         {
+            await SvnTools.PauseForApplicationUpdateAsync();
+            if (pendingStatus is not null)
+                await Task.Run(() => pendingStatus.Join());
+            foreach (var completed in SvnTools.TakeCompleted())
+                completed.folder._IsAutoUpdating = false;
             Config.SaveSettings();
             Config.SaveSvnFolders(folders);
-            await ApplicationUpdateInstaller.StartAsync(update, Config.Language);
-            sessionEndInProgress = true;
-            Application.Exit();
+            await startInstaller();
         }
         catch
         {
+            SvnTools.ResumeAfterApplicationUpdate();
             applicationInstallationInProgress = false;
             StartTimer();
             throw;

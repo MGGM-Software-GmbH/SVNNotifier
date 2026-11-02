@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Text.Json;
 using CHD.SVN_Notifier;
 
@@ -20,6 +21,16 @@ internal static class Program
                 for (int index = 0; index < 4096; index++) { Console.Out.WriteLine(new string('x', 128)); Console.Error.WriteLine(new string('y', 128)); }
             await Task.Delay(int.Parse(args[1]));
             return int.Parse(args[2]);
+        }
+        if (args[0] == "--child-tree")
+        {
+            var childInfo = new ProcessStartInfo(executable) { UseShellExecute = false };
+            foreach (var argument in new[] { "--child", "60000", "0" }) childInfo.ArgumentList.Add(argument);
+            using var child = Process.Start(childInfo)!;
+            await File.WriteAllTextAsync(args[1] + ".writing", child.Id.ToString());
+            File.Move(args[1] + ".writing", args[1]);
+            await Task.Delay(60000);
+            return 0;
         }
         if (args[0] == "--hold")
         {
@@ -43,6 +54,11 @@ internal static class Program
                 if (separator != args.Length - 2 || !args[^1].EndsWith('@')) return 10;
                 string target = args[^1][..^1];
                 if (!Path.IsPathFullyQualified(target) || !(Directory.Exists(target) || File.Exists(target))) return 11;
+                if (args[0] == "status" && File.Exists(Path.Combine(target, "hold-status")))
+                {
+                    await File.WriteAllTextAsync(Path.Combine(target, "status.pid"), Environment.ProcessId.ToString());
+                    await Task.Delay(60000);
+                }
             }
             if (args[0].StartsWith("/command:"))
             {
@@ -69,9 +85,11 @@ internal static class Program
             CheckConfiguration(root);
             await CheckCoordinationAsync(root);
             await CheckProcessesAsync(root);
+            await CheckApplicationUpdateStopAsync(root);
             await CheckEntryPointsAsync(root);
             await CheckLiteralTargetsAsync(root);
             if (args.Length == 3 && args[1] == "--svn-directory") await CheckRealSvnAsync(output, args[2]);
+            await CheckApplicationInstallationAsync(root);
             Console.WriteLine($"SVN-Prüfungen: {checks} erfolgreich.");
             return 0;
         }
@@ -178,6 +196,180 @@ internal static class Program
         Assert(!(await loggingFailure).Success, "Diagnosefehler wird als Fehler zurückgegeben");
         using (var claim = WorkingCopyLease.TryAcquire(root, "status", out _, out _)) Assert(claim is not null, "Diagnosefehler gibt Reservierung nach Prozessende frei");
         await brokenDiagnostic.StopAsync();
+    }
+
+    /// <summary>Prüft den Installationsübergang mit eigenen Lese-, Schreib- und Dialogprozessen sowie Startverzögerungen.</summary>
+    private static async Task CheckApplicationUpdateStopAsync(string root)
+    {
+        var logs = new ConcurrentQueue<string>();
+        var runner = new SvnOperationRunner(logs.Enqueue);
+        var operations = new List<Task<SvnProcessResult>>();
+        var roots = new List<string>();
+        var childFile = Path.Combine(Path.GetDirectoryName(root)!, "update-child.pid");
+        var unrelatedInfo = new ProcessStartInfo(executable) { UseShellExecute = false };
+        foreach (var argument in new[] { "--child", "60000", "0" }) unrelatedInfo.ArgumentList.Add(argument);
+        using var unrelated = Process.Start(unrelatedInfo)!;
+        try
+        {
+            foreach (string action in new[] { "status", "update", "commit-dialog", "log" })
+            {
+                string workingCopy = Path.Combine(Path.GetDirectoryName(root)!, "application-update-" + action);
+                Directory.CreateDirectory(Path.Combine(workingCopy, ".svn"));
+                File.WriteAllText(Path.Combine(workingCopy, ".svn", "wc.db"), "Synthetische Testmarkierung.");
+                roots.Add(workingCopy);
+                var arguments = action == "update" ? new[] { "--child-tree", childFile } : new[] { "--child", "60000", "0" };
+                operations.Add(runner.TryStart(workingCopy, action, executable, arguments, action == "status", captureOutput: action is "status" or "update")!);
+            }
+            await WaitAsync(() => logs.Count(line => line.Contains("\"phase\":\"begin\"")) == 4 && File.Exists(childFile));
+            int childId = int.Parse(await File.ReadAllTextAsync(childFile));
+            using var descendant = Process.GetProcessById(childId);
+            var paused = runner.PauseForApplicationUpdateAsync();
+            Assert(runner.TryStart(root, "status", executable, Array.Empty<string>(), true) is null, "Programmupdate sperrt neue Aufträge auf allen Arbeitskopien");
+            await paused.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert(operations.All(operation => operation.IsCompleted && operation.Result.Cancelled && !operation.Result.Success), "Programmupdate beendet eigene Lese-, Schreib- und Dialogprozesse");
+            Assert(descendant.HasExited, "Vor dem Installationsübergang ist auch der eigene SVN-Unterprozess beendet");
+            Assert(!unrelated.HasExited, "Programmupdate beendet keine fremd gestarteten Prozesse");
+            foreach (string workingCopy in roots)
+            {
+                using var claim = WorkingCopyLease.TryAcquire(workingCopy, "status", out _, out _);
+                Assert(claim is not null, "Programmupdate gibt die Reservierung nach Prozessende frei");
+            }
+            Assert(runner.TryStart(root, "update", executable, Array.Empty<string>(), false) is null, "Prozessstarts bleiben bis zum Ende des Installationsübergangs gesperrt");
+            Assert(logs.Count(line => line.Contains("\"phase\":\"end\"") && line.Contains("application-update")) == 4,
+                "Diagnose kennzeichnet Prozessenden durch das Programmupdate");
+            runner.ResumeAfterApplicationUpdate();
+            Assert((await runner.TryStart(root, "status", executable, new[] { "--child", "0", "0" }, true)!).Success,
+                "Nach einem Installationsfehler bleiben normale Statusprüfungen nutzbar");
+            await runner.PauseForApplicationUpdateAsync();
+            await runner.StopAsync();
+            runner.ResumeAfterApplicationUpdate();
+            Assert(runner.TryStart(root, "status", executable, Array.Empty<string>(), true) is null, "Wiederfreigabe hebt das normale Programmende nicht auf");
+        }
+        finally
+        {
+            if (!unrelated.HasExited) { unrelated.Kill(true); await unrelated.WaitForExitAsync(); }
+            await runner.PauseForApplicationUpdateAsync();
+        }
+
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var delayed = new SvnOperationRunner(logs.Enqueue, info => { entered.Set(); release.Wait(); return Process.Start(info); });
+        var pending = delayed.TryStart(root, "update", executable, new[] { "--child", "60000", "0" }, false)!;
+        Assert(entered.Wait(5000), "Programmupdate trifft gezielt auf einen verzögerten Prozessstart");
+        try
+        {
+            var pausing = delayed.PauseForApplicationUpdateAsync(TimeSpan.FromMilliseconds(150));
+            try { await pausing; throw new Exception("Der blockierte Prozessstart wurde nicht erkannt."); }
+            catch (TimeoutException) { Assert(!pending.IsCompleted, "Fehlender Nachweis des Prozessendes bricht die Installationsvorbereitung ab"); }
+            Assert(WorkingCopyLease.TryAcquire(root, "status", out _, out _) is null, "Zeitüberschreitung gibt eine noch aktive Reservierung nicht frei");
+            delayed.ResumeAfterApplicationUpdate();
+            release.Set();
+            Assert((await pending.WaitAsync(TimeSpan.FromSeconds(10))).Cancelled, "Ein verspätet gestarteter Prozess bleibt trotz Wiederfreigabe zum Abbruch vorgemerkt");
+            Assert((await delayed.TryStart(root, "status", executable, new[] { "--child", "0", "0" }, true)!).Success,
+                "Ein neuer Auftrag nach fehlgeschlagenem Installationsübergang läuft normal");
+        }
+        finally { release.Set(); await delayed.StopAsync(); }
+
+        using var diagnosticEntered = new ManualResetEventSlim();
+        var diagnosticFailure = new SvnOperationRunner(line =>
+        {
+            if (line.Contains("\"phase\":\"begin\"")) { diagnosticEntered.Set(); throw new IOException("Isolierter Diagnosefehler."); }
+        });
+        var failed = diagnosticFailure.TryStart(root, "update", executable, new[] { "--child", "60000", "0" }, false)!;
+        Assert(diagnosticEntered.Wait(5000), "Diagnosefehler nach Prozessstart gezielt ausgelöst");
+        await diagnosticFailure.PauseForApplicationUpdateAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        Assert(!(await failed).Success, "Programmupdate beendet den Prozess auch nach einem Diagnosefehler");
+        using var finalClaim = WorkingCopyLease.TryAcquire(root, "status", out _, out _);
+        Assert(finalClaim is not null, "Auch nach Diagnosefehler ist die Arbeitskopie nach Prozessende freigegeben");
+    }
+
+    /// <summary>Prüft den echten WinForms-Installationsübergang einschließlich laufender Statusprüfung und Installerfehler.</summary>
+    private static async Task CheckApplicationInstallationAsync(string root)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+                Config.CheckForNewVersion = false;
+                Config.SVNpath = Config.TortoiseSVNpath = executable;
+                Config.SaveSvnFolders(new BindingList<SvnItem>());
+                using var main = new MainForm();
+                var flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic;
+                FieldInfo Field(string name) => typeof(MainForm).GetField(name, flags)!;
+                var prepare = typeof(MainForm).GetMethod("PrepareApplicationInstallationAsync", flags)!;
+                var runner = (SvnOperationRunner)typeof(SvnTools).GetField("runner", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+                Exception? failure = null;
+                main.Shown += async (sender, eventArgs) =>
+                {
+                    try
+                    {
+                        string statusRoot = Path.Combine(Path.GetDirectoryName(root)!, "installation-status");
+                        Directory.CreateDirectory(Path.Combine(statusRoot, ".svn"));
+                        File.WriteAllText(Path.Combine(statusRoot, ".svn", "wc.db"), "Synthetische Testmarkierung.");
+                        File.WriteAllText(Path.Combine(statusRoot, "hold-status"), "Isolierte blockierende Statusprüfung.");
+                        var folders = (BindingList<SvnItem>)Field("folders").GetValue(main)!;
+                        var item = new SvnItem(statusRoot, PathType.Directory) { AutoUpdate = false };
+                        folders.Add(item);
+                        typeof(MainForm).GetMethod("BeginUpdateFolderStatuses", flags)!.Invoke(main, null);
+                        await WaitAsync(() => File.Exists(Path.Combine(statusRoot, "status.pid")));
+                        item.Enabled = false;
+                        var writing = runner.TryStart(root, "installation-write", executable, new[] { "--child", "60000", "0" }, false)!;
+                        int installerCalls = 0;
+                        Func<Task> installer = () =>
+                        {
+                            installerCalls++;
+                            Assert(!SvnTools.HasActiveOperations && writing.IsCompleted && writing.Result.Cancelled,
+                                "Echter Updater beendet laufende SVN-Vorgänge vor dem Installeraufruf");
+                            Assert(Field("statusThread").GetValue(main) is null, "Echter Updater wartet auf das Ende der Hintergrundprüfung");
+                            Assert(runner.TryStart(root, "status", executable, Array.Empty<string>(), true) is null,
+                                "Während des Installerstarts kann kein neuer SVN-Prozess starten");
+                            throw new IOException("Isolierter Installerfehler.");
+                        };
+                        try
+                        {
+                            await (Task)prepare.Invoke(main, new object[] { installer })!;
+                            throw new Exception("Der Installerfehler wurde nicht gemeldet.");
+                        }
+                        catch (IOException error) when (error.Message == "Isolierter Installerfehler.")
+                        {
+                            Assert(installerCalls == 1 && !(bool)Field("applicationInstallationInProgress").GetValue(main)!,
+                                "Installerfehler wird weitergegeben und hebt den Installationszustand auf");
+                        }
+                        var retry = runner.TryStart(root, "status", executable, new[] { "--child", "0", "0" }, true);
+                        Assert(retry is not null, "Installerfehler gibt neue SVN-Aufträge wieder frei");
+                        Assert((await retry!).Success,
+                            "Nach echtem Installerfehler funktionieren weitere SVN-Prüfungen");
+                        Func<Task> successfulInstaller = () =>
+                        {
+                            Assert(!SvnTools.HasActiveOperations, "Auch ein erneuter Installationsversuch beginnt ohne laufende SVN-Prozesse");
+                            return Task.CompletedTask;
+                        };
+                        await (Task)prepare.Invoke(main, new object[] { successfulInstaller })!;
+                        Assert((bool)Field("applicationInstallationInProgress").GetValue(main)!
+                            && runner.TryStart(root, "update", executable, Array.Empty<string>(), false) is null,
+                            "Nach erfolgreicher Installerübergabe bleiben SVN-Aufträge bis zum Neustart gesperrt");
+                    }
+                    catch (Exception error) { failure = error; }
+                    finally
+                    {
+                        Field("applicationInstallationInProgress").SetValue(main, true);
+                        await SvnTools.PauseForApplicationUpdateAsync();
+                        SvnTools.ResumeAfterApplicationUpdate();
+                        Field("sessionEndInProgress").SetValue(main, true);
+                        main.Close();
+                    }
+                };
+                Application.Run(main);
+                if (failure is not null) completion.SetException(failure);
+                else completion.SetResult();
+            }
+            catch (Exception error) { completion.TrySetException(error); }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
     private static async Task CheckEntryPointsAsync(string root)
@@ -289,6 +481,16 @@ internal static class Program
             Assert(SvnTools.Commit(item), "Echter TortoiseSVN-Commitdialog auf isolierter Arbeitskopie startet");
             await CloseOwnTortoiseDialogAsync("commit-dialog", working);
             Assert(SvnTools.TakeCompleted().Length == 1, "Abbrechen des echten Commitdialogs gibt Reservierung frei");
+            foreach (string action in new[] { "log", "commit-dialog" })
+            {
+                if (action == "log") SvnTools.OpenLogWindow(item.Path);
+                else Assert(SvnTools.Commit(item), "Echter Commitdialog startet für den isolierten Programmupdate-Test");
+                await CloseOwnTortoiseDialogAsync(action, working, applicationUpdate: true);
+                Assert(SvnTools.TakeCompleted().Single().Completion!.Result.Cancelled,
+                    "Programmupdate beendet den echten TortoiseSVN-Dialog als abgebrochenen Vorgang");
+                Assert(SvnTools.GetSvnFolderStatus(item) == SvnStatus.UpToDate_Modified,
+                    "Lokale Änderungen und Statusprüfung bleiben nach dem beendeten Testdialog erhalten");
+            }
         }
         await CheckRealLiteralTargetsAsync(output, svn, url);
     }
@@ -342,7 +544,7 @@ internal static class Program
     }
 
     /// <summary>Schließt ausschließlich den anhand der eigenen aktuellen Diagnose identifizierten Testdialog, ohne Commit auszulösen.</summary>
-    private static async Task CloseOwnTortoiseDialogAsync(string action, string root)
+    private static async Task CloseOwnTortoiseDialogAsync(string action, string root, bool applicationUpdate = false)
     {
         Process? own = null;
         string canonicalRoot = WorkingCopyLease.FindRoots(root)[0];
@@ -355,10 +557,22 @@ internal static class Program
                 int begin = line.IndexOf("{\"utc\":", StringComparison.Ordinal);
                 if (begin < 0 || !line.Contains("\"action\":\"" + action + "\"")) continue;
                 using var entry = JsonDocument.Parse(line[begin..]);
-                if (entry.RootElement.GetProperty("phase").GetString() != "begin") continue;
                 if (!string.Equals(entry.RootElement.GetProperty("workingCopy").GetString(), canonicalRoot, StringComparison.OrdinalIgnoreCase)) continue;
+                string phase = entry.RootElement.GetProperty("phase").GetString()!;
+                if (phase == "end") return false;
+                if (phase != "begin") continue;
                 own?.Dispose();
-                own = Process.GetProcessById(entry.RootElement.GetProperty("processId").GetInt32());
+                // Wiederholte Dialogtests können ältere Begin-Ereignisse enthalten, bevor der neue Worker protokolliert.
+                try { own = Process.GetProcessById(entry.RootElement.GetProperty("processId").GetInt32()); }
+                catch (ArgumentException) { own = null; continue; }
+                // QueryFullProcessImageName funktioniert auch vom x86-Test aus für ein x64-TortoiseSVN.
+                var imagePath = new System.Text.StringBuilder(32768);
+                int imageLength = imagePath.Capacity;
+                if (!QueryFullProcessImageNameW(own.SafeHandle, 0, imagePath, ref imageLength))
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                if (own.StartTime.ToUniversalTime() > entry.RootElement.GetProperty("utc").GetDateTimeOffset().UtcDateTime
+                    || !string.Equals(imagePath.ToString(), Config.TortoiseSVNpath, StringComparison.OrdinalIgnoreCase))
+                { own.Dispose(); own = null; return false; }
                 return own.MainWindowHandle != IntPtr.Zero;
             }
             return false;
@@ -366,6 +580,17 @@ internal static class Program
         using (own)
         {
             Assert(WorkingCopyLease.TryAcquire(root, "status", out _, out _) is null, "Echter TortoiseSVN-Dialog blockiert konkurrierende Aktion");
+            if (applicationUpdate)
+            {
+                try
+                {
+                    await SvnTools.PauseForApplicationUpdateAsync();
+                    Assert(own!.HasExited && !File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)),
+                        "Programmupdate beendet den echten eigenen TortoiseSVN-Dialog und gibt dessen Reservierung frei");
+                }
+                finally { SvnTools.ResumeAfterApplicationUpdate(); }
+                return;
+            }
             // TortoiseSVN verwendet im Protokoll einen eigenen Cancel/OK-Button statt des versteckten IDOK.
             // Im Commitdialog ausschließlich Abbrechen verwenden.
             int buttonId = action == "log" ? 1383 : action == "update-dialog" ? 1 : 2;
@@ -395,6 +620,9 @@ internal static class Program
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetDlgItem(IntPtr window, int identifier);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool QueryFullProcessImageNameW(Microsoft.Win32.SafeHandles.SafeProcessHandle process,
+        int flags, System.Text.StringBuilder name, ref int size);
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetCommandLineW();
     [DllImport("user32.dll")]

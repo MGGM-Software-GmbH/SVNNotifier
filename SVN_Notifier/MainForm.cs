@@ -757,6 +757,7 @@ namespace CHD.SVN_Notifier
 
 		private void StartTimer()
 		{
+			if (applicationInstallationInProgress || sessionEndInProgress) return;
 			PauseTimer.Stop(); // Could be running if Form is activated shortly after startup
 
 			int intervalMs = SvnItem.FindNextStatusUpdateTimeMs(folders, formIsActive);
@@ -790,6 +791,7 @@ namespace CHD.SVN_Notifier
 
 				lock (this)
 				{
+					if (applicationInstallationInProgress || sessionEndInProgress) return;
 					if (statusThread == null)
 					{
 						reupdateStatus = false;
@@ -816,11 +818,12 @@ namespace CHD.SVN_Notifier
 
 				while (true)
 				{
-					if (sessionEndInProgress) break;
+					if (sessionEndInProgress || applicationInstallationInProgress) break;
 					SafeInvoke(new MethodInvoker(BeginUpdateListView));
 					// Check commit and update processes for finishing, auch bei entfernten oder deaktivierten Einträgen.
 					foreach (var sfp in SvnTools.TakeCompleted())
 					{
+						if (applicationInstallationInProgress) { sfp.folder._IsAutoUpdating = false; continue; }
 						if (sfp.isUpdateCommand && sfp.updateError)
 						{
 							sfp.folder._IsAutoUpdating = false;
@@ -830,6 +833,7 @@ namespace CHD.SVN_Notifier
 					}
 					foreach (SvnItem folder in (SvnItem[])folders.ToArray().Clone())
 					{
+						if (applicationInstallationInProgress || sessionEndInProgress) break;
 						if (!folder.Enabled)
 							continue;
 						updateNotInProgress.WaitOne();
@@ -846,7 +850,7 @@ namespace CHD.SVN_Notifier
 
 					lock (this)
 					{
-						if (!reupdateStatus)
+						if (!reupdateStatus || applicationInstallationInProgress || sessionEndInProgress)
 						{
 							statusThread = null;
 							break;
@@ -862,6 +866,11 @@ namespace CHD.SVN_Notifier
 			{
 				ShowError(Loc.Msg_StatusThreadError(e.ToString()));
 				Application.Exit();
+			}
+			finally
+			{
+				lock (this)
+					if (statusThread == Thread.CurrentThread) statusThread = null;
 			}
 		}
 
@@ -933,12 +942,12 @@ namespace CHD.SVN_Notifier
 		/// </summary>
 		private void UpdateFolderStatus(SvnItem folder)
 		{
-			if (!folder.RetryReady) return;
+			if (!folder.RetryReady || applicationInstallationInProgress) return;
 			SafeInvoke(new SetStatusBarTextMethod(SetStatusBarText), new object[] { Loc.Status_Checking(folder.Path) });
 			DateTime statusTime = DateTime.Now;
-			if (sessionEndInProgress) return;       // Need to avoid error on svn.exe invoking
+			if (sessionEndInProgress || applicationInstallationInProgress) return;       // Need to avoid error on svn.exe invoking
 			SvnStatus? status = SvnTools.GetSvnFolderStatus(folder);
-			if (status.HasValue)
+			if (status.HasValue && !applicationInstallationInProgress)
 				SafeInvoke(new UpdateListViewMethod(UpdateListView), new object[] { folder, status.Value, statusTime });
 		}
 
@@ -992,6 +1001,7 @@ namespace CHD.SVN_Notifier
 			// Auto-Update: if enabled for this folder, update it silently in the background.
 			// Nach belegter Koordination auch bei unverändertem Änderungsstatus erneut versuchen.
 			if ((folderStatus == SvnStatus.NeedUpdate || folderStatus == SvnStatus.NeedUpdate_Modified)
+				&& !applicationInstallationInProgress && !sessionEndInProgress
 				&& folder.AutoUpdate && !folder._IsAutoUpdating && folder.RetryReady && SvnTools.BeginUpdateSilently(folder))
 			{
 				folder.Status = SvnStatus.Unknown;
@@ -1133,13 +1143,14 @@ namespace CHD.SVN_Notifier
 
 		private void ShowUpdateErrors(SvnFolderProcess sfp)
 		{
+			if (applicationInstallationInProgress || sessionEndInProgress) return;
 			new UpdateLogForm(sfp).ShowDialog(this);
 		}
 
 
 		private void OnErrorAdded(string path, string error)
 		{
-			if (IsDisposed || sessionEndInProgress) return;
+			if (IsDisposed || sessionEndInProgress || applicationInstallationInProgress) return;
 			if (InvokeRequired) BeginInvoke(new UpdateErrorLogMethod(UpdateErrorLog), path, error);
 			else UpdateErrorLog(path, error);
 		}

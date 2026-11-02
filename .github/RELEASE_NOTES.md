@@ -1,11 +1,13 @@
-SVN Notifier 3.0.0.9
+SVN Notifier 3.0.0.10
 
-- Der optionale Python-Wrapper samt zugehörigen Tests und CI-Schritten ist entfernt. Python wird nicht benötigt.
-- Die interne SVN-Absicherung bleibt erhalten: Vom Notifier gestartete Prüfungen und Aktionen reservieren die Arbeitskopiewurzel bis zum Prozessende, auch zwischen mehreren aktuellen Notifier-Instanzen.
-- Manuelles Aktualisieren bei ausgeschaltetem Auto-Update, Änderungsbenachrichtigungen und die korrigierte Übergabe von Pfaden mit Leerzeichen, Umlauten und `@` bleiben erhalten.
-- Die Windows-Regressionstests für Konfiguration, Prozesssteuerung und SVN-Ziele bleiben Bestandteil der Veröffentlichung. Schreibende lokale Tests verwenden ausschließlich isolierte Arbeitskopien und lokale Test-Repositories.
+- Der Programmupdater sperrt vor der Installation neue SVN-Aufträge und beendet alle vom Notifier gestarteten SVN-Prozesse samt Unterprozessen. Auch laufende stille Updates und TortoiseSVN-Dialoge werden beendet.
+- Der Installer startet erst nach dem Ende der eigenen Prozesse und der Hintergrundprüfung. Bei nicht bestätigtem Prozessende wird die Installation abgebrochen. Nach einem Installationsfehler wird die SVN-Verarbeitung wieder freigegeben.
+- Extern gestartete SVN- und TortoiseSVN-Prozesse bleiben unberührt. Das normale Beenden der Anwendung wartet weiterhin auf Schreibvorgänge.
+- Regressionstests prüfen laufende Lese-, Schreib- und Dialogprozesse, Unterprozesse, verzögerte Starts, Fehler und den tatsächlichen WinForms-Installationsübergang. Schreibende SVN-Tests verwenden ausschließlich isolierte Arbeitskopien und lokale Test-Repositories.
 
-Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.9/docs/SVN-Koordination.md) beschreibt die interne Reservierung und ihre Grenzen. Extern gestartete SVN-, TortoiseSVN- und Container-Vorgänge werden nicht koordiniert. Der Notifier verändert weder den TortoiseSVN-Statuscache noch Arbeitskopiedatenbanken und führt keine automatischen Cleanups aus.
+Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.0.0.10/docs/SVN-Koordination.md) beschreibt die interne Reservierung und ihre Grenzen. Der Notifier verändert weder den TortoiseSVN-Statuscache noch Arbeitskopiedatenbanken und führt keine automatischen Cleanups aus. Python wird nicht benötigt.
+
+Die automatische Beendigung eigener SVN-Vorgänge gilt ab dieser Ausgabe. Beim Update von einer älteren Version müssen deren laufende Notifier-SVN-Vorgänge einmal vorher beendet werden. Alternativ die neue portable Ausgabe manuell installieren.
 
 Programmupdates und automatische SVN-Updates sind getrennte Funktionen. Versionen bis einschließlich 3.0.0.3 müssen einmal manuell durch diese Ausgabe ersetzt werden, um den Programmupdater zu erhalten.
 

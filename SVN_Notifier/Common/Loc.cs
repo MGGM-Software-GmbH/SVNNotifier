@@ -38,7 +38,7 @@ namespace CHD.SVN_Notifier
 		public static string AppUpdate_Verifying => T("Verifying update...", "Update wird geprüft...");
 		public static string AppUpdate_Installing => T("Installing update...", "Update wird installiert...");
 		public static string AppUpdate_PortableRequired => T("Automatic installation requires the portable ZIP release. Download and extract it from GitHub Releases.", "Die automatische Installation benötigt die portable ZIP-Ausgabe. Bitte diese aus den GitHub Releases herunterladen und entpacken.");
-		public static string AppUpdate_RepositoryBusy => T("An SVN operation is still running. Please try again after it has finished.", "Ein SVN-Vorgang läuft noch. Bitte nach dessen Ende erneut versuchen.");
+		public static string AppUpdate_RepositoryBusy => T("The application is already updating or shutting down.", "Ein Programmupdate oder das Beenden der Anwendung läuft bereits.");
 		public static string AppUpdate_Current(string version) => T("Installed version: ", "Installierte Version: ") + version;
 		public static string AppUpdate_Available(string version) => T("Available version: ", "Verfügbare Version: ") + version;
 		public static string AppUpdate_Error(string message) => T("Application update failed.\n\n", "Das Programmupdate ist fehlgeschlagen.\n\n") + message;

@@ -10,10 +10,10 @@
     <AssemblyName>SVN_Notifier</AssemblyName>
     <ApplicationIcon>App.ico</ApplicationIcon>
     <AssemblyTitle>SVN Notifier</AssemblyTitle>
-    <AssemblyVersion>3.0.0.9</AssemblyVersion>
-    <FileVersion>3.0.0.9</FileVersion>
-    <Version>3.0.0.9</Version>
-    <InformationalVersion>3.0.0.9</InformationalVersion>
+    <AssemblyVersion>3.0.0.10</AssemblyVersion>
+    <FileVersion>3.0.0.10</FileVersion>
+    <Version>3.0.0.10</Version>
+    <InformationalVersion>3.0.0.10</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Company>CHD</Company>
     <Product>SVN Notifier</Product>
