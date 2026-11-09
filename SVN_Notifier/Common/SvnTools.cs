@@ -59,6 +59,9 @@ namespace CHD.SVN_Notifier
         public static readonly ArrayList svnFolderProcesses = ArrayList.Synchronized(new ArrayList());
         internal static bool HasActiveOperations => runner.HasActiveOperations;
 
+        /// <summary>Bereinigt beim Start nur nachweislich verwaiste Notifier-Reservierungen konfigurierter Arbeitskopien.</summary>
+        internal static void RecoverReservations(IEnumerable<SvnItem> folders) => runner.RecoverReservations(folders.Select(folder => folder.Path));
+
         // TODO: Optimize speed; join GetRepositoryHeadRevision and GetRepositoryCommitedRevision functions into one:
         // void int GetRepositoryRevisions (string path, out int headRevision, out int committedRevision)
         private static int GetRepositoryRevision(SvnItem folder, string revision)

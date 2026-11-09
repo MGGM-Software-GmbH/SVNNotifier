@@ -30,6 +30,32 @@ internal sealed class SvnOperationRunner
 
     internal bool HasActiveOperations { get { lock (gate) return active.Any(task => !task.IsCompleted); } }
 
+    /// <summary>Prüft beim Start ausschließlich die Wurzeln konfigurierter Einträge, bevor neue Aufträge angenommen werden.</summary>
+    internal void RecoverReservations(IEnumerable<string> paths)
+    {
+        lock (gate)
+        {
+            var checkedRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string path in paths)
+            {
+                try
+                {
+                    foreach (string root in WorkingCopyLease.FindRoots(path))
+                    {
+                        if (!checkedRoots.Add(root)) continue;
+                        bool recovered = WorkingCopyLease.TryRecover(root, out string reason);
+                        if (reason != "reservation-absent")
+                            Log(root, "recovery", recovered ? "recover" : "recovery-skip", null, null, reason);
+                    }
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+                {
+                    Log(path, "recovery", "recovery-skip", null, null, "coordination-error:" + exception.GetType().Name);
+                }
+            }
+        }
+    }
+
     /// <summary>Reserviert synchron, bevor ein verzögerter Worker den Prozess starten darf.</summary>
     internal Task<SvnProcessResult>? TryStart(string path, string action, string executable, IEnumerable<string> arguments,
         bool readOnly, int timeoutSeconds = 0, CancellationToken cancellation = default, bool captureOutput = true, bool tortoiseSyntax = false)
@@ -41,7 +67,8 @@ internal sealed class SvnOperationRunner
                 Log(path, action, "skip", null, null, stopping ? "application-stopping" : "application-update");
                 return null;
             }
-            var lease = WorkingCopyLease.TryAcquire(path, action, out string root, out string reason);
+            var lease = WorkingCopyLease.TryAcquire(path, action, out string root, out string reason, executable,
+                recoveredRoot => Log(recoveredRoot, action, "recover", null, null, "abandoned-reservation-recovered"));
             if (lease is null)
             {
                 Log(root, action, "skip", null, null, reason);
@@ -128,6 +155,7 @@ internal sealed class SvnOperationRunner
                 info.Arguments = string.Join(" ", arguments.Select(FormatTortoiseArgument));
             else
                 foreach (string argument in arguments) info.ArgumentList.Add(argument);
+            lease.MarkStarting();
             process = start(info) ?? throw new InvalidOperationException("Prozess nicht gestartet.");
             // Die Registrierung greift auch bei einem verzögerten Start und bei einem anschließenden Diagnosefehler.
             // Nur das bestätigte Programmupdate beendet Schreibprozesse; normales Beenden wartet weiterhin darauf.
@@ -141,6 +169,7 @@ internal sealed class SvnOperationRunner
             // GUI-Programme erhalten keine Pipes: länger lebende GUI-Hilfsprozesse können geerbte Handles offen halten.
             var output = captureOutput ? process.StandardOutput.ReadToEndAsync() : Task.FromResult("");
             var error = captureOutput ? process.StandardError.ReadToEndAsync() : Task.FromResult("");
+            lease.MarkStarted(process);
             Log(lease.Root, action, "begin", process.Id, null, "");
             try
             {

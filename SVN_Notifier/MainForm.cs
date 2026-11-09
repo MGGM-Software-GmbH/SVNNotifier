@@ -58,6 +58,7 @@ namespace CHD.SVN_Notifier
 			SvnTools.ErrorAdded += OnErrorAdded;
 			AddPowerEventListener();
 			FormInit();
+			SvnTools.RecoverReservations(folders);
 			ApplyLocalization();
 			InitializeApplicationUpdates();
 			InitializeAppearance();
@@ -1267,11 +1268,15 @@ namespace CHD.SVN_Notifier
 				Thread.CurrentThread.Name = "Main";
 				Application.ThreadException += OnThreadException;
 				Application.Run(form);
-				SvnTools.StopAsync().GetAwaiter().GetResult();
 			}
 			catch (Exception e)
 			{
 				FatalError(e);
+			}
+			finally
+			{
+				// Auch ein Fehler im Nachrichtenloop darf eigene Reservierungen nicht ohne Prozessende zurücklassen.
+				SvnTools.StopAsync().GetAwaiter().GetResult();
 			}
 		}
 

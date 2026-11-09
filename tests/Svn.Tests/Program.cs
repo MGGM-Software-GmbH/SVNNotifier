@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using CHD.SVN_Notifier;
 
 internal static class Program
@@ -43,6 +44,23 @@ internal static class Program
             if (claim is null) return 75;
             Console.WriteLine("acquired");
             await Task.Delay(int.Parse(args[2]));
+            return 0;
+        }
+        if (args[0] == "--crash-holder")
+        {
+            using var claim = WorkingCopyLease.TryAcquire(args[1], "status", out _, out _, args[3]);
+            if (claim is null) return 75;
+            if (args[2] == "reserved") Console.WriteLine("acquired");
+            else
+            {
+                claim.MarkStarting();
+                var childInfo = new ProcessStartInfo(args[3]) { UseShellExecute = false };
+                foreach (string argument in new[] { "--child", "60000", "0" }) childInfo.ArgumentList.Add(argument);
+                using var child = Process.Start(childInfo)!;
+                if (args[2] == "started") claim.MarkStarted(child);
+                Console.WriteLine(child.Id);
+            }
+            await Task.Delay(60000);
             return 0;
         }
         if (args[0] is "status" or "info" or "update" || args[0].StartsWith("/command:"))
@@ -85,6 +103,7 @@ internal static class Program
             Config.SVNpath = Config.TortoiseSVNpath = executable;
             CheckConfiguration(root);
             await CheckCoordinationAsync(root);
+            await CheckRecoveryAsync(root);
             await CheckProcessesAsync(root);
             await CheckApplicationUpdateStopAsync(root);
             await CheckEntryPointsAsync(root);
@@ -144,6 +163,149 @@ internal static class Program
         Assert(WorkingCopyLease.TryAcquire(second, "status", out _, out _) is null, "Prozessübergreifende Belegung erkannt");
         await holder.WaitForExitAsync();
         Assert(!File.Exists(lockPath), "Separater Prozess gibt Reservierung frei");
+    }
+
+    /// <summary>Erzeugt einen echten Besitzerabsturz. Der eigene SVN-Testprozess darf dabei bewusst weiterlaufen.</summary>
+    private static async Task<Process?> CrashOwnerAsync(string root, string state)
+    {
+        using var holder = Start("--crash-holder", root, state, executable);
+        string? line = await holder.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        Assert(line is not null, "Isolierter Besitzer hat den Reservierungszustand geschrieben");
+        Process? child = state == "reserved" ? null : Process.GetProcessById(int.Parse(line!));
+        holder.Kill(); // Nur der Testbesitzer. Sein bekannter Kindprozess bleibt für die Gegenprobe am Leben.
+        await holder.WaitForExitAsync();
+        await WaitAsync(() =>
+        {
+            try
+            {
+                foreach (string workingRoot in WorkingCopyLease.FindRoots(root))
+                {
+                    using var stream = new FileStream(Path.Combine(workingRoot, ".svn", WorkingCopyLease.FileName), FileMode.Open, FileAccess.Read, FileShare.None);
+                }
+                return true;
+            }
+            catch (IOException) { return false; }
+        });
+        return child;
+    }
+
+    /// <summary>Prüft Wiederherstellung nach Absturz, alte Dateien, PID-Wiederverwendung, konkurrierende Starts und aktive Prozessreste.</summary>
+    private static async Task CheckRecoveryAsync(string root)
+    {
+        string lockPath = Path.Combine(root, ".svn", WorkingCopyLease.FileName);
+        string nested = Path.Combine(root, "first", "external");
+        string nestedLock = Path.Combine(nested, ".svn", WorkingCopyLease.FileName);
+        var logs = new ConcurrentQueue<string>();
+        var runner = new SvnOperationRunner(logs.Enqueue);
+        using (var live = WorkingCopyLease.TryAcquire(nested, "status", out _, out _))
+        {
+            runner.RecoverReservations(new[] { nested, root });
+            Assert(File.Exists(lockPath) && File.Exists(nestedLock), "Startbereinigung erhält Reservierungen einer lebenden Instanz");
+            Assert(WorkingCopyLease.TryAcquire(root, "update", out _, out _) is null, "Startbereinigung öffnet keine Lücke vor einem verzögerten Prozessstart");
+        }
+        using (await CrashOwnerAsync(nested, "reserved")) { }
+        Assert(File.Exists(lockPath) && File.Exists(nestedLock), "Gegenprobe reproduziert zurückgebliebene Reservierungen nach echtem Prozessabbruch");
+        string fixture = File.ReadAllLines(lockPath).Last(line => line.Length > 0);
+        runner.RecoverReservations(new[] { nested, root, Path.Combine(root, "second") });
+        Assert(!File.Exists(lockPath) && !File.Exists(nestedLock), "Anwendungsstart bereinigt äußere Wurzel und External ohne doppelte Bearbeitung");
+        Assert(logs.Count(line => line.Contains("\"phase\":\"recover\"")) == 2, "Wiederherstellung protokolliert genau die beiden freigegebenen Arbeitskopien");
+
+        using (var child = await CrashOwnerAsync(root, "started"))
+        {
+            try
+            {
+                Assert(!child!.HasExited && !WorkingCopyLease.TryRecover(root, out string busy) && busy.EndsWith("process-active"),
+                    "Überlebender SVN-Prozess hält seine Arbeitskopie trotz Besitzerabsturz reserviert");
+                Assert(WorkingCopyLease.TryAcquire(root, "update", out _, out _) is null, "Kein konkurrierendes Update während des überlebenden Prozesses");
+            }
+            finally { if (!child!.HasExited) child.Kill(); await child.WaitForExitAsync(); }
+            var retry = runner.TryStart(root, "status", executable, new[] { "--child", "0", "0" }, true);
+            Assert(retry is not null && (await retry).Success && !File.Exists(lockPath), "Spätere Prüfung übernimmt die Reservierung nach dem tatsächlichen Kindprozessende automatisch");
+        }
+
+        using (var child = await CrashOwnerAsync(root, "starting"))
+        {
+            try
+            {
+                Assert(!WorkingCopyLease.TryRecover(root, out string busy) && busy.EndsWith("possible-svn-process-active"),
+                    "Absturz im Prozessstartfenster prüft auch Programme ohne gespeicherte Kindprozess-PID");
+            }
+            finally { if (!child!.HasExited) child.Kill(); await child.WaitForExitAsync(); }
+            var examinedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Assert(WorkingCopyLease.TryRecover(root, out _, name => { examinedNames.Add(name); return false; }),
+                "Unbestätigter Start wird bei leerem Windows-Prozessbestand automatisch freigegeben");
+            Assert(examinedNames.Contains("svn") && examinedNames.Contains("TortoiseProc") && examinedNames.Contains(Path.GetFileNameWithoutExtension(executable)),
+                "Die umfassendere Prozessprüfung erfasst SVN, TortoiseSVN und konfigurierte Programmnamen");
+        }
+
+        void WriteFixture(Action<JsonObject> modify)
+        {
+            var value = JsonNode.Parse(fixture)!.AsObject();
+            modify(value);
+            File.WriteAllText(lockPath, value.ToJsonString());
+        }
+        using var current = Process.GetCurrentProcess();
+        long currentStart = current.StartTime.ToUniversalTime().Ticks;
+        WriteFixture(value => { value["ownerPid"] = current.Id; value["ownerStartTicks"] = currentStart; });
+        Assert(!WorkingCopyLease.TryRecover(root, out string activeOwner) && activeOwner.EndsWith("owner-active"), "Auch ohne offenes Handle bleibt ein nachweislich lebender Besitzer geschützt");
+        File.Delete(lockPath); // Ausschließlich die vom Test erzeugte Metadaten-Fixture.
+        WriteFixture(value => { value["ownerPid"] = current.Id; value["ownerStartTicks"] = currentStart - 1; });
+        Assert(WorkingCopyLease.TryRecover(root, out _), "Wiederverwendete Besitzer-PID blockiert die Freigabe nicht");
+        WriteFixture(value => { value["state"] = "started"; value["processId"] = current.Id; value["processStartTicks"] = currentStart - 1; });
+        Assert(WorkingCopyLease.TryRecover(root, out _), "Wiederverwendete Kindprozess-PID wird anhand ihrer Startzeit unterschieden");
+        File.WriteAllText(lockPath, fixture + "\n{\"protocol\":2,\"state\":\"starting");
+        Assert(WorkingCopyLease.TryRecover(root, out _), "Abgebrochener Journaleintrag zerstört den vorherigen nachweisbaren Reservierungszustand nicht");
+        WriteFixture(value => value["ownerHost"] = "different-windows-host");
+        Assert(!WorkingCopyLease.TryRecover(root, out string host) && host.EndsWith("other-host") && File.Exists(lockPath), "Reservierung eines anderen Rechners wird nicht über lokale PIDs freigegeben");
+        File.Delete(lockPath);
+        WriteFixture(value =>
+        {
+            value["protocol"] = 1;
+            foreach (string field in new[] { "ownerHost", "ownerStartTicks", "state", "processId", "processStartTicks", "executableName" }) value.Remove(field);
+        });
+        Assert(!WorkingCopyLease.TryRecover(root, out string legacyBusy, _ => true) && legacyBusy.EndsWith("possible-svn-process-active"),
+            "Alte Reservierung bleibt während möglicherweise beteiligter SVN-Prozesse belegt");
+        Assert(WorkingCopyLease.TryRecover(root, out _, _ => false) && !File.Exists(lockPath), "Alte Notifier-Reservierungen werden ebenfalls automatisch freigegeben");
+        WriteFixture(value => { value["protocol"] = 1; value["ownerPid"] = current.Id; value["startedUtc"] = DateTimeOffset.UtcNow; });
+        Assert(!WorkingCopyLease.TryRecover(root, out _, _ => false), "Alte Reservierung eines lebenden Besitzers wird erhalten");
+        File.Delete(lockPath);
+        WriteFixture(value => { value["protocol"] = 1; value["ownerPid"] = current.Id; value["startedUtc"] = current.StartTime.ToUniversalTime().AddSeconds(-1); });
+        Assert(WorkingCopyLease.TryRecover(root, out _, _ => false), "Alte Reservierung erkennt eine erst danach wiederverwendete Besitzer-PID");
+        foreach (string interrupted in new[] { "", "{", "{\"protocol\":2", "{\"protocol\":1,\"token\":\"", "{\"protocol\":2,\"token\":\"" })
+        {
+            File.WriteAllText(lockPath, interrupted);
+            Assert(!WorkingCopyLease.TryRecover(root, out _, _ => true) && File.Exists(lockPath), "Leere und unterbrochene Notifier-Dateien bleiben bei möglicherweise laufendem SVN vorläufig belegt");
+            Assert(WorkingCopyLease.TryRecover(root, out _, _ => false) && !File.Exists(lockPath), "Auch leere und unterbrochene eigene Reservierungsdateien werden automatisch freigegeben");
+        }
+        File.WriteAllText(lockPath, "{\"protocol\":2,\"ownerHost\":\"different-windows-host\",\"ownerPid\":");
+        Assert(!WorkingCopyLease.TryRecover(root, out string partialHost, _ => false) && partialHost.EndsWith("other-host"), "Auch ein unterbrochener Eintrag mit erkennbar fremder Rechnerkennung bleibt geschützt");
+        File.Delete(lockPath);
+        File.WriteAllText(lockPath, "{unvollständige-fremde-Datei");
+        Assert(!WorkingCopyLease.TryRecover(root, out _) && File.ReadAllText(lockPath) == "{unvollständige-fremde-Datei", "Unlesbare oder fremde Dateien werden nicht als eigene Reservierung gelöscht");
+        File.Delete(lockPath);
+        WriteFixture(_ => { });
+        using (var blocked = new FileStream(lockPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            Assert(!WorkingCopyLease.TryRecover(root, out _), "Belegtes Dateihandle verhindert konkurrierende Wiederherstellung");
+        File.SetAttributes(lockPath, FileAttributes.ReadOnly);
+        Assert(!WorkingCopyLease.TryRecover(root, out _) && File.Exists(lockPath), "Fehlgeschlagene Löschmarkierung wird nicht als Freigabe ausgegeben");
+        File.SetAttributes(lockPath, FileAttributes.Normal);
+        Assert(WorkingCopyLease.TryRecover(root, out _), "Freigabe wird nach Wegfall des Dateifehlers erneut versucht");
+
+        WriteFixture(_ => { });
+        using var release = new ManualResetEventSlim();
+        int attempts = 0;
+        int winners = 0;
+        var contenders = Enumerable.Range(0, 8).Select(contenderIndex => Task.Run(() =>
+        {
+            using var lease = WorkingCopyLease.TryAcquire(root, "status", out _, out _);
+            if (lease is not null) Interlocked.Increment(ref winners);
+            Interlocked.Increment(ref attempts);
+            if (lease is not null) release.Wait();
+        })).ToArray();
+        try { await WaitAsync(() => Volatile.Read(ref attempts) == 8); Assert(winners == 1, "Gleichzeitige Wiederherstellung und Reservierung lässt genau einen Prozessbesitzer zu"); }
+        finally { release.Set(); await Task.WhenAll(contenders); }
+        Assert(!File.Exists(lockPath), "Gewinner gibt seine eigene Reservierung beim Beenden frei");
+        Assert(File.ReadAllText(Path.Combine(root, ".svn", "wc.db")) == "Synthetische Testmarkierung, keine SQLite-Datenbank.", "Wiederherstellung verändert die SVN-Datenbank nicht");
     }
 
     private static async Task CheckProcessesAsync(string root)
@@ -287,6 +449,7 @@ internal static class Program
     /// <summary>Prüft den echten WinForms-Installationsübergang einschließlich laufender Statusprüfung und Installerfehler.</summary>
     private static async Task CheckApplicationInstallationAsync(string root)
     {
+        using (await CrashOwnerAsync(root, "reserved")) { }
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
@@ -295,8 +458,9 @@ internal static class Program
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
                 Config.CheckForNewVersion = false;
                 Config.SVNpath = Config.TortoiseSVNpath = executable;
-                Config.SaveSvnFolders(new BindingList<SvnItem>());
+                Config.SaveSvnFolders(new BindingList<SvnItem> { new(root, PathType.Directory) { Enabled = false } });
                 using var main = new MainForm();
+                Assert(!File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)), "Echter MainForm-Start übernimmt verwaiste konfigurierte Reservierungen vor der ersten Statusprüfung");
                 var flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic;
                 FieldInfo Field(string name) => typeof(MainForm).GetField(name, flags)!;
                 var prepare = typeof(MainForm).GetMethod("PrepareApplicationInstallationAsync", flags)!;
@@ -358,8 +522,9 @@ internal static class Program
                         Field("applicationInstallationInProgress").SetValue(main, true);
                         await SvnTools.PauseForApplicationUpdateAsync();
                         SvnTools.ResumeAfterApplicationUpdate();
-                        Field("sessionEndInProgress").SetValue(main, true);
-                        main.Close();
+                        await (Task)typeof(MainForm).GetMethod("ExitSafelyAsync", flags)!.Invoke(main, null)!;
+                        Assert(!SvnTools.HasActiveOperations && !File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)),
+                            "Echter Menü-Beenden-Pfad stoppt eigene Aufträge und hinterlässt keine Reservierung");
                     }
                 };
                 Application.Run(main);

@@ -4,7 +4,14 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.0.0.12** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+**SVN Notifier 3.0.0.13** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.0.0.13
+
+- Beim Start und vor späteren SVN-Aufträgen werden verwaiste eigene Reservierungen automatisch freigegeben. Auch Reservierungen im alten Notifier-Format werden geprüft.
+- Laufende Notifier- und SVN-Prozesse bleiben geschützt. Nach einem Absturz wird bei noch laufendem SVN-Prozess zunächst gewartet und später erneut geprüft. Prozessstartzeiten verhindern Verwechslungen bei wiederverwendeten Prozess-IDs.
+- Beim Beenden werden eigene Reservierungen nach dem tatsächlichen Prozessende freigegeben. Die Freigabe bleibt auch bei Fehlern im Nachrichtenloop aktiv und verwendet ein gegen Dateiaustausch geschütztes Windows-Handle.
+- Keine automatischen SVN-Cleanups, keine Änderungen an `wc.db` und keine Koordination externer SVN- oder Container-Aufrufe. Einzelheiten stehen in der SVN-Koordinationsdokumentation.
 
 ### Neu in v3.0.0.12
 
@@ -88,7 +95,7 @@ Versionen bis einschließlich 3.0.0.3 enthalten diesen Programmupdater noch nich
 
 Das zur Windows-Architektur passende ZIP-Paket unter [Releases](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases) herunterladen, entpacken und `SVN_Notifier.exe` starten. Subversion-Kommandozeilenclient (`svn.exe`) und TortoiseSVN werden weiterhin separat benötigt und in den Einstellungen ausgewählt. Die erzeugten EXE-Dateien sind nicht digital signiert.
 
-Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.0.0.12-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
+Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.0.0.13-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
 
 ### Windows-Build und Veröffentlichung
 
@@ -108,11 +115,11 @@ powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier 
 
 Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages/`. Mit `-ArtifactsDirectory` kann ein eigener Ausgabeordner gewählt werden. Für jeden Prüflauf muss dieser neue Installations-Testverzeichnisse erlauben. Der Workflow stellt die Pakete auch bei normalen Builds als herunterladbare Actions-Artefakte zur Verfügung und prüft den Anwendungsstart beider Architekturen. Die Updater-Prüfungen verwenden isolierte HTTP-Testdaten und separate Installationsordner. Sie prüfen auch den tatsächlichen EXE-Austausch mit Neustart und eine Manipulation zwischen Downloadprüfung und Installation.
 
-Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.12` die Veröffentlichung aus:
+Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.13` die Veröffentlichung aus:
 
 ```powershell
-git tag v3.0.0.12
-git push mggm v3.0.0.12
+git tag v3.0.0.13
+git push mggm v3.0.0.13
 ```
 
 Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests, GUI-Prüfungen und den SVN-Koordinationsprüfungen unter Windows. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.
