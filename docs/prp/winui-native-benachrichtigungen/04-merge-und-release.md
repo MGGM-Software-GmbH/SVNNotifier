@@ -38,7 +38,7 @@ Diese Zusammenstellung ist eine noch nicht ausgeführte Release-Ablaufvorlage. D
 
 Der Workflow `.github/workflows/windows-build.yml` baut x64/x86 und führt Paketstart, Updater-, Startmodus-, GUI- und SVN-Prüfungen aus. Zusätzlich lädt er das veröffentlichte WinForms-Ausgangspaket 3.0.0.13, prüft dessen SHA-256 und testet den tatsächlichen EXE-Austausch samt WinUI-Neustart und Konfiguration. Manuelle Shell-, Sicht- und Systemwechselprüfungen deckt er nicht ab.
 
-Die Produktprüfungen laufen über `Test-WindowsProduct.ps1` auf einem eigenen, nicht aktivierten Desktop mit eingeschränktem Benutzertoken und mittlerer Integrität. Der Paketbuild bleibt davon getrennt. Das Prüfprotokoll wird auch bei Fehlern als eigenes Actions-Artefakt hochgeladen; nur Paketartefakte mit Namen `windows-*` gelangen in den Releasejob. Überholte Branchläufe werden abgebrochen, laufende Tag-Veröffentlichungen erhalten.
+Die Produktprüfungen laufen über `Invoke-CiStandardUser.ps1` und `Test-WindowsProduct.ps1` in einem temporären Standardkonto mit geladenem Profil auf eigener Fensterstation und eigenem Desktop. Kontoanlage ist nur auf gehosteten GitHub-Runnern erlaubt. Das zufällige Kennwort bleibt im Speicher; gestartete Prozesse werden begrenzt, Arbeitsverzeichnisrechte zurückgesetzt und das Konto entfernt. Der Paketbuild bleibt davon getrennt. Das Prüfprotokoll wird auch bei Fehlern als eigenes Actions-Artefakt hochgeladen; nur Paketartefakte mit Namen `windows-*` gelangen in den Releasejob. Überholte Branchläufe werden abgebrochen, laufende Tag-Veröffentlichungen erhalten.
 
 ## Release
 

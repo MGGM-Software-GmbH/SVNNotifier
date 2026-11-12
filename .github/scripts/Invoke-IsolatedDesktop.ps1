@@ -4,7 +4,8 @@ param(
     [string] $LogPath = '',
     [int] $TimeoutSeconds = 1800,
     [switch] $StandardUser,
-    [switch] $ProbeNativeProcess
+    [switch] $ProbeNativeProcess,
+    [PSCredential] $TestCredential
 )
 
 # Startet Desktoptests ohne Umschalten des Eingabedesktops und begrenzt ihre Prozesslebensdauer.
@@ -15,6 +16,7 @@ if (-not $LogPath) { $LogPath = $scriptFile + '.' + [Guid]::NewGuid().ToString('
 $transcriptPath = [IO.Path]::GetFullPath($LogPath)
 if (Test-Path -LiteralPath $transcriptPath) { throw 'Das Testprotokoll muss neu sein.' }
 if ($TimeoutSeconds -le 0) { throw 'Die Zeitgrenze muss positiv sein.' }
+if ($TestCredential -and ($env:GITHUB_ACTIONS -ne 'true' -or $StandardUser)) { throw 'Ein separates Testkonto ist ausschließlich im gehosteten CI-Prüfpfad zulässig.' }
 
 Add-Type -TypeDefinition @'
 using System;
@@ -57,6 +59,13 @@ public static class IsolatedDesktopTest
         IntPtr threadSecurity, bool inherit, uint flags, IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation process);
     [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr memory);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CreateProcessWithLogonW(string user, string domain, string password, uint logonFlags,
+        string application, StringBuilder command, uint flags, IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation process);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateWindowStation(string name, uint flags, uint access, IntPtr security);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool SetProcessWindowStation(IntPtr station);
+    [DllImport("user32.dll")] private static extern bool CloseWindowStation(IntPtr station);
     [DllImport("user32.dll")] private static extern IntPtr GetProcessWindowStation();
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
@@ -136,34 +145,53 @@ public static class IsolatedDesktopTest
         result.Append('\\', backslashes * 2); result.Append('"'); return result.ToString();
     }
 
-    public static int Run(string executable, string[] arguments, string directory, int timeoutSeconds, bool standardUser, bool defaultDesktop = false)
+    public static int Run(string executable, string[] arguments, string directory, int timeoutSeconds, bool standardUser,
+        string loginUser = null, string password = null)
     {
+        if (String.IsNullOrEmpty(loginUser)) loginUser = null;
         var station = new StringBuilder(256); int needed;
         if (!GetUserObjectInformation(GetProcessWindowStation(), 2, station, 512, out needed)) throw new Win32Exception(Marshal.GetLastWin32Error());
         Console.WriteLine("Testfensterstation: " + station + "; Sitzung=" + System.Diagnostics.Process.GetCurrentProcess().SessionId);
         string name = "SVNNotifierTests-" + Guid.NewGuid().ToString("N");
         // Kein DESKTOP_SWITCHDESKTOP: Der Testdesktop wird niemals zum Eingabedesktop.
-        IntPtr descriptor = IntPtr.Zero, security = IntPtr.Zero, desktop = IntPtr.Zero;
+        IntPtr descriptor = IntPtr.Zero, security = IntPtr.Zero, desktop = IntPtr.Zero, privateStation = IntPtr.Zero;
+        IntPtr originalStation = GetProcessWindowStation();
         try
         {
-            if (standardUser)
+            if (standardUser || loginUser != null)
             {
                 // Erhöhte Runner vererben sonst einen Desktop, den der eingeschränkte Kindprozess nicht initialisieren kann.
-                string user = System.Security.Principal.WindowsIdentity.GetCurrent().User.Value;
+                string user = loginUser == null ? System.Security.Principal.WindowsIdentity.GetCurrent().User.Value
+                    : ((System.Security.Principal.SecurityIdentifier)new System.Security.Principal.NTAccount(Environment.MachineName, loginUser)
+                        .Translate(typeof(System.Security.Principal.SecurityIdentifier))).Value;
                 uint size;
                 if (!ConvertStringSecurityDescriptorToSecurityDescriptor("D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + user + ")S:(ML;;NW;;;ME)", 1, out descriptor, out size))
                     throw new Win32Exception(Marshal.GetLastWin32Error());
                 var attributes = new SecurityAttributes { Size = Marshal.SizeOf(typeof(SecurityAttributes)), Descriptor = descriptor };
                 security = Marshal.AllocHGlobal(attributes.Size); Marshal.StructureToPtr(attributes, security, false);
             }
-            if (!defaultDesktop) desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, security);
+            if (loginUser != null)
+            {
+                // Eigene Station statt Zugriffsänderungen an WinSta0 oder am Desktop des angemeldeten Benutzers.
+                station.Clear(); station.Append("SVNNotifierStation-" + Guid.NewGuid().ToString("N"));
+                privateStation = CreateWindowStation(station.ToString(), 0, 0x000f037f, security);
+                if (privateStation == IntPtr.Zero || !SetProcessWindowStation(privateStation)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, security);
+        }
+        catch
+        {
+            if (desktop != IntPtr.Zero) CloseDesktop(desktop);
+            if (privateStation != IntPtr.Zero) { SetProcessWindowStation(originalStation); CloseWindowStation(privateStation); }
+            throw;
         }
         finally
         {
+            if (!SetProcessWindowStation(originalStation)) throw new Win32Exception(Marshal.GetLastWin32Error());
             if (security != IntPtr.Zero) Marshal.FreeHGlobal(security);
             if (descriptor != IntPtr.Zero) LocalFree(descriptor);
         }
-        if (!defaultDesktop && desktop == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden.");
+        if (desktop == IntPtr.Zero) { if (privateStation != IntPtr.Zero) CloseWindowStation(privateStation); throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden."); }
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero; var process = new ProcessInformation();
         try
         {
@@ -172,11 +200,13 @@ public static class IsolatedDesktopTest
             var limits = new ExtendedLimit(); limits.Basic.Flags = 0x2000; // KILL_ON_JOB_CLOSE
             if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf(typeof(ExtendedLimit))))
                 throw new Win32Exception(Marshal.GetLastWin32Error());
-            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Desktop = station.ToString() + "\\" + (defaultDesktop ? "Default" : name) };
+            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Desktop = station.ToString() + "\\" + name };
             var command = new StringBuilder(Quote(executable));
             foreach (string argument in arguments) command.Append(' ').Append(Quote(argument));
             if (standardUser) token = StandardUserToken();
-            bool created = standardUser
+            bool created = loginUser != null
+                ? CreateProcessWithLogonW(loginUser, Environment.MachineName, password, 1, executable, command, 0x08000004, IntPtr.Zero, directory, ref startup, out process)
+                : standardUser
                 ? CreateProcessAsUser(token, executable, command, IntPtr.Zero, IntPtr.Zero, false, 0x08000004, IntPtr.Zero, directory, ref startup, out process)
                 : CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, false, 0x08000004, IntPtr.Zero, directory, ref startup, out process);
             if (!created)
@@ -201,6 +231,7 @@ public static class IsolatedDesktopTest
             if (process.Thread != IntPtr.Zero) CloseHandle(process.Thread);
             if (process.Process != IntPtr.Zero) CloseHandle(process.Process);
             if (desktop != IntPtr.Zero) CloseDesktop(desktop);
+            if (privateStation != IntPtr.Zero) CloseWindowStation(privateStation);
         }
     }
 }
@@ -215,32 +246,51 @@ Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; us
 [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
 [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
 [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr desktop);
+[DllImport("user32.dll")] public static extern IntPtr GetProcessWindowStation();
 public static string Name(IntPtr desktop) { var name = new StringBuilder(256); int needed; if (!GetUserObjectInformation(desktop, 2, name, 512, out needed)) throw new System.ComponentModel.Win32Exception(); return name.ToString(); }
 }'
 $currentName = [DesktopGuard]::Name([DesktopGuard]::GetThreadDesktop([DesktopGuard]::GetCurrentThreadId()))
+$stationName = [DesktopGuard]::Name([DesktopGuard]::GetProcessWindowStation())
+if ($stationName.StartsWith('SVNNotifierStation-') -and $currentName.StartsWith('SVNNotifierTests-')) {
+    Write-Host 'CI-Test auf eigener Fensterstation und eigenem Desktop.'
+} else {
 $inputDesktop = [DesktopGuard]::OpenInputDesktop(0, $false, 1)
 if ($inputDesktop -eq [IntPtr]::Zero) { throw 'Eingabedesktop konnte nicht geprüft werden.' }
 try { $inputName = [DesktopGuard]::Name($inputDesktop) } finally { [void][DesktopGuard]::CloseDesktop($inputDesktop) }
 if ($currentName -eq $inputName -or -not $currentName.StartsWith('SVNNotifierTests-')) { throw 'GUI-Test auf dem Benutzerdesktop verweigert.' }
+}
 '@
 $payload = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject @{ path = $scriptFile; arguments = @($ScriptArguments); log = $transcriptPath } -Compress)))
 $bootstrap = "`$request = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$payload')) | ConvertFrom-Json; Start-Transcript -LiteralPath `$request.log | Out-Null;"
-$invocation = $bootstrap + "`ntry {`n" + $guard + "`n`$testArguments = @(`$request.arguments | Where-Object { `$null -ne `$_ }); & `$request.path @testArguments; if (`$LASTEXITCODE) { exit `$LASTEXITCODE } } catch { Write-Error `$_; exit 1 } finally { Stop-Transcript | Out-Null }"
+$environmentSetup = ''
+if ($TestCredential) {
+    $runtime = $env:RUNTIME_IDENTIFIER
+    if ($runtime -notin @('win-x64', 'win-x86')) { throw 'CI-Testarchitektur fehlt.' }
+    $environmentSetup = "`$env:RUNTIME_IDENTIFIER = '$runtime'; `$env:RUNNER_TEMP = `$env:TEMP; `$env:DOTNET_ROOT = Join-Path `$env:ProgramFiles 'dotnet'; `$env:PATH = `$env:DOTNET_ROOT + ';' + `$env:PATH;"
+}
+$invocation = $bootstrap + "`ntry {`n" + $guard + "`n" + $environmentSetup + "`n`$testArguments = @(`$request.arguments | Where-Object { `$null -ne `$_ }); & `$request.path @testArguments; if (`$LASTEXITCODE) { exit `$LASTEXITCODE } } catch { Write-Error `$_; exit 1 } finally { Stop-Transcript | Out-Null }"
 $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($invocation))
 $executable = Join-Path $PSHOME 'powershell.exe'
+$loginUser = $null; $loginPassword = $null
+if ($TestCredential) { $loginUser = $TestCredential.UserName; $loginPassword = $TestCredential.GetNetworkCredential().Password }
 if ($ProbeNativeProcess) {
     $nativeExecutable = Join-Path $env:SystemRoot 'System32/whoami.exe'
-    if ($env:GITHUB_ACTIONS -eq 'true') {
-        # Nur ein fensterloser Identitätsaufruf: trennt Tokenprobleme von der Desktopinitialisierung.
-        foreach ($probe in @(@{ reduced = $false; active = $false }, @{ reduced = $true; active = $true })) {
-            $probeResult = [IsolatedDesktopTest]::Run($nativeExecutable, @(), (Get-Location).Path, 15, $probe.reduced, $probe.active)
-            Write-Host "Native Gegenprobe: eingeschränkt=$($probe.reduced); Standarddesktop=$($probe.active); Exit-Code=$probeResult"
-        }
-    }
-    $nativeResult = [IsolatedDesktopTest]::Run($nativeExecutable, @(), (Get-Location).Path, 15, $StandardUser.IsPresent)
+    $nativeResult = [IsolatedDesktopTest]::Run($nativeExecutable, @(), (Get-Location).Path, 15, $StandardUser.IsPresent, $loginUser, $loginPassword)
     if ($nativeResult -ne 0) { throw "Nativer CI-Prozessstart fehlgeschlagen: Exit-Code $nativeResult" }
     Write-Host 'Nativer CI-Prozessstart erfolgreich; PowerShell wird gesondert geprüft.'
 }
-$result = [IsolatedDesktopTest]::Run($executable, @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded), (Get-Location).Path, $TimeoutSeconds, $StandardUser.IsPresent)
+$bootstrapPath = $transcriptPath + '.bootstrap.ps1'
+try {
+    # CreateProcessWithLogonW hat eine kürzere Befehlszeilengrenze. Die Datei enthält ausschließlich Testaufruf und Isolation, keine Zugangsdaten.
+    if ($TestCredential) {
+        if (Test-Path -LiteralPath $bootstrapPath) { throw 'Die temporäre Testdatei muss neu sein.' }
+        [IO.File]::WriteAllText($bootstrapPath, $invocation, (New-Object Text.UTF8Encoding($true)))
+        $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $bootstrapPath)
+    } else { $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded) }
+    $result = [IsolatedDesktopTest]::Run($executable, $arguments, (Get-Location).Path, $TimeoutSeconds, $StandardUser.IsPresent, $loginUser, $loginPassword)
+} finally {
+    $loginPassword = $null
+    if ($TestCredential -and (Test-Path -LiteralPath $bootstrapPath)) { Remove-Item -LiteralPath $bootstrapPath }
+}
 Write-Host "Testprotokoll: $transcriptPath"
 if ($result -ne 0) { throw "Isolierter Desktoptest fehlgeschlagen: Exit-Code $result" }
