@@ -18,7 +18,7 @@ jobs:
   build:
     name: Windows ${{ matrix.runtime }}
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -40,90 +40,24 @@ jobs:
           RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
         run: ./.github/scripts/Build-Windows.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER -ReleaseTag $env:RELEASE_TAG
-      - name: Anwendungsstart aus dem ZIP-Paket prüfen
+      - name: Windows-Produkt mit normalen Benutzerrechten prüfen
         shell: powershell
         env:
           RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          Add-Type -AssemblyName UIAutomationClient
-          Add-Type -AssemblyName UIAutomationTypes
-          Write-Host "Testprozess mit Administratorrechten: $(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
-          $archive = @(Get-ChildItem "artifacts/packages/*-$env:RUNTIME_IDENTIFIER.zip")
-          if ($archive.Count -ne 1) { throw 'Genau ein ZIP-Paket wird erwartet.' }
-          $testPath = Join-Path $env:RUNNER_TEMP "smoke-$env:RUNTIME_IDENTIFIER"
-          Expand-Archive -LiteralPath $archive[0].FullName -DestinationPath $testPath
-          foreach ($fileName in @('SVN_Notifier.exe', 'LICENSE', 'README.md')) {
-            if (-not (Test-Path -LiteralPath (Join-Path $testPath $fileName))) {
-              throw "Datei fehlt im ZIP-Paket: $fileName"
-            }
-          }
-          # Eine portable Testkonfiguration verhindert Zugriffe auf vorhandene Benutzer-Repositories.
-          @('[Settings]', 'Version=1.9', 'Language=0', 'SVN_path=missing-svn.exe', 'TortoiseSVN_path=missing-tortoise.exe') |
-            Set-Content -LiteralPath (Join-Path $testPath 'SVN_Notifier.ini') -Encoding ascii
-          $process = Start-Process -FilePath (Join-Path $testPath 'SVN_Notifier.exe') -WorkingDirectory $testPath -PassThru
+          $testLog = "artifacts/ci-validation-$env:RUNTIME_IDENTIFIER.log"
           try {
-            $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
-            $deadline = [DateTime]::UtcNow.AddSeconds(30)
-            do {
-              Start-Sleep -Milliseconds 500
-              $process.Refresh()
-              if ($process.HasExited) { throw "Die Anwendung wurde beendet: Exit-Code $($process.ExitCode)" }
-              $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
-              $dialogCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'SettingsViewDialog')
-              $settingsWindow = $windows | ForEach-Object { $_.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition) } |
-                Where-Object { $null -ne $_ -and -not $_.Current.IsOffscreen } | Select-Object -First 1
-            } while ($null -eq $settingsWindow -and [DateTime]::UtcNow -lt $deadline)
-            if ($null -eq $settingsWindow) {
-              $textCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
-              foreach ($window in $windows) {
-                $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCondition) | ForEach-Object { Write-Host "Eigene Startmeldung: $($_.Current.Name)" }
-              }
-              throw 'Die Anwendung hat den Einstellungsdialog nicht geöffnet.'
-            }
-            $buttonCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-            if ($null -eq $settingsWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) { throw 'Der Einstellungsdialog enthält keine bedienbaren Schaltflächen.' }
-            Write-Host "Anwendungsstart erfolgreich: $env:RUNTIME_IDENTIFIER"
+            ./.github/scripts/Invoke-IsolatedDesktop.ps1 -ScriptPath .github/scripts/Test-WindowsProduct.ps1 -StandardUser -LogPath $testLog -TimeoutSeconds 1800
           } finally {
-            if (-not $process.HasExited) { Stop-Process -Id $process.Id }
+            if (Test-Path -LiteralPath $testLog) { Get-Content -LiteralPath $testLog | Write-Host }
           }
-      - name: Programmupdater und EXE-Austausch prüfen
-        shell: powershell
-        env:
-          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
-        run: ./.github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER
-      - name: Startmodi und eingebettete Laufzeit prüfen
-        shell: powershell
-        env:
-          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
-        run: ./.github/scripts/Test-StartModes.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER -ArtifactsDirectory artifacts
-      - name: Aktualisierung aus WinForms prüfen
-        shell: powershell
-        env:
-          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $legacyPath = Join-Path $env:RUNNER_TEMP 'svnnotifier-legacy'
-          New-Item -ItemType Directory -Path $legacyPath | Out-Null
-          $packageName = "SVNNotifier-3.0.0.13-$env:RUNTIME_IDENTIFIER.zip"
-          $baseUrl = 'https://github.com/MGGM-Software-GmbH/SVNNotifier/releases/download/v3.0.0.13'
-          Invoke-WebRequest "$baseUrl/$packageName" -OutFile (Join-Path $legacyPath $packageName) -UseBasicParsing
-          Invoke-WebRequest "$baseUrl/SHA256SUMS.txt" -OutFile (Join-Path $legacyPath 'SHA256SUMS.txt') -UseBasicParsing
-          $checksumLines = @(Get-Content (Join-Path $legacyPath 'SHA256SUMS.txt') | Where-Object { $_ -match ('^[a-fA-F0-9]{64}\s+\*?' + [regex]::Escape($packageName) + '$') })
-          if ($checksumLines.Count -ne 1) { throw 'Eindeutige Prüfsumme des WinForms-Pakets fehlt.' }
-          $expectedHash = ($checksumLines[0] -split '\s+')[0]
-          if ((Get-FileHash (Join-Path $legacyPath $packageName) -Algorithm SHA256).Hash -ine $expectedHash) { throw 'Prüfsumme des WinForms-Pakets stimmt nicht.' }
-          ./.github/scripts/Test-LegacyUpgrade.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER -ArtifactsDirectory artifacts -LegacyPackagesDirectory $legacyPath
-      - name: Oberfläche und bestehende Bedienfunktionen prüfen
-        shell: powershell
-        env:
-          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
-        run: ./.github/scripts/Test-Gui.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER
-      - name: SVN-Prozesskoordination und Konfiguration prüfen
-        shell: powershell
-        env:
-          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
-        run: ./.github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER
+      - name: Prüflog erhalten
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: validation-${{ matrix.runtime }}
+          path: artifacts/ci-validation-*.log
+          if-no-files-found: warn
       - name: Pakete und Prüfsummen hochladen
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

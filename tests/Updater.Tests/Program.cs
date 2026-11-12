@@ -83,7 +83,9 @@ internal static class Program
             }
         }
         var version = Version.Parse(FileVersionInfo.GetVersionInfo(target).FileVersion!);
-        var older = new Version(version.Major, version.Minor, version.Build, version.Revision - 1);
+        // Die Vergleichsversion bleibt auch bei einer Release-Revision von null gültig.
+        var older = new Version(0, 0, 0, 0);
+        Check(version > older, "Produktpaket besitzt eine positive Release-Version");
         var newer = new Version(version.Major, version.Minor, version.Build, version.Revision + 1);
         try
         {

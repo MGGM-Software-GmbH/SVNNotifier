@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory)] [string] $ScriptPath,
     [string[]] $ScriptArguments = @(),
     [string] $LogPath = '',
-    [int] $TimeoutSeconds = 1800
+    [int] $TimeoutSeconds = 1800,
+    [switch] $StandardUser
 )
 
 # Startet Desktoptests ohne Umschalten des Eingabedesktops und begrenzt ihre Prozesslebensdauer.
@@ -33,6 +34,50 @@ public static class IsolatedDesktopTest
 
     [StructLayout(LayoutKind.Sequential)]
     private struct ProcessInformation { public IntPtr Process, Thread; public int ProcessId, ThreadId; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SidAndAttributes { public IntPtr Sid; public uint Attributes; }
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool CreateRestrictedToken(IntPtr source, uint flags, uint disabledCount, SidAndAttributes[] disabled,
+        uint deletedCount, IntPtr deleted, uint restrictedCount, IntPtr restricted, out IntPtr token);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool ConvertStringSidToSid(string text, out IntPtr sid);
+    [DllImport("advapi32.dll")] private static extern uint GetLengthSid(IntPtr sid);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool SetTokenInformation(IntPtr token, int informationClass, ref SidAndAttributes information, uint length);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CreateProcessAsUser(IntPtr token, string application, StringBuilder command, IntPtr processSecurity,
+        IntPtr threadSecurity, bool inherit, uint flags, IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation process);
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr memory);
+
+    // CI läuft erhöht. Der Produktpfad wird mit demselben Benutzer, deaktivierter Administratorgruppe und mittlerer Integrität geprüft.
+    private static IntPtr StandardUserToken()
+    {
+        IntPtr source = IntPtr.Zero, token = IntPtr.Zero, administrators = IntPtr.Zero, medium = IntPtr.Zero;
+        try
+        {
+            if (!OpenProcessToken(GetCurrentProcess(), 0x008b, out source) ||
+                !ConvertStringSidToSid("S-1-5-32-544", out administrators) ||
+                !ConvertStringSidToSid("S-1-16-8192", out medium)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            var disabled = new[] { new SidAndAttributes { Sid = administrators } };
+            if (!CreateRestrictedToken(source, 1, 1, disabled, 0, IntPtr.Zero, 0, IntPtr.Zero, out token))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            var integrity = new SidAndAttributes { Sid = medium, Attributes = 0x20 };
+            if (!SetTokenInformation(token, 25, ref integrity, (uint)Marshal.SizeOf(typeof(SidAndAttributes)) + GetLengthSid(medium)))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            IntPtr result = token; token = IntPtr.Zero; return result;
+        }
+        finally
+        {
+            if (token != IntPtr.Zero) CloseHandle(token);
+            if (source != IntPtr.Zero) CloseHandle(source);
+            if (administrators != IntPtr.Zero) LocalFree(administrators);
+            if (medium != IntPtr.Zero) LocalFree(medium);
+        }
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct BasicLimit
@@ -81,13 +126,13 @@ public static class IsolatedDesktopTest
         result.Append('\\', backslashes * 2); result.Append('"'); return result.ToString();
     }
 
-    public static int Run(string executable, string[] arguments, string directory, int timeoutSeconds)
+    public static int Run(string executable, string[] arguments, string directory, int timeoutSeconds, bool standardUser)
     {
         string name = "SVNNotifierTests-" + Guid.NewGuid().ToString("N");
         // Kein DESKTOP_SWITCHDESKTOP: Der Testdesktop wird niemals zum Eingabedesktop.
         IntPtr desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, IntPtr.Zero);
         if (desktop == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden.");
-        IntPtr job = IntPtr.Zero; var process = new ProcessInformation();
+        IntPtr job = IntPtr.Zero, token = IntPtr.Zero; var process = new ProcessInformation();
         try
         {
             job = CreateJobObject(IntPtr.Zero, null);
@@ -98,7 +143,11 @@ public static class IsolatedDesktopTest
             var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Desktop = "WinSta0\\" + name };
             var command = new StringBuilder(Quote(executable));
             foreach (string argument in arguments) command.Append(' ').Append(Quote(argument));
-            if (!CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, false, 0x08000004, IntPtr.Zero, directory, ref startup, out process))
+            if (standardUser) token = StandardUserToken();
+            bool created = standardUser
+                ? CreateProcessAsUser(token, executable, command, IntPtr.Zero, IntPtr.Zero, false, 0x08000004, IntPtr.Zero, directory, ref startup, out process)
+                : CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, false, 0x08000004, IntPtr.Zero, directory, ref startup, out process);
+            if (!created)
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Testprozess konnte nicht isoliert gestartet werden.");
             if (!AssignProcessToJobObject(job, process.Process))
             {
@@ -115,6 +164,7 @@ public static class IsolatedDesktopTest
         }
         finally
         {
+            if (token != IntPtr.Zero) CloseHandle(token);
             if (job != IntPtr.Zero) CloseHandle(job);
             if (process.Thread != IntPtr.Zero) CloseHandle(process.Thread);
             if (process.Process != IntPtr.Zero) CloseHandle(process.Process);
@@ -146,6 +196,6 @@ $bootstrap = "`$request = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64S
 $invocation = $bootstrap + "`ntry {`n" + $guard + "`n`$testArguments = @(`$request.arguments | Where-Object { `$null -ne `$_ }); & `$request.path @testArguments; if (`$LASTEXITCODE) { exit `$LASTEXITCODE } } catch { Write-Error `$_; exit 1 } finally { Stop-Transcript | Out-Null }"
 $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($invocation))
 $executable = Join-Path $PSHOME 'powershell.exe'
-$result = [IsolatedDesktopTest]::Run($executable, @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded), (Get-Location).Path, $TimeoutSeconds)
+$result = [IsolatedDesktopTest]::Run($executable, @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded), (Get-Location).Path, $TimeoutSeconds, $StandardUser.IsPresent)
 Write-Host "Testprotokoll: $transcriptPath"
 if ($result -ne 0) { throw "Isolierter Desktoptest fehlgeschlagen: Exit-Code $result" }

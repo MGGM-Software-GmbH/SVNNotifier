@@ -10,7 +10,7 @@ Der SVN Notifier erhält eine mit WinUI 3 gestaltete Windows-Oberfläche und mod
 
 Die vorhandene C#-Anwendung mit .NET 10 von Windows Forms auf WinUI 3 umstellen und die drei bisherigen Tray-Benachrichtigungsauslöser an Windows-App-Benachrichtigungen anbinden. Gestaltung, Funktionsumfang, portable Verteilung und Betriebssicherheit sind gleichrangige Anforderungen.
 
-**Auftragsgrenze dieses Dokuments:** Die Implementierung auf `feature/winui-native-notifications` ist vom Benutzer beauftragt. Funktionserhalt, Gestaltung und die beschriebenen Prüfungen gehören zur Umsetzung. Merge, Release, Installation beim Benutzer und Veröffentlichung von Anwendungspaketen benötigen weiterhin einen ausdrücklichen Auftrag.
+**Auftragsgrenze dieses Dokuments:** Die Implementierung auf `feature/winui-native-notifications` sowie Commit, Push, Merge auf `master` und Veröffentlichung als 3.1.0.0 sind vom Benutzer beauftragt. Funktionserhalt, Gestaltung und die beschriebenen Prüfungen gehören zur Umsetzung. Eine Installation beim Benutzer bleibt ein gesonderter Auftrag.
 
 ### Dokumente und Lesereihenfolge
 
