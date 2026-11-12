@@ -9,6 +9,7 @@ param(
 # Erstellt ein portables Windows-Paket mit konsistenter Version und Prüfsumme.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Invoke-QuietConsole.ps1')
 $repositoryPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $projectPath = Join-Path $repositoryPath 'SVN_Notifier/SVN_Notifier.csproj'
 [xml] $project = Get-Content -LiteralPath $projectPath -Raw
@@ -42,11 +43,11 @@ if (Test-Path -LiteralPath $archivePath) {
     throw "Das Paket existiert bereits: $archivePath"
 }
 
-dotnet publish $projectPath --configuration Release --runtime $RuntimeIdentifier `
+Invoke-QuietConsole dotnet publish $projectPath --configuration Release --runtime $RuntimeIdentifier `
     --self-contained true --output $publishPath `
     --artifacts-path (Join-Path $artifactsPath "build/$RuntimeIdentifier") `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:PublishTrimmed=false -p:PublishReadyToRun=false --nologo
+    -p:PublishTrimmed=false -p:PublishReadyToRun=false -p:Platform=$($RuntimeIdentifier.Substring(4)) --nologo
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish ist mit Exit-Code $LASTEXITCODE fehlgeschlagen."
 }

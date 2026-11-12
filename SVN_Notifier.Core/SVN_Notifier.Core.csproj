@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CHD.SVN_Notifier</RootNamespace>
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="SVN_Notifier" />
+    <InternalsVisibleTo Include="Svn.Tests" />
+    <InternalsVisibleTo Include="Gui.Tests" />
+    <Compile Include="../SVN_Notifier/Common/Attributes.cs" Link="Common/Attributes.cs" />
+    <Compile Include="../SVN_Notifier/Common/Config.cs" Link="Common/Config.cs" />
+    <Compile Include="../SVN_Notifier/Common/IniFile.cs" Link="Common/IniFile.cs" />
+    <Compile Include="../SVN_Notifier/Common/Loc.cs" Link="Common/Loc.cs" />
+    <Compile Include="../SVN_Notifier/Common/PathType.cs" Link="Common/PathType.cs" />
+    <Compile Include="../SVN_Notifier/Common/SvnItem.cs" Link="Common/SvnItem.cs" />
+    <Compile Include="../SVN_Notifier/Common/SvnOperationRunner.cs" Link="Common/SvnOperationRunner.cs" />
+    <Compile Include="../SVN_Notifier/Common/SvnStatus.cs" Link="Common/SvnStatus.cs" />
+    <Compile Include="../SVN_Notifier/Common/SvnTools.cs" Link="Common/SvnTools.cs" />
+    <Compile Include="../SVN_Notifier/Common/SvnXml.cs" Link="Common/SvnXml.cs" />
+    <Compile Include="../SVN_Notifier/Common/WindowsPathComparer.cs" Link="Common/WindowsPathComparer.cs" />
+    <Compile Include="../SVN_Notifier/Common/WorkingCopyLease.cs" Link="Common/WorkingCopyLease.cs" />
+  </ItemGroup>
+</Project>

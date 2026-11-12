@@ -1,0 +1,78 @@
+﻿# Die UI-Automation-Wurzel kann einen anderen Desktop abbilden. Fenster werden zuerst am tatsächlichen Testdesktop nach eigener Prozess-ID zugeordnet.
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+if (-not ('OwnProcessWindows' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class OwnProcessWindows
+{
+    private delegate bool EnumerateWindow(IntPtr window, IntPtr context);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("kernel32.dll")] private static extern void SetLastError(uint error);
+    [DllImport("user32.dll")] private static extern IntPtr GetThreadDesktop(uint thread);
+    [DllImport("user32.dll", SetLastError=true)] private static extern bool EnumDesktopWindows(IntPtr desktop, EnumerateWindow callback, IntPtr context);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumerateWindow callback, IntPtr context);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr window, StringBuilder value, int length);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr first,
+        StringBuilder text, uint flags, uint timeout, out UIntPtr result);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
+
+    // Nur sichtbare Fenster des angegebenen eigenen Testprozesses auf dem aktuellen Testdesktop liefern.
+    public static IntPtr[] Get(int processId)
+    {
+        var windows = new List<IntPtr>();
+        EnumerateWindow callback = (window, context) => {
+            uint owner; GetWindowThreadProcessId(window, out owner);
+            if (owner == processId && IsWindowVisible(window)) windows.Add(window);
+            return true;
+        };
+        // Ein noch leerer Desktop beendet die Enumeration ohne Win32-Fehler; vorherige API-Fehler dürfen nicht als Enumerationsfehler gelten.
+        SetLastError(0);
+        bool enumerated = EnumDesktopWindows(GetThreadDesktop(GetCurrentThreadId()), callback, IntPtr.Zero);
+        int error = Marshal.GetLastWin32Error();
+        if (!enumerated && error != 0) throw new System.ComponentModel.Win32Exception(error);
+        return windows.ToArray();
+    }
+
+    // Namen ohne Bildschirmaufnahme helfen, einen Prozess auf dem falschen Desktop zu erkennen.
+    public static string[] Desktops(int processId)
+    {
+        var names = new HashSet<string>();
+        using (var process = Process.GetProcessById(processId))
+            foreach (ProcessThread thread in process.Threads) {
+                var name = new StringBuilder(256); int needed;
+                if (GetUserObjectInformation(GetThreadDesktop((uint)thread.Id), 2, name, 512, out needed)) names.Add(name.ToString());
+            }
+        return new List<string>(names).ToArray();
+    }
+
+    // Native Fehlerdialoge bleiben diagnostizierbar, wenn deren UI-Automation-Provider keine Texte liefert.
+    public static string[] Texts(int processId)
+    {
+        var lines = new List<string>();
+        EnumerateWindow read = (window, context) => {
+            uint owner; GetWindowThreadProcessId(window, out owner);
+            if (owner != processId) return true;
+            var text = new StringBuilder(4096); var type = new StringBuilder(256); UIntPtr result;
+            GetClassName(window, type, type.Capacity);
+            if (SendMessageTimeout(window, 0x000d, (UIntPtr)text.Capacity, text, 2, 1000, out result) != IntPtr.Zero)
+                lines.Add(type + ": " + text);
+            return true;
+        };
+        foreach (IntPtr window in Get(processId)) { read(window, IntPtr.Zero); EnumChildWindows(window, read, IntPtr.Zero); }
+        return lines.ToArray();
+    }
+}
+'@
+}
+function Get-OwnProcessWindows([int] $ProcessId) {
+    foreach ($window in [OwnProcessWindows]::Get($ProcessId)) {
+        [System.Windows.Automation.AutomationElement]::FromHandle($window)
+    }
+}

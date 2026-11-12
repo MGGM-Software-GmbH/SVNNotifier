@@ -171,6 +171,7 @@ namespace CHD.SVN_Notifier
 		                                               "Beim Start in die Taskleiste minimieren");
 		public static string SF_Chk_ShowTaskbar  => T("Show in taskbar",               "In Taskleiste anzeigen");
 		public static string SF_Chk_CheckVersion => T("Check for application updates automatically", "Automatisch nach Programmupdates suchen");
+		public static string SF_Chk_ShowNotifications => T("Show notifications", "Benachrichtigungen anzeigen");
 		public static string SF_Chk_ChangeLog    => T("Force to see \"Change Log\" before Update",
 		                                               "\"Änderungsprotokoll\" vor Update erzwingen");
 		public static string SF_Chk_SilentUpdate => T("\"Silent\" Update All",         "\"Stilles\" Alle aktualisieren");

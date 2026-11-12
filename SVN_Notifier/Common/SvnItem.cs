@@ -46,6 +46,8 @@ namespace CHD.SVN_Notifier
 				_Status = value;
 				_StatusTime = DateTime.Now;
 				NotifyPropertyChanged("Status");
+				NotifyPropertyChanged(nameof(DisplayStatus));
+				NotifyPropertyChanged(nameof(DisplayIconStatus));
 				NotifyPropertyChanged("StatusTime");
 			}
 		}
@@ -64,9 +66,13 @@ namespace CHD.SVN_Notifier
 		public bool Enabled
 		{
 			get { return _Enabled; }
-			set { _Enabled = value; NotifyPropertyChanged("Enabled"); }
+			set { _Enabled = value; NotifyPropertyChanged("Enabled"); NotifyPropertyChanged(nameof(DisplayStatus)); NotifyPropertyChanged(nameof(DisplayIconStatus)); }
 		}
 		bool _Enabled;
+
+		/// <summary>Erhält den deaktivierten Zustand unabhängig vom zuletzt geprüften Repository-Status.</summary>
+		public string DisplayStatus => Loc.SvnStatusText(Status, Enabled);
+		public SvnStatus DisplayIconStatus => Enabled ? Status : SvnStatus.Unknown;
 
 		public bool AutoUpdate
 		{

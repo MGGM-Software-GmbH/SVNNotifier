@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace CHD.SVN_Notifier;
@@ -11,8 +11,34 @@ internal sealed record ApplicationUpdatePlan(string TargetPath, string WorkingDi
 internal static class ApplicationUpdateInstaller
 {
     /// <summary>Mehrdatei-Entwicklungsbuilds werden nicht durch eine einzelne EXE überschrieben.</summary>
-    [UnconditionalSuppressMessage("SingleFile", "IL3000", Justification = "Der leere Assemblypfad ist hier das beabsichtigte Erkennungsmerkmal eines Einzeldatei-Builds.")]
-    internal static bool IsPortable => string.IsNullOrEmpty(typeof(ApplicationUpdateInstaller).Assembly.Location);
+    internal static bool IsPortable => portable.Value;
+    private static readonly Lazy<bool> portable = new(() => IsSingleFileBundle(Environment.ProcessPath ?? throw new InvalidOperationException("Der Programmpfad ist nicht verfügbar.")));
+
+    /// <summary>Prüft den .NET-Bundlemarker statt des Assemblypfads, der bei vollständiger Extraktion auch bei Einzel-EXEs gesetzt ist.</summary>
+    internal static bool IsSingleFileBundle(string executable)
+    {
+        // Format und feste Signatur gemäß Microsoft.NET.HostModel.Bundle.Bundler: acht Byte Headeroffset vor dem Marker.
+        ReadOnlySpan<byte> signature = [0x8b, 0x12, 0x02, 0xb9, 0x6a, 0x61, 0x20, 0x38,
+            0x72, 0x7b, 0x93, 0x02, 0x14, 0xd7, 0xa0, 0x32, 0x13, 0xf5, 0xb9, 0xe6,
+            0xef, 0xae, 0x33, 0x18, 0xee, 0x3b, 0x2d, 0xce, 0x24, 0xb3, 0x6a, 0xae];
+        using var input = new FileStream(executable, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var buffer = new byte[65536 + 40];
+        int retained = 0, count;
+        while ((count = input.Read(buffer, retained, buffer.Length - retained)) > 0)
+        {
+            int length = retained + count;
+            int position = buffer.AsSpan(0, length).IndexOf(signature);
+            if (position >= 0)
+            {
+                if (position < sizeof(long)) return false;
+                long offset = BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(position - sizeof(long), sizeof(long)));
+                return offset > 0 && offset < input.Length;
+            }
+            retained = Math.Min(40, length);
+            buffer.AsSpan(length - retained, retained).CopyTo(buffer);
+        }
+        return false;
+    }
 
     /// <summary>Startet eine Kopie der aktuellen Anwendung und wartet auf deren Installationsbereitschaft.</summary>
     internal static async Task StartAsync(PreparedApplicationUpdate update, int language)
@@ -30,7 +56,7 @@ internal static class ApplicationUpdateInstaller
         await File.WriteAllTextAsync(planPath, JsonSerializer.Serialize(plan));
         var installerPath = Path.Combine(update.DirectoryPath, "installer.exe");
         File.Copy(target, installerPath, false);
-        var start = new ProcessStartInfo(installerPath) { UseShellExecute = false, WorkingDirectory = update.DirectoryPath };
+        var start = new ProcessStartInfo(installerPath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = update.DirectoryPath };
         start.ArgumentList.Add("--apply-update");
         start.ArgumentList.Add(planPath);
         using var installer = Process.Start(start) ?? throw new InvalidOperationException("The update installer could not be started.");
@@ -106,7 +132,7 @@ internal static class ApplicationUpdateInstaller
             throw new InvalidDataException("The staged executable has changed. Installation stopped.");
         File.Replace(payload, plan.TargetPath, Path.Combine(directory, "previous.exe"));
         using var self = Process.GetCurrentProcess();
-        var start = new ProcessStartInfo(plan.TargetPath) { UseShellExecute = false, WorkingDirectory = plan.WorkingDirectory };
+        var start = new ProcessStartInfo(plan.TargetPath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = plan.WorkingDirectory };
         start.ArgumentList.Add("--update-cleanup");
         start.ArgumentList.Add(directory);
         start.ArgumentList.Add(self.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));

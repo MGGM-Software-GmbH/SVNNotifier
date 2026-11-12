@@ -4,7 +4,17 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.0.0.13** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+**SVN Notifier 3.1.0.0** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.1.0.0
+
+Version `3.1.0.0` verwendet WinUI 3 und native Windows-App-Benachrichtigungen. Aktuelle Prüfergebnisse und offene Integrationsnachweise stehen im [Umsetzungsstand](docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md). Der [Merge- und Releaseablauf](docs/prp/winui-native-benachrichtigungen/04-merge-und-release.md) beschreibt Prüfungen und die Aktualisierung aus WinForms.
+
+Hauptfenster, Einstellungen, Repository-Eigenschaften, Protokolle, Info und Programmupdate verwenden WinUI. Die Repository-Liste behält Prüfung und Auto-Update als getrennte Schalter. Systemfarben, Hell-/Dunkelmodus sowie die konfigurierbare Sprache und Schrift werden übernommen. Die Anzeigedauer nativer Banner wird in Windows eingestellt; die bisherigen INI-Werte bleiben erhalten. Der normale Programmstart erfolgt ohne Administratorrechte.
+
+Die Anwendung setzt Windows 10 Version 1809 oder neuer voraus. Nach einem Verschieben des portablen Programmordners die Anwendung einmal regulär am neuen Ort starten. Neue Meldungen werden diesem Pfad zugeordnet; zuvor erzeugte Meldungen können auf den nicht mehr vorhandenen alten EXE-Pfad verweisen.
+
+Unter **Einstellungen > Allgemein > Benachrichtigungen anzeigen** lassen sich neue Windows-Meldungen abschalten. Die Option ist standardmäßig eingeschaltet und wird als `ShowNotifications` in der INI gespeichert. SVN-Prüfung, Auto-Update, Tray-Symbol und manuelle Fehlerdialoge bleiben davon unabhängig. Bereits vorhandene Meldungen werden durch den Schalter nicht pauschal gelöscht.
 
 ### Neu in v3.0.0.13
 
@@ -64,7 +74,7 @@ Verhalten, Tests und Grenzen stehen in [SVN-Koordination](https://github.com/MGG
 
 ### Benutzeroberfläche
 
-Die C#-Anwendung verwendet Windows Forms ohne zusätzliches UI-Toolkit. Eine helle Oberfläche, flache Symbolleisten und einheitliche, für die Bildschirmauflösung gezeichnete Symbole kennzeichnen die Aktionen. Die Repository-Liste zeigt beschriftete Spalten für Prüfung, Status, Pfad und Auto-Update. Auch in schmalen Fenstern bleiben die Symbolleistenbefehle über das Überlaufmenü erreichbar.
+Die C#-Anwendung verwendet WinUI 3 mit Windows App SDK 2.6.5. Die Repository-Liste zeigt beschriftete Spalten für Prüfung, Status, Pfad und Auto-Update. Kompakte Zeilen wachsen bei größerer Schrift mit; dezente Trennlinien beanspruchen keine zusätzliche Zeilenhöhe. Menü und Symbolleiste sind in den Listenrahmen integriert, die Symbolleistenaktionen sind einheitlich neutral gestaltet. Fenster-, Taskleisten- und Tray-Symbol zeigen den gemeinsamen Gesamtstatus in Grau, Grün, Gelb oder Rot. Auch in schmalen Fenstern bleiben die Symbolleistenbefehle über das Überlaufmenü erreichbar.
 
 Einstellungen, Repository-Eigenschaften und Protokolle verwenden dieselben vorhandenen Aktionen in neu angeordneten Dialogen. Schriftfamilie, Schriftgröße und Sprache bleiben konfigurierbar. Die Einstellungstabellen richten sich nach ihrem Inhalt; bei knappem Platz können die Einstellungsseiten gescrollt werden.
 
@@ -95,9 +105,11 @@ Versionen bis einschließlich 3.0.0.3 enthalten diesen Programmupdater noch nich
 
 Das zur Windows-Architektur passende ZIP-Paket unter [Releases](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases) herunterladen, entpacken und `SVN_Notifier.exe` starten. Subversion-Kommandozeilenclient (`svn.exe`) und TortoiseSVN werden weiterhin separat benötigt und in den Einstellungen ausgewählt. Die erzeugten EXE-Dateien sind nicht digital signiert.
 
-Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.0.0.13-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
+Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.1.0.0-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
 
 ### Windows-Build und Veröffentlichung
+
+Fehler vor dem Laden der Konfiguration werden unter `%TEMP%` als `SVNNotifier-startup-<Prozess-ID>-<Prozessstartticks>.log` protokolliert. Die Datei enthält Exceptiontyp, Fehlermeldung und Aufrufstapel. Nach geladener Konfiguration verwendet die Anwendung das zugehörige Protokoll neben der INI-Datei. INI-Inhalte und Befehlsargumente werden dafür nicht ausgegeben.
 
 Voraussetzung für einen lokalen Build ist das .NET-10-SDK unter Windows. Im Repository-Hauptverzeichnis:
 
@@ -111,15 +123,19 @@ powershell -File .github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier win-x
 powershell -File .github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier win-x86
 powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier win-x64
 powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier win-x86
+powershell -File .github/scripts/Test-StartModes.ps1 -RuntimeIdentifier win-x64 -ArtifactsDirectory artifacts
+powershell -File .github/scripts/Test-StartModes.ps1 -RuntimeIdentifier win-x86 -ArtifactsDirectory artifacts
 ```
 
 Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages/`. Mit `-ArtifactsDirectory` kann ein eigener Ausgabeordner gewählt werden. Für jeden Prüflauf muss dieser neue Installations-Testverzeichnisse erlauben. Der Workflow stellt die Pakete auch bei normalen Builds als herunterladbare Actions-Artefakte zur Verfügung und prüft den Anwendungsstart beider Architekturen. Die Updater-Prüfungen verwenden isolierte HTTP-Testdaten und separate Installationsordner. Sie prüfen auch den tatsächlichen EXE-Austausch mit Neustart und eine Manipulation zwischen Downloadprüfung und Installation.
 
-Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.13` die Veröffentlichung aus:
+Die gewöhnlichen GUI-Prüfungen können über `Invoke-QuietWindows.vbs` und `Invoke-IsolatedDesktop.ps1` ohne sichtbare Konsole auf einem inaktiven Windows-Desktop laufen. `Test-Gui.ps1 -IncludeShellSettings` ergänzt die tatsächliche Anwendung der Taskleisteneinstellung und benötigt einen Desktop mit Windows-Shell. Native Banner, Benachrichtigungszentrale und Eingabewege benötigen zusätzlich eine ausdrücklich erlaubte, entsperrte Windows-Testsitzung. Voraussetzungen und Aufrufparameter stehen in [Validierung](docs/prp/winui-native-benachrichtigungen/02-validierung.md).
+
+Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach dem Merge auf `master` und erfolgreichen Prüfungen löst ein Tag im Format `v3.1.0.0` die Veröffentlichung aus:
 
 ```powershell
-git tag v3.0.0.13
-git push mggm v3.0.0.13
+git tag v3.1.0.0
+git push mggm v3.1.0.0
 ```
 
 Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests, GUI-Prüfungen und den SVN-Koordinationsprüfungen unter Windows. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.

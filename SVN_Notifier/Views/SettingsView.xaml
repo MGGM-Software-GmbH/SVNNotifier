@@ -1,0 +1,9 @@
+<UserControl x:Class="CHD.SVN_Notifier.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid MinWidth="360" RowSpacing="8">
+        <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <TabView x:Name="Tabs" IsAddTabButtonVisible="False" CanDragTabs="False" CanReorderTabs="False" />
+        <TextBlock x:Name="ValidationError" Grid.Row="1" TextWrapping="Wrap" Visibility="Collapsed" />
+    </Grid>
+</UserControl>

@@ -63,8 +63,29 @@ internal static class Program
         Directory.CreateDirectory(root);
         var target = Path.Combine(root, ApplicationUpdater.ExecutableName);
         await File.WriteAllBytesAsync(target, payload);
+        Check(ApplicationUpdateInstaller.IsSingleFileBundle(target), "Das tatsächliche portable Produktpaket besitzt einen gültigen Bundlemarker");
+        byte[] signature = Convert.FromHexString("8B1202B96A612038727B930214D7A03213F5B9E6EFAE3318EE3B2DCE24B36AAE");
+        int marker = payload.AsSpan().IndexOf(signature);
+        Check(marker >= sizeof(long), "Bundlemarker im Produktpaket ist für die Gegenprobe erreichbar");
+        foreach (long offset in new[] { 0L, long.MaxValue })
+        {
+            byte[] changed = payload.ToArray();
+            BitConverter.GetBytes(offset).CopyTo(changed, marker - sizeof(long));
+            string invalidBundle = Path.Combine(root, "bundle-offset-" + offset + ".exe");
+            try
+            {
+                await File.WriteAllBytesAsync(invalidBundle, changed);
+                Check(!ApplicationUpdateInstaller.IsSingleFileBundle(invalidBundle), "Fehlender oder ungültiger Bundleoffset erlaubt keine automatische Installation: " + offset);
+            }
+            finally
+            {
+                File.Delete(invalidBundle);
+            }
+        }
         var version = Version.Parse(FileVersionInfo.GetVersionInfo(target).FileVersion!);
-        var older = new Version(version.Major, version.Minor, version.Build, version.Revision - 1);
+        // Die Vergleichsversion bleibt auch bei einer Release-Revision von null gültig.
+        var older = new Version(0, 0, 0, 0);
+        Check(version > older, "Produktpaket besitzt eine positive Release-Version");
         var newer = new Version(version.Major, version.Minor, version.Build, version.Revision + 1);
         try
         {
