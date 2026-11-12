@@ -40,18 +40,12 @@ try {
     [OwnProcessWindows]::Texts($process.Id) | ForEach-Object { Write-Host "Eigener nativer Fenstertext: $_" }
     $startupLog = Join-Path $testPath 'SVN_Notifier.log'
     if (Test-Path -LiteralPath $startupLog) { Get-Content -LiteralPath $startupLog | Select-Object -Last 60 | ForEach-Object { Write-Host "Eigenes Startprotokoll: $_" } }
+    $earlyLog = Join-Path ([IO.Path]::GetTempPath()) "SVNNotifier-startup-$($process.Id)-$($process.StartTime.ToUniversalTime().Ticks).log"
+    if (Test-Path -LiteralPath $earlyLog) { Get-Content -LiteralPath $earlyLog | Select-Object -Last 60 | ForEach-Object { Write-Host "Eigenes frühes Startprotokoll: $_" } }
     $textCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
     foreach ($window in $windows) {
       Write-Host "Eigenes Fenster: $($window.Current.Name); Offscreen=$($window.Current.IsOffscreen)"
       $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCondition) | ForEach-Object { Write-Host "Eigene Startmeldung: $($_.Current.Name)" }
-    }
-    if ($env:GITHUB_ACTIONS -eq 'true') {
-      # Ausschließlich den weiterhin lebenden eigenen Prozess untersuchen, bevor die Fehlerbereinigung ihn beendet.
-      . (Join-Path $PSScriptRoot 'Invoke-QuietConsole.ps1')
-      $diagnostics = Join-Path ([IO.Path]::GetFullPath($ArtifactsDirectory)) ('diagnostics/' + [Guid]::NewGuid().ToString('N'))
-      Invoke-QuietConsole dotnet tool install dotnet-stack --version 10.0.750501 --tool-path $diagnostics
-      if ($LASTEXITCODE -ne 0) { throw 'Die Stackdiagnose konnte nicht installiert werden; der Einstellungsdialog fehlt weiterhin.' }
-      Invoke-QuietConsole (Join-Path $diagnostics 'dotnet-stack.exe') report --process-id $process.Id
     }
     throw 'Die Anwendung hat den Einstellungsdialog nicht geöffnet.'
   }

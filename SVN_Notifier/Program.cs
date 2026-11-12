@@ -57,11 +57,17 @@ internal static class Program
         catch (Exception exception)
         {
             string message = exception.Message;
-            if (!string.IsNullOrEmpty(Config.logFileName))
+            try
             {
-                try { Config.WriteLog("FatalError", exception.ToString()); }
-                catch (Exception logError) when (logError is IOException or UnauthorizedAccessException) { message += Environment.NewLine + logError.Message; }
+                // Registrierung kann vor Config.Init scheitern. PID und Startzeit trennen solche Protokolle eindeutig von anderen Starts.
+                if (string.IsNullOrEmpty(Config.logFileName))
+                {
+                    using var process = Process.GetCurrentProcess();
+                    Config.logFileName = Path.Combine(Path.GetTempPath(), $"SVNNotifier-startup-{process.Id}-{process.StartTime.ToUniversalTime().Ticks}.log");
+                }
+                Config.WriteLog("FatalError", exception.ToString());
             }
+            catch (Exception logError) when (logError is IOException or UnauthorizedAccessException) { message += Environment.NewLine + logError.Message; }
             MessageBox(IntPtr.Zero, message, "SVN Notifier", 0x10);
             return 1;
         }

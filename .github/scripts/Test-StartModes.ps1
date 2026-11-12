@@ -136,6 +136,15 @@ try {
     [PackagedRuntimePath]::CloseOwnDialog($helper.Id, [IntPtr](Find-Control $helper 'Name' 'OK').Current.NativeWindowHandle)
     if (-not $helper.WaitForExit(10000)) { throw 'Ungültiger Hilfsmodus beendet sich nach Schließen des Fehlerdialogs nicht.' }
     if ($helper.ExitCode -ne 1) { throw "Ungültiger Hilfsmodus liefert einen anderen Fehlercode: $($helper.ExitCode)" }
+    $invalidActivation = Start-Mode '--notification invalid-context-fixture'
+    Wait-Control { $null -ne (Find-Control $invalidActivation 'Name' 'OK') } 'Ungültige Aktivierung zeigt einen eigenen Fehlerdialog vor dem Konfigurationsstart'
+    $earlyLog = Join-Path ([IO.Path]::GetTempPath()) "SVNNotifier-startup-$($invalidActivation.Id)-$($invalidActivation.StartTime.ToUniversalTime().Ticks).log"
+    if (-not (Test-Path -LiteralPath $earlyLog)) { throw 'Früher Startfehler wurde nicht protokolliert.' }
+    $earlyDetails = Get-Content -LiteralPath $earlyLog -Raw
+    if ($earlyDetails -notmatch 'FatalError' -or $earlyDetails -notmatch 'NotificationContextStore.Read') { throw 'Frühes Startprotokoll enthält die Fehlerursache nicht.' }
+    [PackagedRuntimePath]::CloseOwnDialog($invalidActivation.Id, [IntPtr](Find-Control $invalidActivation 'Name' 'OK').Current.NativeWindowHandle)
+    if (-not $invalidActivation.WaitForExit(10000) -or $invalidActivation.ExitCode -ne 1) { throw 'Ungültige Aktivierung liefert nicht den erwarteten Fehlercode.' }
+    Write-Host 'OK: Früher Startfehler enthält Ursache und Stack im eigenen eindeutigen Protokoll'
     Write-Host "Startmodi erfolgreich: $RuntimeIdentifier, normaler Kindstart und Hilfsmodus ohne XAML-Initialisierung."
 } finally {
     foreach ($process in $processes) {

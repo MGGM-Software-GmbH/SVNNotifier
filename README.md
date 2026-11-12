@@ -109,6 +109,8 @@ Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-
 
 ### Windows-Build und Veröffentlichung
 
+Fehler vor dem Laden der Konfiguration werden unter `%TEMP%` als `SVNNotifier-startup-<Prozess-ID>-<Prozessstartticks>.log` protokolliert. Die Datei enthält Exceptiontyp, Fehlermeldung und Aufrufstapel. Nach geladener Konfiguration verwendet die Anwendung das zugehörige Protokoll neben der INI-Datei. INI-Inhalte und Befehlsargumente werden dafür nicht ausgegeben.
+
 Voraussetzung für einen lokalen Build ist das .NET-10-SDK unter Windows. Im Repository-Hauptverzeichnis:
 
 ```powershell
