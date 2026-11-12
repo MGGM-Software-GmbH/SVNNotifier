@@ -17,6 +17,7 @@ try { $generator.GetBytes($randomBytes) } finally { $generator.Dispose() }
 $password = ConvertTo-SecureString ('Aa1!' + [Convert]::ToBase64String($randomBytes)) -AsPlainText -Force
 [Array]::Clear($randomBytes, 0, $randomBytes.Length)
 $account = $null
+$sessionAccess = $null
 $originalAcl = Get-Acl -LiteralPath $workspace
 try {
     $account = New-LocalUser -Name $testName -Password $password -AccountNeverExpires -Description 'Isolierte SVNNotifier-CI-Prüfung'
@@ -28,13 +29,22 @@ try {
     $permission = New-Object Security.AccessControl.FileSystemAccessRule($account.SID, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
     $testAcl.AddAccessRule($permission)
     Set-Acl -LiteralPath $workspace -AclObject $testAcl
+    # Der fremde Anmeldetoken benötigt eigene benannte SDK-/CLI-Objekte in der bestehenden Runnersitzung.
+    Add-Type -Path (Join-Path $PSScriptRoot 'SessionObjectAccess.cs')
+    $sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
+    $sessionAccess = [SessionObjectAccess]::new("\Sessions\$sessionId\BaseNamedObjects", $account.SID)
+    Write-Host 'CI-Testkonto erhält vorübergehend Erstellrechte für eigene benannte Sitzungsobjekte.'
     $credential = New-Object PSCredential($testName, $password)
     & "$PSScriptRoot/Invoke-IsolatedDesktop.ps1" -ScriptPath $ScriptPath -LogPath $LogPath -TimeoutSeconds $TimeoutSeconds -ProbeNativeProcess:$ProbeNativeProcess -TestCredential $credential
 } finally {
     # Der untergeordnete Starter schließt zuerst seinen Job und damit alle eigenen Testprozesse.
-    try { Set-Acl -LiteralPath $workspace -AclObject $originalAcl } finally {
-        if ($account) { Remove-LocalUser -SID $account.SID }
-        $credential = $null
-        $password.Dispose()
+    try {
+        if ($sessionAccess) { $sessionAccess.Dispose(); Write-Host 'CI-Sitzungsobjektrechte wiederhergestellt.' }
+    } finally {
+        try { Set-Acl -LiteralPath $workspace -AclObject $originalAcl } finally {
+            if ($account) { Remove-LocalUser -SID $account.SID }
+            $credential = $null
+            $password.Dispose()
+        }
     }
 }
