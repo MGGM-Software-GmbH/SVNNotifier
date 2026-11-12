@@ -9,6 +9,8 @@ SVN Notifier 3.1.0.0
 
 Prüfstand und offene Integrationsnachweise stehen im [PRP-Umsetzungsstand](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.0/docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md).
 
+Die automatisierten Windows-Prüfungen bestehen für x64 und x86 einschließlich GUI, SVN-Kern, Programmupdater und tatsächlichem Übergang von WinForms 3.0.0.13. Manuelle Nachweise für sichtbare Windows-Banner, native Meldungsklicks, Tray-Bedienung, Drag-and-drop sowie DPI-/Kontrastwechsel stehen noch aus. Die gespeicherten Windows-Meldungen und der portable Ordnerwechsel sind separat geprüft.
+
 Der [Merge- und Releaseablauf](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.0/docs/prp/winui-native-benachrichtigungen/04-merge-und-release.md) nennt Voraussetzungen, Windows-Prüfungen, Versionsangaben und Tag-Auslösung. Voraussetzung für WinUI sind Windows 10 Version 1809 oder neuer und ein normaler Start ohne Administratorrechte. Nach einem portablen Ordnerwechsel einmal am neuen Ort starten; alte Meldungen dürfen ungültig werden. Die Vorwärtsaktualisierung von WinForms 3.0.0.13 ist für x64 und x86 mit EXE-Austausch, Neustart und erhaltener Konfiguration geprüft.
 
 Beibehaltene SVN-Koordination:

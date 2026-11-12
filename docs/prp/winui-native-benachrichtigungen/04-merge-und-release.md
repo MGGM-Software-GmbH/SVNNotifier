@@ -4,7 +4,7 @@
 
 Die Umsetzung liegt auf `feature/winui-native-notifications`. Der veröffentlichte Ausgangsstand ist 3.0.0.13, die beauftragte Release-Version lautet 3.1.0.0. Der Benutzer hat Commit, Push, Merge auf den tatsächlichen Hauptbranch und Veröffentlichung ausdrücklich beauftragt. Der tatsächliche Hauptbranch ist `master`. Die folgenden Schritte beschreiben den Ablauf; ausgeführte Schritte und Prüfergebnisse werden im Umsetzungsstand erfasst. Die geprüfte Windows-Git-Zugriffsmethode steht im [PRP](PRP.md#geprüfter-git-push-aus-wsl), ohne Zugangsdaten.
 
-Maßgeblich sind [Funktionsparität](01-funktionsparitaet.md), [Validierung](02-validierung.md) und [Nachweise](03-umsetzungsstand.md). Ein grüner Build ersetzt keine fehlenden Funktions- und Shellprüfungen. Vor dem Merge insbesondere Banner, Historie, Tray, Meldungsklick nach Prozessende, Drag-and-drop, Datei-/Ordnerauswahl, DPI, Kontrast und portablen Ordnerwechsel nachweisen. Den verweigerten Verzeichniswechsel im Test klären. Einzel-EXE und Start beider Architekturen auch auf einem geeigneten Windows-Rechner ohne separat installierte .NET-/Windows-App-SDK-Laufzeit prüfen; eine solche Umgebung fehlt in dieser Sitzung.
+Maßgeblich sind [Funktionsparität](01-funktionsparitaet.md), [Validierung](02-validierung.md) und [Nachweise](03-umsetzungsstand.md). Aktuelle Benutzerentscheidung: Nach erfolgreichen x64- und x86-Windows-Jobs Merge und Release 3.1.0.0 auslösen und den Tag-Workflow auf GitHub weiterlaufen lassen. Die zugehörigen Branchjobs sind erfolgreich. Offene Nachweise für Banner, Tray, Meldungsklick, Drag-and-drop, Datei-/Ordnerauswahl, DPI, Kontrast und einen geeigneten Rechner ohne separat installierte Laufzeiten bleiben im Umsetzungsstand ausdrücklich benannt. Windows-Historie und portabler Ordnerwechsel besitzen eigene Teilnachweise. Die Veröffentlichung ersetzt keine dieser offenen Prüfungen.
 
 ## Merge
 
@@ -52,7 +52,7 @@ git tag v3.1.0.0
 git push mggm refs/tags/v3.1.0.0
 ```
 
-Diese Befehle wurden hier nicht ausgeführt. Vorher prüfen, dass `HEAD` genau der freigegebene Commit ist und der Tag nicht existiert. Vorhandene Tags nicht verschieben.
+Vor diesen Befehlen prüfen, dass `HEAD` genau der freigegebene Hauptbranch-Commit ist und der Tag nicht existiert. Vorhandene Tags nicht verschieben. Tag und zugehörigen Workflow nach dem Push auf GitHub kontrollieren.
 
 Der aktuelle Workflow reagiert auf `v*`-Tags und prüft zusätzlich, dass der Tag-Commit in `master` enthalten ist. Nach beiden erfolgreichen Windows-Jobs prüft er die Paketprüfsummen, erstellt einen Release-Entwurf und veröffentlicht ihn automatisch als neuestes Release. Ein Tag-Push löst daher bereits die Veröffentlichung aus. Ein Branch-Push veröffentlicht kein Release. Das automatische `GITHUB_TOKEN` genügt; keine Zugangsdaten in Dateien oder Befehle übernehmen.
 
