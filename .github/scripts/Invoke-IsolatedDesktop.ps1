@@ -37,6 +37,10 @@ public static class IsolatedDesktopTest
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SidAndAttributes { public IntPtr Sid; public uint Attributes; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SecurityAttributes { public int Size; public IntPtr Descriptor; public int Inherit; }
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(string text, uint revision, out IntPtr descriptor, out uint size);
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
     [DllImport("advapi32.dll", SetLastError = true)]
@@ -130,7 +134,26 @@ public static class IsolatedDesktopTest
     {
         string name = "SVNNotifierTests-" + Guid.NewGuid().ToString("N");
         // Kein DESKTOP_SWITCHDESKTOP: Der Testdesktop wird niemals zum Eingabedesktop.
-        IntPtr desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, IntPtr.Zero);
+        IntPtr descriptor = IntPtr.Zero, security = IntPtr.Zero, desktop = IntPtr.Zero;
+        try
+        {
+            if (standardUser)
+            {
+                // Erhöhte Runner vererben sonst einen Desktop, den der eingeschränkte Kindprozess nicht initialisieren kann.
+                string user = System.Security.Principal.WindowsIdentity.GetCurrent().User.Value;
+                uint size;
+                if (!ConvertStringSecurityDescriptorToSecurityDescriptor("D:(A;;0x000200CF;;;" + user + ")S:(ML;;NW;;;ME)", 1, out descriptor, out size))
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                var attributes = new SecurityAttributes { Size = Marshal.SizeOf(typeof(SecurityAttributes)), Descriptor = descriptor };
+                security = Marshal.AllocHGlobal(attributes.Size); Marshal.StructureToPtr(attributes, security, false);
+            }
+            desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, security);
+        }
+        finally
+        {
+            if (security != IntPtr.Zero) Marshal.FreeHGlobal(security);
+            if (descriptor != IntPtr.Zero) LocalFree(descriptor);
+        }
         if (desktop == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden.");
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero; var process = new ProcessInformation();
         try
