@@ -136,7 +136,7 @@ public static class IsolatedDesktopTest
         result.Append('\\', backslashes * 2); result.Append('"'); return result.ToString();
     }
 
-    public static int Run(string executable, string[] arguments, string directory, int timeoutSeconds, bool standardUser)
+    public static int Run(string executable, string[] arguments, string directory, int timeoutSeconds, bool standardUser, bool defaultDesktop = false)
     {
         var station = new StringBuilder(256); int needed;
         if (!GetUserObjectInformation(GetProcessWindowStation(), 2, station, 512, out needed)) throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -151,19 +151,19 @@ public static class IsolatedDesktopTest
                 // Erhöhte Runner vererben sonst einen Desktop, den der eingeschränkte Kindprozess nicht initialisieren kann.
                 string user = System.Security.Principal.WindowsIdentity.GetCurrent().User.Value;
                 uint size;
-                if (!ConvertStringSecurityDescriptorToSecurityDescriptor("D:(A;;0x000200CF;;;" + user + ")S:(ML;;NW;;;ME)", 1, out descriptor, out size))
+                if (!ConvertStringSecurityDescriptorToSecurityDescriptor("D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + user + ")S:(ML;;NW;;;ME)", 1, out descriptor, out size))
                     throw new Win32Exception(Marshal.GetLastWin32Error());
                 var attributes = new SecurityAttributes { Size = Marshal.SizeOf(typeof(SecurityAttributes)), Descriptor = descriptor };
                 security = Marshal.AllocHGlobal(attributes.Size); Marshal.StructureToPtr(attributes, security, false);
             }
-            desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, security);
+            if (!defaultDesktop) desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, security);
         }
         finally
         {
             if (security != IntPtr.Zero) Marshal.FreeHGlobal(security);
             if (descriptor != IntPtr.Zero) LocalFree(descriptor);
         }
-        if (desktop == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden.");
+        if (!defaultDesktop && desktop == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden.");
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero; var process = new ProcessInformation();
         try
         {
@@ -172,7 +172,7 @@ public static class IsolatedDesktopTest
             var limits = new ExtendedLimit(); limits.Basic.Flags = 0x2000; // KILL_ON_JOB_CLOSE
             if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf(typeof(ExtendedLimit))))
                 throw new Win32Exception(Marshal.GetLastWin32Error());
-            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Desktop = station.ToString() + "\\" + name };
+            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Desktop = station.ToString() + "\\" + (defaultDesktop ? "Default" : name) };
             var command = new StringBuilder(Quote(executable));
             foreach (string argument in arguments) command.Append(' ').Append(Quote(argument));
             if (standardUser) token = StandardUserToken();
@@ -200,7 +200,7 @@ public static class IsolatedDesktopTest
             if (job != IntPtr.Zero) CloseHandle(job);
             if (process.Thread != IntPtr.Zero) CloseHandle(process.Thread);
             if (process.Process != IntPtr.Zero) CloseHandle(process.Process);
-            CloseDesktop(desktop);
+            if (desktop != IntPtr.Zero) CloseDesktop(desktop);
         }
     }
 }
@@ -229,7 +229,15 @@ $invocation = $bootstrap + "`ntry {`n" + $guard + "`n`$testArguments = @(`$reque
 $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($invocation))
 $executable = Join-Path $PSHOME 'powershell.exe'
 if ($ProbeNativeProcess) {
-    $nativeResult = [IsolatedDesktopTest]::Run((Join-Path $env:SystemRoot 'System32/cmd.exe'), @('/d', '/c', 'exit', '0'), (Get-Location).Path, 15, $StandardUser.IsPresent)
+    $nativeExecutable = Join-Path $env:SystemRoot 'System32/whoami.exe'
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        # Nur ein fensterloser Identitätsaufruf: trennt Tokenprobleme von der Desktopinitialisierung.
+        foreach ($probe in @(@{ reduced = $false; active = $false }, @{ reduced = $true; active = $true })) {
+            $probeResult = [IsolatedDesktopTest]::Run($nativeExecutable, @(), (Get-Location).Path, 15, $probe.reduced, $probe.active)
+            Write-Host "Native Gegenprobe: eingeschränkt=$($probe.reduced); Standarddesktop=$($probe.active); Exit-Code=$probeResult"
+        }
+    }
+    $nativeResult = [IsolatedDesktopTest]::Run($nativeExecutable, @(), (Get-Location).Path, 15, $StandardUser.IsPresent)
     if ($nativeResult -ne 0) { throw "Nativer CI-Prozessstart fehlgeschlagen: Exit-Code $nativeResult" }
     Write-Host 'Nativer CI-Prozessstart erfolgreich; PowerShell wird gesondert geprüft.'
 }
