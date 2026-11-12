@@ -1,6 +1,6 @@
 # Validierung und Merge-Nachweise
 
-Die hier beschriebenen Prüfungen sind Bestandteil einer später beauftragten Implementierung. Bei PRP-Erstellung wurden weder ein WinUI-Prototyp gebaut noch diese Anwendungstests ausgeführt. Die Beschreibung ist kein Testprotokoll.
+Die hier beschriebenen Prüfungen sind Bestandteil der beauftragten Implementierung. Ergebnisse und offene Prüfungen stehen in [03-umsetzungsstand.md](03-umsetzungsstand.md). Die Szenariobeschreibung allein ist kein Testnachweis.
 
 ## Arbeitsweise und Nachweise
 
@@ -11,6 +11,8 @@ Die hier beschriebenen Prüfungen sind Bestandteil einer später beauftragten Im
 - Für gezielte Fehlererkennung jeweils einen gültigen und einen isoliert fehlerhaften Fall ausführen. Vor temporär defekten Builds oder Prozessen einen geprüften Wiederherstellungspfad sichern. Defekte Gegenprobe darf den regulären Arbeitsstand nicht beschädigen.
 - Bestehende Testprojekte und Windows UI Automation weiterverwenden. Keine Browserprüfung als Ersatz für native Fenster, Tray oder Benachrichtigungszentrale.
 - Nach erfolgreichen Prüfungen nur bei weiteren Änderungen, neuen Fehlern oder offenen betroffenen Risiken erneut ausführen bzw. erweitern.
+- Benutzeranforderung: Keine Testfenster, Konsolen oder Fokuswechsel auf dem aktiven Benutzerdesktop. Windows-Aufrufe aus WSL über `.github/scripts/Invoke-QuietWindows.vbs` starten, Desktoptests zusätzlich über `.github/scripts/Invoke-IsolatedDesktop.ps1`. Dieser Weg erstellt einen eigenen, nicht eingeblendeten Windows-Desktop und prüft vor dem Teststart, dass er vom Eingabedesktop abweicht. Nicht auf den Benutzerdesktop ausweichen, wenn eine Prüfung dort nicht ausführbar ist.
+- Fensteraufnahmen direkt am getesteten Fenster erstellen; `CopyFromScreen` würde auf einem anderen Desktop keine verlässliche Aufnahme liefern und darf keine Benutzeroberflächen erfassen. Für Shell-Banner und Benachrichtigungszentrale eine getrennte Windows-Sitzung oder VM verwenden, wenn die isolierte Desktopprüfung keinen tatsächlichen Shellnachweis liefern kann.
 
 ## T-01: Baseline und technische Vorprüfung
 
@@ -40,7 +42,7 @@ Die hier beschriebenen Prüfungen sind Bestandteil einer später beauftragten Im
 - Import mit leerer/gefüllter Liste, Rückfrage bestätigen/abbrechen, ungültige Datei und schreibgeschütztes Ziel prüfen. Exportinhalt und erneuter Import müssen dieselben fachlichen Einstellungen/Einträge ergeben.
 - Portable INI im Arbeitsverzeichnis und AppData-Konfiguration getrennt testen. Neustart, Toastaktivierung und Update dürfen die Konfiguration nicht wechseln.
 - Schriftfamilie, 8,5/12/24 Punkt, Sprache und gegebenenfalls Neustarthinweise erhalten. Punktgröße darf nicht ungeprüft als WinUI-DIP-Wert behandelt werden.
-- S-06/K-01 durch tatsächliche Wirkung und Migration belegen. Reines Speichern eines wirkungslosen Ersatzwerts genügt nicht.
+- S-06/K-01 gemäß Benutzerentscheidung prüfen: Zugang zu Windows-Benachrichtigungseinstellungen und Erhalt bestehender INI-Werte; keine wirkungslose Sekunden-Einstellung anbieten.
 
 ## T-04: Repository-Eigenschaften
 
@@ -107,7 +109,7 @@ Die Szenarien aus `docs/SVN-Koordination.md` und `tests/Svn.Tests/Program.cs` bl
 - Nach erfolgreichem Update ausstehende Änderungsmeldung aktualisieren/entfernen. Erneute neue Änderungen müssen wieder eine passende Meldung erzeugen.
 - Mehrere Instanzen und Programmupdate mit noch vorhandenen Meldungen prüfen; keine Aktivierung einer Installerkopie und kein doppelter Pollingprozess.
 - Deaktivierte Benachrichtigungen, Nicht stören, erhöhte Anwendung und Registrierungsfehler prüfen. API-Annahme, tatsächliche Anzeige und Benutzerunterdrückung getrennt berichten.
-- Benachrichtigungsdauer gemäß K-01 abgleichen; eine nötige fachliche Entscheidung vor einer Änderung einholen.
+- Benachrichtigungsdauer gemäß K-01 systemgesteuert prüfen; Banneranzeige und Historie getrennt betrachten.
 - Registrierung unter dem Benutzerkonto, normale Ressourcenfreigabe beim Beenden und dauerhafte Aufräumfunktion beim Entfernen/Verschieben einer Installation planen und prüfen. Nicht bei jedem normalen Beenden sämtliche aufbewahrten Meldungen löschen.
 
 ## T-11: Gegenproben und Fehlerfälle

@@ -16,6 +16,9 @@ internal static class Program
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr window);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool PrintWindow(IntPtr window, IntPtr context, uint flags);
+
     /// <summary>Prüft echte WinForms-Dialoge mit isolierter Konfiguration und optionalen sichtbaren Aufnahmen.</summary>
     [STAThread]
     private static int Main(string[] args)
@@ -367,7 +370,10 @@ internal static class Program
         if (!args.Contains("--capture") && !(args.Contains("--capture-cleanup") && name.StartsWith("repository-menu-"))) return;
         using var image = new Bitmap(form.Width, form.Height);
         using var graphics = Graphics.FromImage(image);
-        graphics.CopyFromScreen(form is Form ? form.Location : form.PointToScreen(Point.Empty), Point.Empty, image.Size);
+        // Fensterinhalt direkt erfassen, damit der getrennte Testdesktop keine Benutzerbildschirme aufnimmt.
+        IntPtr context = graphics.GetHdc();
+        try { Assert(PrintWindow(form.Handle, context, 2), "Fensteraufnahme auf dem Testdesktop"); }
+        finally { graphics.ReleaseHdc(context); }
         image.Save(Path.Combine(output, name + ".png"));
         Console.WriteLine($"Aufnahme: {name}, {form.Width}x{form.Height}");
     }

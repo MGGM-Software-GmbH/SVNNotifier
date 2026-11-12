@@ -35,6 +35,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../SVN_Notifier.Core/SVN_Notifier.Core.csproj" />
+    <Compile Remove="Common/Attributes.cs;Common/Config.cs;Common/IniFile.cs;Common/Loc.cs;Common/PathType.cs;Common/SvnItem.cs;Common/SvnOperationRunner.cs;Common/SvnStatus.cs;Common/SvnTools.cs;Common/SvnXml.cs;Common/WindowsPathComparer.cs;Common/WorkingCopyLease.cs" />
     <InternalsVisibleTo Include="Svn.Tests" />
     <!-- Designer-generated files: disable nullable analysis to avoid noise -->
     <Compile Update="AboutForm.Designer.cs">

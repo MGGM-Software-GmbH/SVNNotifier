@@ -1,0 +1,151 @@
+param(
+    [Parameter(Mandatory)] [string] $ScriptPath,
+    [string[]] $ScriptArguments = @(),
+    [string] $LogPath = '',
+    [int] $TimeoutSeconds = 1800
+)
+
+# Startet Desktoptests ohne Umschalten des Eingabedesktops und begrenzt ihre Prozesslebensdauer.
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$scriptFile = (Resolve-Path -LiteralPath $ScriptPath).Path
+if (-not $LogPath) { $LogPath = $scriptFile + '.' + [Guid]::NewGuid().ToString('N') + '.desktop.log' }
+$transcriptPath = [IO.Path]::GetFullPath($LogPath)
+if (Test-Path -LiteralPath $transcriptPath) { throw 'Das Testprotokoll muss neu sein.' }
+if ($TimeoutSeconds -le 0) { throw 'Die Zeitgrenze muss positiv sein.' }
+
+Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class IsolatedDesktopTest
+{
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfo
+    {
+        public int Size; public string Reserved; public string Desktop; public string Title;
+        public int X, Y, Width, Height, Columns, Rows, Fill, Flags;
+        public short Show; public short ReservedSize; public IntPtr ReservedPointer;
+        public IntPtr Input, Output, Error;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation { public IntPtr Process, Thread; public int ProcessId, ThreadId; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BasicLimit
+    {
+        public long ProcessTime, JobTime; public uint Flags;
+        public UIntPtr MinimumWorkingSet, MaximumWorkingSet;
+        public uint ActiveProcesses; public UIntPtr Affinity;
+        public uint PriorityClass, SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IoCounters { public ulong ReadOperations, WriteOperations, OtherOperations, ReadBytes, WriteBytes, OtherBytes; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ExtendedLimit
+    {
+        public BasicLimit Basic; public IoCounters Io;
+        public UIntPtr ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateDesktop(string name, IntPtr device, IntPtr mode, uint flags, uint access, IntPtr security);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool CloseDesktop(IntPtr desktop);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CreateProcess(string application, StringBuilder command, IntPtr processSecurity, IntPtr threadSecurity,
+        bool inherit, uint flags, IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation process);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr CreateJobObject(IntPtr security, string name);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref ExtendedLimit limits, uint size);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern uint ResumeThread(IntPtr thread);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetExitCodeProcess(IntPtr process, out uint code);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateProcess(IntPtr process, uint code);
+    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
+
+    // Die Argumente werden nach den Windows-Regeln für Anführungszeichen und abschließende Backslashes geschützt.
+    private static string Quote(string value)
+    {
+        var result = new StringBuilder("\""); int backslashes = 0;
+        foreach (char character in value)
+        {
+            if (character == '\\') { backslashes++; continue; }
+            result.Append('\\', character == '"' ? backslashes * 2 + 1 : backslashes);
+            result.Append(character); backslashes = 0;
+        }
+        result.Append('\\', backslashes * 2); result.Append('"'); return result.ToString();
+    }
+
+    public static int Run(string executable, string[] arguments, string directory, int timeoutSeconds)
+    {
+        string name = "SVNNotifierTests-" + Guid.NewGuid().ToString("N");
+        // Kein DESKTOP_SWITCHDESKTOP: Der Testdesktop wird niemals zum Eingabedesktop.
+        IntPtr desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, IntPtr.Zero);
+        if (desktop == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden.");
+        IntPtr job = IntPtr.Zero; var process = new ProcessInformation();
+        try
+        {
+            job = CreateJobObject(IntPtr.Zero, null);
+            if (job == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+            var limits = new ExtendedLimit(); limits.Basic.Flags = 0x2000; // KILL_ON_JOB_CLOSE
+            if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf(typeof(ExtendedLimit))))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Desktop = "WinSta0\\" + name };
+            var command = new StringBuilder(Quote(executable));
+            foreach (string argument in arguments) command.Append(' ').Append(Quote(argument));
+            if (!CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, false, 0x08000004, IntPtr.Zero, directory, ref startup, out process))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Testprozess konnte nicht isoliert gestartet werden.");
+            if (!AssignProcessToJobObject(job, process.Process))
+            {
+                int error = Marshal.GetLastWin32Error(); TerminateProcess(process.Process, 1); throw new Win32Exception(error);
+            }
+            if (ResumeThread(process.Thread) == UInt32.MaxValue) throw new Win32Exception(Marshal.GetLastWin32Error());
+            Console.WriteLine("Isolierter Testdesktop: " + name + "; Prozess=" + process.ProcessId);
+            uint wait = WaitForSingleObject(process.Process, checked((uint)timeoutSeconds * 1000));
+            if (wait == 258) throw new TimeoutException("Zeitgrenze des isolierten Desktoptests erreicht.");
+            if (wait != 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+            uint exitCode;
+            if (!GetExitCodeProcess(process.Process, out exitCode)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            return unchecked((int)exitCode);
+        }
+        finally
+        {
+            if (job != IntPtr.Zero) CloseHandle(job);
+            if (process.Thread != IntPtr.Zero) CloseHandle(process.Thread);
+            if (process.Process != IntPtr.Zero) CloseHandle(process.Process);
+            CloseDesktop(desktop);
+        }
+    }
+}
+'@
+
+# Der Kindprozess prüft die Isolation vor jeder Ausführung des Testskripts.
+$guard = @'
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; using System.Text; public static class DesktopGuard {
+[DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+[DllImport("user32.dll")] public static extern IntPtr GetThreadDesktop(uint id);
+[DllImport("user32.dll", SetLastError=true)] public static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+[DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
+[DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr desktop);
+public static string Name(IntPtr desktop) { var name = new StringBuilder(256); int needed; if (!GetUserObjectInformation(desktop, 2, name, 512, out needed)) throw new System.ComponentModel.Win32Exception(); return name.ToString(); }
+}'
+$currentName = [DesktopGuard]::Name([DesktopGuard]::GetThreadDesktop([DesktopGuard]::GetCurrentThreadId()))
+$inputDesktop = [DesktopGuard]::OpenInputDesktop(0, $false, 1)
+if ($inputDesktop -eq [IntPtr]::Zero) { throw 'Eingabedesktop konnte nicht geprüft werden.' }
+try { $inputName = [DesktopGuard]::Name($inputDesktop) } finally { [void][DesktopGuard]::CloseDesktop($inputDesktop) }
+if ($currentName -eq $inputName -or -not $currentName.StartsWith('SVNNotifierTests-')) { throw 'GUI-Test auf dem Benutzerdesktop verweigert.' }
+'@
+$payload = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject @{ path = $scriptFile; arguments = @($ScriptArguments); log = $transcriptPath } -Compress)))
+$bootstrap = "`$request = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$payload')) | ConvertFrom-Json; Start-Transcript -LiteralPath `$request.log | Out-Null;"
+$invocation = $bootstrap + "`ntry {`n" + $guard + "`n`$testArguments = @(`$request.arguments | Where-Object { `$null -ne `$_ }); & `$request.path @testArguments; if (`$LASTEXITCODE) { exit `$LASTEXITCODE } } catch { Write-Error `$_; exit 1 } finally { Stop-Transcript | Out-Null }"
+$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($invocation))
+$executable = Join-Path $PSHOME 'powershell.exe'
+$result = [IsolatedDesktopTest]::Run($executable, @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded), (Get-Location).Path, $TimeoutSeconds)
+Write-Host "Testprotokoll: $transcriptPath"
+if ($result -ne 0) { throw "Isolierter Desktoptest fehlgeschlagen: Exit-Code $result" }

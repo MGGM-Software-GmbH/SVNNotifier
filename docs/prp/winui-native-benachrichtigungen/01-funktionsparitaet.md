@@ -40,7 +40,7 @@ Prüfgruppen T-01 bis T-13 sind in [02-validierung.md](02-validierung.md) defini
 | S-03 | Pause nach Programmstart und nach Windows-Fortsetzung mit Aktivierung und Dauer erhalten. | `Common/Config.cs:162`; `MainForm.cs:76` | T-03/T-06: beide Schalter und Timerübergänge. |
 | S-04 | SVN-Status-Zeitlimit einschließlich 0 = unbegrenzt; keine Übertragung auf Schreibvorgänge. | `Common/Config.cs:180`; `Common/SvnTools.cs` | T-03/T-08: Timeout und unbegrenzter Test mit kontrolliertem Abbruch. |
 | S-05 | Alle fünf Doppelklickoptionen in der INI erhalten und anwenden. | `Common/Config.cs:83`, `:168` | T-02/T-03. |
-| S-06 | Benachrichtigungsdauer einschließlich Sekundenwert und INI-Roundtrip erhalten; tatsächliches Verhalten gemäß K-01 klären. | `Common/Config.cs:169`; `SettingsForm.cs:141`, `:197` | T-01/T-03/T-10; keine wirkungslose Ersatzoption. |
+| S-06 | Gemäß Benutzerentscheidung K-01 steuert Windows die Banneranzeigedauer. Zugang zu den Windows-Benachrichtigungseinstellungen anbieten; bestehende INI-Werte und Migrationen erhalten. | Benutzerentscheidung K-01; `Common/Config.cs:169` | T-03/T-10: Zugang und INI-Erhalt prüfen; keine Umdeutung zur Historienablaufzeit. |
 | S-07 | Ausgeblendeter Start und Taskleistenanzeige als getrennte Optionen erhalten. | `Common/Config.cs:170`; `MainForm.cs:51` | T-03/T-06: alle Kombinationen. |
 | S-08 | Automatische Programmupdate-Prüfung, Änderungsprotokoll-vor-Update, stilles Update-all und Tortoise-Fensterabschlussaktion erhalten. | `Common/Config.cs:172`; `SettingsForm.cs` | T-03/T-07/T-09: Werte, Abhängigkeiten, Neustart. |
 | S-09 | Deutsch/Englisch sowie gespeicherte Schriftfamilie und Punktgröße erhalten. Bestehenden Hinweis auf notwendigen Neustart abbilden, falls Änderungen weiterhin erst dann wirken. | `Common/Config.cs:179`; `SettingsForm.cs:168`; `Loc.cs` | T-03/T-12: Speichern, Verwerfen, Neustart. |
@@ -105,7 +105,7 @@ Prüfgruppen T-01 bis T-13 sind in [02-validierung.md](02-validierung.md) defini
 | N-05 | Meldungen sind in der Benachrichtigungszentrale verwaltbar; erledigte Änderungsmeldungen entfernen/aktualisieren, keine Erfolgshistorie ungefragt als ausstehend darstellen. | Benutzerauftrag; Microsoft-Verwaltungs-API | T-10: Bannerende, Historie, Statuswechsel, Neustart. |
 | N-06 | Klick bei beendetem Prozess, frühe Aktivierung, mehrere Instanzen und verschobener portabler Ordner öffnen den passenden Kontext. | K-05; `MainForm.cs:1239` | T-10: kein zusätzlicher Prüfer, keine falsche INI. |
 | N-07 | Betrieb bei deaktivierten Meldungen, Nicht stören, Registrierungsfehlern und erhöhter Anwendung wird ausdrücklich geprüft. Kein behaupteter Versand-/Anzeigenachweis bei Fehlschlag. | K-02; Microsoft-Dokumentation | T-10/T-11: reale Shellzustände und kontrollierte Fehler. |
-| N-08 | Gespeicherte Benachrichtigungsdauer und normale Betriebsfunktionen bleiben bei Umstellung erhalten; Abweichungen nicht stillschweigend akzeptieren. | K-01/K-02; S-06 | T-01/T-10, gegebenenfalls ausdrückliche Benutzerentscheidung vor Änderung. |
+| N-08 | Windows steuert gemäß Benutzerentscheidung K-01 die Dauer; gespeicherte INI-Werte bleiben erhalten. Normale Betriebsfunktionen und erhöhter Betrieb gemäß K-02 prüfen; weitere Abweichungen nicht stillschweigend akzeptieren. | K-01/K-02; S-06 | T-01/T-10 und INI-Erhalt. |
 
 ## Regeln für die Paritätsentscheidung
 

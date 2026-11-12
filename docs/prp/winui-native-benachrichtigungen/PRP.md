@@ -10,7 +10,7 @@ Der SVN Notifier erhält eine mit WinUI 3 gestaltete Windows-Oberfläche und mod
 
 Die vorhandene C#-Anwendung mit .NET 10 von Windows Forms auf WinUI 3 umstellen und die drei bisherigen Tray-Benachrichtigungsauslöser an Windows-App-Benachrichtigungen anbinden. Gestaltung, Funktionsumfang, portable Verteilung und Betriebssicherheit sind gleichrangige Anforderungen.
 
-**Auftragsgrenze dieses Dokuments:** Beauftragt sind die Erstellung des PRP einschließlich eigenem Branch sowie der Push der PRP-Dokumentation auf diesen Branch. Die Anwendung noch nicht umstellen. Dieses PRP erteilt keine Freigabe zur Implementierung, zu Merge, Release, Installation oder Veröffentlichung von Anwendungspaketen.
+**Auftragsgrenze dieses Dokuments:** Die Implementierung auf `feature/winui-native-notifications` ist vom Benutzer beauftragt. Funktionserhalt, Gestaltung und die beschriebenen Prüfungen gehören zur Umsetzung. Merge, Release, Installation beim Benutzer und Veröffentlichung von Anwendungspaketen benötigen weiterhin einen ausdrücklichen Auftrag.
 
 ### Dokumente und Lesereihenfolge
 
@@ -90,7 +90,7 @@ Diese Punkte sind erforderliche Untersuchungen, keine bereits bestätigten Eigen
 
 | ID | Frage und verbindlicher Umgang |
 |---|---|
-| K-01 | `ShowBalloonInterval` ist ein bestehender konfigurierbarer Sekundenwert. Die Windows-Banneranzeige ist systemgesteuert. Baseline-Verhalten einschließlich 0 und gespeicherter Werte messen. Wert, UI-Funktion und Migration nicht stillschweigend entfernen oder als Ablaufzeit der Benachrichtigungszentrale umdeuten. Falls keine funktionsgleiche Abbildung möglich ist, konkrete Differenz dokumentieren und Benutzerentscheidung einholen. |
+| K-01 | Benutzerentscheidung: Windows steuert die Banneranzeigedauer. Die bisherige Sekunden-Einstellung wird in der WinUI-Oberfläche durch einen Zugang zu den Windows-Benachrichtigungseinstellungen ersetzt. Vorhandene INI-Werte einschließlich Migrationsregeln bleiben erhalten; keine Umdeutung als Ablaufzeit der Benachrichtigungszentrale. Die Wirkung der Windows-Einstellungen getrennt von der Historie prüfen. |
 | K-02 | Das aktuelle Windows-App-SDK dokumentiert keine Unterstützung für erhöhte Prozesse. Bestehenden Notifier auch erhöht prüfen. Ein bisher möglicher Bedien-/Benachrichtigungsweg darf nicht ungeprüft entfallen. Ein Konflikt mit dem Funktionserhalt blockiert diesen Umsetzungspfad; keine stille Abschaltung und kein ungefragter Rückfall auf Balloons. |
 | K-03 | Einzel-EXE-Auslieferung ist in den geprüften SDK-Buildregeln vorgesehen. Tatsächlichen Start, COM-Aktivierung, Ressourcenauflösung und EXE-Austausch mit der konkret ausgewählten SDK-Version und beiden Architekturen nachweisen. Kein Paketformatwechsel als verdeckte Umgehung. |
 | K-04 | Unterstützte Windows-Versionen des Ausgangsprodukts und der ausgewählten .NET-/SDK-Kombination feststellen. Die Gestaltung ist an aktuellen Windows-Oberflächen orientiert; daraus folgt keine Freigabe, bisher unterstützte Systeme auszuschließen. |
@@ -323,7 +323,7 @@ Der Service muss die tatsächlichen Repository-Objekte bzw. stabilen Ziele vor s
 
 ## Validierungsschleife
 
-Die ausführlichen Szenarien, Befehle und Nachweisregeln stehen in [02-validierung.md](02-validierung.md). Der aktuelle Dokumentationsauftrag führt diese Implementierungstests noch nicht aus.
+Die ausführlichen Szenarien, Befehle und Nachweisregeln stehen in [02-validierung.md](02-validierung.md). Den aktuellen Umsetzungs- und Prüfstand in [03-umsetzungsstand.md](03-umsetzungsstand.md) pflegen.
 
 ### Level 1: Syntax und Stil
 

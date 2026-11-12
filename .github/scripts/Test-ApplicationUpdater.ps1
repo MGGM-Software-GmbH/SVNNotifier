@@ -38,7 +38,7 @@ foreach ($scenario in @('valid', 'tampered', 'invalid')) {
     $configHash = (Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash
     $mode = switch ($scenario) { 'valid' { '--install-payload' } 'tampered' { '--install-payload-tampered' } 'invalid' { '--install-payload-invalid' } }
     $arguments = @($mode, ('"' + $payloadPath + '"'))
-    $driver = Start-Process -FilePath $targetPath -WorkingDirectory $testPath -ArgumentList $arguments -PassThru
+    $driver = Start-Process -FilePath $targetPath -WorkingDirectory $testPath -ArgumentList $arguments -NoNewWindow -PassThru
     $updatedProcess = $null
     try {
         if (-not $driver.WaitForExit(60000)) { throw 'Der ursprüngliche Testprozess wurde nicht beendet.' }

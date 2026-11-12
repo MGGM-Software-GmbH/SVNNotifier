@@ -25,7 +25,7 @@ internal static class Program
         }
         if (args[0] == "--child-tree")
         {
-            var childInfo = new ProcessStartInfo(executable) { UseShellExecute = false };
+            var childInfo = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true };
             foreach (var argument in new[] { "--child", "60000", "0" }) childInfo.ArgumentList.Add(argument);
             using var child = Process.Start(childInfo)!;
             await File.WriteAllTextAsync(args[1] + ".writing", child.Id.ToString());
@@ -54,7 +54,7 @@ internal static class Program
             else
             {
                 claim.MarkStarting();
-                var childInfo = new ProcessStartInfo(args[3]) { UseShellExecute = false };
+                var childInfo = new ProcessStartInfo(args[3]) { UseShellExecute = false, CreateNoWindow = true };
                 foreach (string argument in new[] { "--child", "60000", "0" }) childInfo.ArgumentList.Add(argument);
                 using var child = Process.Start(childInfo)!;
                 if (args[2] == "started") claim.MarkStarted(child);
@@ -102,6 +102,7 @@ internal static class Program
             Config.Init(Path.Combine(output, "fixture.ini"));
             Config.SVNpath = Config.TortoiseSVNpath = executable;
             CheckConfiguration(root);
+            checks += await CoordinatorTests.RunAsync(output, executable);
             await CheckCoordinationAsync(root);
             await CheckRecoveryAsync(root);
             await CheckProcessesAsync(root);
@@ -369,7 +370,7 @@ internal static class Program
         var operations = new List<Task<SvnProcessResult>>();
         var roots = new List<string>();
         var childFile = Path.Combine(Path.GetDirectoryName(root)!, "update-child.pid");
-        var unrelatedInfo = new ProcessStartInfo(executable) { UseShellExecute = false };
+        var unrelatedInfo = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true };
         foreach (var argument in new[] { "--child", "60000", "0" }) unrelatedInfo.ArgumentList.Add(argument);
         using var unrelated = Process.Start(unrelatedInfo)!;
         try
@@ -795,7 +796,10 @@ internal static class Program
                     Assert(GetWindowRect(own.MainWindowHandle, out var bounds), "Cleanup-Auswahldialog ist sichtbar erfassbar");
                     using var image = new System.Drawing.Bitmap(bounds.Right - bounds.Left, bounds.Bottom - bounds.Top);
                     using var graphics = System.Drawing.Graphics.FromImage(image);
-                    graphics.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, image.Size);
+                    // Der Dialog wird auch auf einem nicht eingeblendeten Testdesktop direkt erfasst.
+                    IntPtr context = graphics.GetHdc();
+                    try { Assert(PrintWindow(own.MainWindowHandle, context, 2), "Cleanup-Dialog auf dem Testdesktop erfassbar"); }
+                    finally { graphics.ReleaseHdc(context); }
                     image.Save(Path.Combine(Path.GetDirectoryName(root)!, "cleanup-dialog.png"));
                 }
                 finally { SetThreadDpiAwarenessContext(previousDpi); }
@@ -823,6 +827,9 @@ internal static class Program
     private static extern bool GetWindowRect(IntPtr window, out WindowBounds bounds);
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr window);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool PrintWindow(IntPtr window, IntPtr context, uint flags);
     [DllImport("user32.dll")]
     private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -837,14 +844,14 @@ internal static class Program
 
     private static Process Start(params string[] arguments)
     {
-        var info = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        var info = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string argument in arguments) info.ArgumentList.Add(argument);
         return Process.Start(info)!;
     }
 
     private static async Task RawAsync(string file, params string[] arguments)
     {
-        var info = new ProcessStartInfo(file) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        var info = new ProcessStartInfo(file) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string argument in arguments) info.ArgumentList.Add(argument);
         using var process = Process.Start(info)!;
         var output = process.StandardOutput.ReadToEndAsync();

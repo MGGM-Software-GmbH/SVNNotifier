@@ -31,7 +31,7 @@ foreach ($scenario in @('missing-command', 'save-option', 'button-size', 'cleanu
     $outputPath = Join-Path $testPath 'output.log'
     $errorPath = Join-Path $testPath 'error.log'
     $process = Start-Process -FilePath $executablePath -ArgumentList @(('"' + $testPath + '"'), "--negative-$scenario") `
-        -Wait -PassThru -RedirectStandardOutput $outputPath -RedirectStandardError $errorPath
+        -NoNewWindow -Wait -PassThru -RedirectStandardOutput $outputPath -RedirectStandardError $errorPath
     $expected = switch ($scenario) {
         'missing-command' { '*Befehle erhalten: FileMenuItem*' }
         'save-option' { '*Benachrichtigungsdauer werden gespeichert*' }

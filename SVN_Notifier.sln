@@ -4,12 +4,18 @@ VisualStudioVersion = 15.0.28307.757
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SVN_Notifier", "SVN_Notifier\SVN_Notifier.csproj", "{047E30FF-665B-422C-9877-8983961F848A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SVN_Notifier.Core", "SVN_Notifier.Core\SVN_Notifier.Core.csproj", "{FAE13EF5-6B64-45CF-85B8-AF43F05C8612}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FAE13EF5-6B64-45CF-85B8-AF43F05C8612}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAE13EF5-6B64-45CF-85B8-AF43F05C8612}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAE13EF5-6B64-45CF-85B8-AF43F05C8612}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAE13EF5-6B64-45CF-85B8-AF43F05C8612}.Release|Any CPU.Build.0 = Release|Any CPU
 		{047E30FF-665B-422C-9877-8983961F848A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{047E30FF-665B-422C-9877-8983961F848A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{047E30FF-665B-422C-9877-8983961F848A}.Release|Any CPU.ActiveCfg = Release|Any CPU
