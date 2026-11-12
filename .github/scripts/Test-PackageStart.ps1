@@ -37,6 +37,9 @@ try {
   } while ($null -eq $settingsWindow -and [DateTime]::UtcNow -lt $deadline)
   if ($null -eq $settingsWindow) {
     Write-Host "Eigene sichtbare Fenster: $($windows.Count); Prozessdesktops: $([OwnProcessWindows]::Desktops($process.Id) -join ', ')"
+    [OwnProcessWindows]::Texts($process.Id) | ForEach-Object { Write-Host "Eigener nativer Fenstertext: $_" }
+    $startupLog = Join-Path $testPath 'SVN_Notifier.log'
+    if (Test-Path -LiteralPath $startupLog) { Get-Content -LiteralPath $startupLog | Select-Object -Last 60 | ForEach-Object { Write-Host "Eigenes Startprotokoll: $_" } }
     $textCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
     foreach ($window in $windows) {
       Write-Host "Eigenes Fenster: $($window.Current.Name); Offscreen=$($window.Current.IsOffscreen)"
@@ -46,7 +49,7 @@ try {
       # Ausschließlich den weiterhin lebenden eigenen Prozess untersuchen, bevor die Fehlerbereinigung ihn beendet.
       . (Join-Path $PSScriptRoot 'Invoke-QuietConsole.ps1')
       $diagnostics = Join-Path ([IO.Path]::GetFullPath($ArtifactsDirectory)) ('diagnostics/' + [Guid]::NewGuid().ToString('N'))
-      Invoke-QuietConsole dotnet tool install dotnet-stack --tool-path $diagnostics
+      Invoke-QuietConsole dotnet tool install dotnet-stack --version 10.0.750501 --tool-path $diagnostics
       if ($LASTEXITCODE -ne 0) { throw 'Die Stackdiagnose konnte nicht installiert werden; der Einstellungsdialog fehlt weiterhin.' }
       Invoke-QuietConsole (Join-Path $diagnostics 'dotnet-stack.exe') report --process-id $process.Id
     }

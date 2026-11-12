@@ -303,7 +303,7 @@ $environmentSetup = ''
 if ($TestCredential) {
     $runtime = $env:RUNTIME_IDENTIFIER
     if ($runtime -notin @('win-x64', 'win-x86')) { throw 'CI-Testarchitektur fehlt.' }
-    $environmentSetup = "`$env:RUNTIME_IDENTIFIER = '$runtime'; `$env:RUNNER_TEMP = `$env:TEMP; `$env:DOTNET_ROOT = Join-Path `$env:ProgramFiles 'dotnet'; `$env:PATH = `$env:DOTNET_ROOT + ';' + `$env:PATH;"
+    $environmentSetup = "`$env:GITHUB_ACTIONS = 'true'; `$env:RUNTIME_IDENTIFIER = '$runtime'; `$env:RUNNER_TEMP = `$env:TEMP; `$env:DOTNET_ROOT = Join-Path `$env:ProgramFiles 'dotnet'; `$env:PATH = `$env:DOTNET_ROOT + ';' + `$env:PATH;"
 }
 $invocation = $bootstrap + "`ntry {`n" + $guard + "`n" + $environmentSetup + "`n`$testArguments = @(`$request.arguments | Where-Object { `$null -ne `$_ }); & `$request.path @testArguments; if (`$LASTEXITCODE) { exit `$LASTEXITCODE } } catch { Write-Error `$_; exit 1 } finally { Stop-Transcript | Out-Null }"
 $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($invocation))

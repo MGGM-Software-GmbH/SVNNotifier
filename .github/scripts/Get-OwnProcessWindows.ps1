@@ -17,6 +17,10 @@ public static class OwnProcessWindows
     [DllImport("user32.dll", SetLastError=true)] private static extern bool EnumDesktopWindows(IntPtr desktop, EnumerateWindow callback, IntPtr context);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumerateWindow callback, IntPtr context);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr window, StringBuilder value, int length);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr first,
+        StringBuilder text, uint flags, uint timeout, out UIntPtr result);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
 
     // Nur sichtbare Fenster des angegebenen eigenen Testprozesses auf dem aktuellen Testdesktop liefern.
@@ -46,6 +50,23 @@ public static class OwnProcessWindows
                 if (GetUserObjectInformation(GetThreadDesktop((uint)thread.Id), 2, name, 512, out needed)) names.Add(name.ToString());
             }
         return new List<string>(names).ToArray();
+    }
+
+    // Native Fehlerdialoge bleiben diagnostizierbar, wenn deren UI-Automation-Provider keine Texte liefert.
+    public static string[] Texts(int processId)
+    {
+        var lines = new List<string>();
+        EnumerateWindow read = (window, context) => {
+            uint owner; GetWindowThreadProcessId(window, out owner);
+            if (owner != processId) return true;
+            var text = new StringBuilder(4096); var type = new StringBuilder(256); UIntPtr result;
+            GetClassName(window, type, type.Capacity);
+            if (SendMessageTimeout(window, 0x000d, (UIntPtr)text.Capacity, text, 2, 1000, out result) != IntPtr.Zero)
+                lines.Add(type + ": " + text);
+            return true;
+        };
+        foreach (IntPtr window in Get(processId)) { read(window, IntPtr.Zero); EnumChildWindows(window, read, IntPtr.Zero); }
+        return lines.ToArray();
     }
 }
 '@
