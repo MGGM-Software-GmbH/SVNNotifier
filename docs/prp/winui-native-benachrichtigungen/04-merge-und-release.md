@@ -2,7 +2,7 @@
 
 ## Auftrag und Voraussetzungen
 
-Die Umsetzung liegt auf `feature/winui-native-notifications`. Der veröffentlichte Ausgangsstand ist 3.0.0.13, der Entwicklungsbuild trägt 3.0.0.14. Die folgenden Schritte sind eine Ablaufvorlage und wurden nicht ausgeführt. Push, Merge, Tag und Veröffentlichung benötigen einen ausdrücklichen Auftrag. Die geprüfte Windows-Git-Zugriffsmethode steht im [PRP](PRP.md#geprüfter-git-push-aus-wsl), ohne Zugangsdaten.
+Die Umsetzung liegt auf `feature/winui-native-notifications`. Der veröffentlichte Ausgangsstand ist 3.0.0.13, die beauftragte Release-Version lautet 3.1.0.0. Der Benutzer hat Commit, Push, Merge auf den tatsächlichen Hauptbranch und Veröffentlichung ausdrücklich beauftragt. Der tatsächliche Hauptbranch ist `master`. Die folgenden Schritte beschreiben den Ablauf; ausgeführte Schritte und Prüfergebnisse werden im Umsetzungsstand erfasst. Die geprüfte Windows-Git-Zugriffsmethode steht im [PRP](PRP.md#geprüfter-git-push-aus-wsl), ohne Zugangsdaten.
 
 Maßgeblich sind [Funktionsparität](01-funktionsparitaet.md), [Validierung](02-validierung.md) und [Nachweise](03-umsetzungsstand.md). Ein grüner Build ersetzt keine fehlenden Funktions- und Shellprüfungen. Vor dem Merge insbesondere Banner, Historie, Tray, Meldungsklick nach Prozessende, Drag-and-drop, Datei-/Ordnerauswahl, DPI, Kontrast und portablen Ordnerwechsel nachweisen. Den verweigerten Verzeichniswechsel im Test klären. Einzel-EXE und Start beider Architekturen auch auf einem geeigneten Windows-Rechner ohne separat installierte .NET-/Windows-App-SDK-Laufzeit prüfen; eine solche Umgebung fehlt in dieser Sitzung.
 
@@ -36,23 +36,23 @@ foreach ($runtime in @('win-x64', 'win-x86')) {
 
 Diese Zusammenstellung ist eine noch nicht ausgeführte Release-Ablaufvorlage. Die einzelnen Skripte und ihre tatsächlichen bisherigen Ergebnisse sind im Umsetzungsstand belegt. Bei unbeaufsichtigter lokaler Ausführung den dokumentierten unsichtbaren Starter verwenden; eine direkte GUI-Ausführung öffnet Fenster. Shellprüfungen benötigen zusätzlich eine ausdrücklich erlaubte, entsperrte Testsitzung. Parameter und Zeitbegrenzung von `Test-NativeShell.ps1` stehen in der Validierungsdokumentation. Nach jedem Lauf ausschließlich eigene Testinstanzen beenden.
 
-Der Workflow `.github/workflows/windows-build.yml` baut x64/x86 und führt Paketstart, Updater-, Startmodus-, GUI- und SVN-Prüfungen aus. Manuelle Shell-, Sicht- und Systemwechselprüfungen deckt er nicht ab. Bei Änderungen an Updater, Paketformat oder Konfiguration den tatsächlichen WinForms-zu-WinUI-Übergang erneut prüfen.
+Der Workflow `.github/workflows/windows-build.yml` baut x64/x86 und führt Paketstart, Updater-, Startmodus-, GUI- und SVN-Prüfungen aus. Zusätzlich lädt er das veröffentlichte WinForms-Ausgangspaket 3.0.0.13, prüft dessen SHA-256 und testet den tatsächlichen EXE-Austausch samt WinUI-Neustart und Konfiguration. Manuelle Shell-, Sicht- und Systemwechselprüfungen deckt er nicht ab.
 
 ## Release
 
-1. Nach dem Merge die Version festlegen. `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` müssen identisch sein. 3.0.0.14 ist der Entwicklungswert; vor Veröffentlichung prüfen, ob er weiterhin frei und höher als die letzte stabile Version ist.
+1. Die beauftragte Version ist 3.1.0.0. `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` müssen identisch sein. Vor Veröffentlichung prüfen, dass der Tag frei und die Version höher als die letzte stabile Veröffentlichung ist.
 2. README und `.github/RELEASE_NOTES.md` auf die gewählte Veröffentlichung ausrichten. Den Entwicklungsstatus erst nach den zugehörigen Nachweisen ersetzen. Windows 10 1809+, normalen Start ohne Administratorrechte, native Meldungen, den standardmäßig eingeschalteten Benachrichtigungsschalter und Windows-gesteuerte Banneranzeigedauer nennen. Portablen Ordnerwechsel und ungültige alte Meldungen erläutern.
 3. Genau den vorgesehenen Hauptbranch-Commit bauen und prüfen. Pakete, Architektur, EXE-Version und SHA-256 kontrollieren. ZIP-Dateien enthalten weiterhin EXE, README und Lizenz; keine Benutzer-INI-Dateien einpacken.
-4. Erst nach ausdrücklichem Veröffentlichungsauftrag den passenden Tag auf den nachgewiesenen Hauptbranch-Commit setzen und pushen. Beispiel für eine weiterhin freie Version 3.0.0.14, in einer geprüften Windows-Git-Arbeitskopie mit ausgechecktem Hauptbranch:
+4. Der Veröffentlichungsauftrag liegt vor. Nach den erforderlichen Prüfungen den Tag auf den nachgewiesenen Hauptbranch-Commit setzen und pushen, in einer geprüften Windows-Git-Arbeitskopie mit ausgechecktem Hauptbranch:
 
 ```powershell
-git tag v3.0.0.14
-git push mggm refs/tags/v3.0.0.14
+git tag v3.1.0.0
+git push mggm refs/tags/v3.1.0.0
 ```
 
 Diese Befehle wurden hier nicht ausgeführt. Vorher prüfen, dass `HEAD` genau der freigegebene Commit ist und der Tag nicht existiert. Vorhandene Tags nicht verschieben.
 
-Der aktuelle Workflow reagiert auf `v*`-Tags unabhängig vom Branch. Nach beiden erfolgreichen Windows-Jobs prüft er die Paketprüfsummen, erstellt einen Release-Entwurf und veröffentlicht ihn automatisch als neuestes Release. Ein Tag-Push löst daher bereits die Veröffentlichung aus. Ein Branch-Push veröffentlicht kein Release. Das automatische `GITHUB_TOKEN` genügt; keine Zugangsdaten in Dateien oder Befehle übernehmen.
+Der aktuelle Workflow reagiert auf `v*`-Tags und prüft zusätzlich, dass der Tag-Commit in `master` enthalten ist. Nach beiden erfolgreichen Windows-Jobs prüft er die Paketprüfsummen, erstellt einen Release-Entwurf und veröffentlicht ihn automatisch als neuestes Release. Ein Tag-Push löst daher bereits die Veröffentlichung aus. Ein Branch-Push veröffentlicht kein Release. Das automatische `GITHUB_TOKEN` genügt; keine Zugangsdaten in Dateien oder Befehle übernehmen.
 
 ## Update von WinForms und Rückkehr
 

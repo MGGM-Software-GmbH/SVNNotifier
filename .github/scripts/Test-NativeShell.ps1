@@ -491,7 +491,10 @@ try {
         $bounds = $list.Current.BoundingRectangle
         $source = New-Object NativeDragSource -ArgumentList (,[string[]]@($directory, $file))
         try {
+            Check ([NativeShellInput]::ProcessAtPoint($source.SourcePoint.X, $source.SourcePoint.Y) -eq $PID) 'OLE-Quelle liegt vor der Eingabe sichtbar im eigenen Testprozess'
             [NativeShellInput]::Drag($source.SourcePoint.X, $source.SourcePoint.Y, [int]($bounds.X + $bounds.Width * 0.7), [int]($bounds.Y + $bounds.Height * 0.7))
+            Check $source.DragStarted 'OLE-Quelle hat den echten Ziehvorgang begonnen'
+            Write-Host "OLE-Ergebnis: $($source.Result)"
             Wait-Test {
                 $content = Get-Content -LiteralPath $fixtureA.Configuration -Raw
                 $content.Contains($directory) -and $content.Contains($file)

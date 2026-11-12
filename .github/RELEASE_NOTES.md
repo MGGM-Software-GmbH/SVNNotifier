@@ -1,4 +1,4 @@
-SVN Notifier 3.0.0.14 (Entwicklungsbranch)
+SVN Notifier 3.1.0.0
 
 - WinUI-3-Oberfläche für Repository-Liste, Einstellungen, Eigenschaften, Protokolle, Info und Programmupdate.
 - Kompakte Repository-Zeilen mit dezenten Trennlinien und integrierter Menüleiste. Die Zeilen wachsen bei größerer Schrift mit; eine zusätzliche Listenüberschrift entfällt.

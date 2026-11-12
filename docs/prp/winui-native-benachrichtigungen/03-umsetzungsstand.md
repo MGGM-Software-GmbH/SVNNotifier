@@ -2,7 +2,13 @@
 
 ## Auftrag und Arbeitsplan
 
-Die Implementierung ist auf `feature/winui-native-notifications` beauftragt. Kein Merge und kein Release. Benutzeränderungen außerhalb des Umbaus bleiben erhalten.
+Die Implementierung liegt auf `feature/winui-native-notifications`. Der Benutzer hat Commit, Push, Merge auf `master` und Veröffentlichung als 3.1.0.0 ausdrücklich beauftragt. Benutzeränderungen außerhalb des Umbaus bleiben erhalten. Ausgeführte Schritte und offene Prüffehler werden getrennt dokumentiert.
+
+## Releaseprüfung 3.1.0.0
+
+Alle vier Versionsfelder stehen auf 3.1.0.0. Der Workflow prüft zusätzlich den tatsächlichen Übergang vom veröffentlichten WinForms-Paket 3.0.0.13 mit SHA-256-Prüfung des Ausgangspakets und verlangt vor Veröffentlichung einen Commit aus `master`. YAML und eingebettete Bash-Syntax sind lokal geprüft. Die Hauptbranch-Prüfung weist den noch nicht gemergten Feature-Commit mit Exit-Code 1 ab und akzeptiert den vorhandenen Hauptbranch-Commit mit Exit-Code 0.
+
+Der ausdrücklich freigegebene sichtbare Lauf mit dem 3.1.0.0-Paket dauerte von 15:50:33 bis 15:51:29 Uhr. Neue EXE- und Konfigurationszuordnung nach portablem Ordnerwechsel sind nachgewiesen. Banner, Historie und Tray wurden erneut nicht gefunden; Vordergrundprüfungen vor Drag-and-drop und nativem Neustart schlugen fehl. Im Tastaturszenario wurde nach der Entfernen-Bestätigung ein nicht vorhandenes UI-Element angesprochen. Diese Fehler sind keine erfolgreichen Integrationsnachweise. Der Lauf hat seine eigenen Instanzen regulär beendet und anschließend keine eigene aktive Instanz gefunden. Nachweis: `release-shell-3100/native-shell/*/test.log` im lokalen Artefaktordner. Die unsichtbare Paket- und Regressionsprüfung läuft unter `release-3100.log`.
 
 1. Ausgangsstand und Regressionen sichern.
 2. SDK, Einzel-EXE, Startmodi und Benachrichtigungskompatibilität prüfen.

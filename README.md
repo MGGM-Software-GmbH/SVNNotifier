@@ -8,7 +8,7 @@ Small and portable application which notifies you about other people's commits t
 
 ### Entwicklungsbranch für WinUI und native Windows-Meldungen
 
-Der Branch `feature/winui-native-notifications` enthält den Entwicklungsbuild `3.0.0.14` mit WinUI 3 und Windows-App-Benachrichtigungen. Die veröffentlichten Versionshinweise unten beschreiben weiterhin den Ausgangsstand `3.0.0.13`. Aktuelle Prüfergebnisse und offene Integrationsnachweise stehen im [Umsetzungsstand](docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md). Der geplante [Merge- und Releaseablauf](docs/prp/winui-native-benachrichtigungen/04-merge-und-release.md) beschreibt Prüfungen, Freigaben und die Aktualisierung aus WinForms.
+Der Branch `feature/winui-native-notifications` enthält die für Release `3.1.0.0` vorgesehene Umsetzung mit WinUI 3 und Windows-App-Benachrichtigungen. Die veröffentlichten Versionshinweise unten beschreiben weiterhin den Ausgangsstand `3.0.0.13`. Aktuelle Prüfergebnisse und offene Integrationsnachweise stehen im [Umsetzungsstand](docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md). Der [Merge- und Releaseablauf](docs/prp/winui-native-benachrichtigungen/04-merge-und-release.md) beschreibt Prüfungen und die Aktualisierung aus WinForms.
 
 Hauptfenster, Einstellungen, Repository-Eigenschaften, Protokolle, Info und Programmupdate verwenden WinUI. Die Repository-Liste behält Prüfung und Auto-Update als getrennte Schalter. Systemfarben, Hell-/Dunkelmodus sowie die konfigurierbare Sprache und Schrift werden übernommen. Die Anzeigedauer nativer Banner wird in Windows eingestellt; die bisherigen INI-Werte bleiben erhalten. Der normale Programmstart erfolgt ohne Administratorrechte.
 
