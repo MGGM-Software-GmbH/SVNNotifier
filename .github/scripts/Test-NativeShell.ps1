@@ -458,6 +458,7 @@ try {
         Wait-Test { (Test-Path $calls) -and @(Get-Content $calls).Count -gt $before } 'Eingabe führt die konfigurierte Aktion Jetzt prüfen aus'
         $selected.SetFocus(); [NativeShellInput]::Key(0x2e)
         Wait-Test { $null -ne (By-Id $window 'TextBlockDialog') } 'Entf öffnet die vorhandene Entfernen-Bestätigung'
+        Wait-Test { $null -ne (By-Name (By-Id $window 'TextBlockDialog') 'Abbrechen') } 'Entfernen-Bestätigung hat ihre Abbrechen-Schaltfläche gerendert'
         (By-Name (By-Id $window 'TextBlockDialog') 'Abbrechen').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
         Check ((Get-Content $fixtureA.Configuration -Raw) -like ('*' + $fixtureA.WorkingCopy + '*')) 'Abbruch erhält den Repository-Eintrag'
         $selected.SetFocus(); [NativeShellInput]::Key(0x2d)

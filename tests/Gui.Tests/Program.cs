@@ -313,6 +313,9 @@ internal static class Program
             else await (Task)typeof(MainWindow).GetMethod("DoubleClickAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null)!;
             await WaitAsync(() => File.Exists(calls) && new FileInfo(calls).Length > 0, "Eigener Doppelklick-Prozesstreiber hat einen Auftrag erhalten");
             await WaitAsync(() => !SvnTools.HasActiveOperations && !main.Coordinator.IsBusy, "Eigene Doppelklick-Prozesse und Reservierungen sind beendet");
+            // Der Prozess endet vor der UI-Fortsetzung, die den Status zurücksetzt und die Nachprüfung einreiht.
+            if (keyboard && selectedAction == Config.Action.updateAction)
+                await WaitAsync(() => item.Status == SvnStatus.Unknown, "Tastatur-Update hat auch seine UI-Fortsetzung beendet");
             Assert(ReadCalls().Any(command => command[0] == expected), "Doppelklick startet den erwarteten eigenen Prozess: " + selectedAction + "/" + status);
             Assert(!File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)), "Doppelklick gibt die eigene Arbeitskopiereservierung frei");
             return ReadCalls();

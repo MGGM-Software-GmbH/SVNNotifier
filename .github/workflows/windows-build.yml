@@ -48,6 +48,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Add-Type -AssemblyName UIAutomationClient
           Add-Type -AssemblyName UIAutomationTypes
+          Write-Host "Testprozess mit Administratorrechten: $(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
           $archive = @(Get-ChildItem "artifacts/packages/*-$env:RUNTIME_IDENTIFIER.zip")
           if ($archive.Count -ne 1) { throw 'Genau ein ZIP-Paket wird erwartet.' }
           $testPath = Join-Path $env:RUNNER_TEMP "smoke-$env:RUNTIME_IDENTIFIER"
@@ -74,6 +75,10 @@ jobs:
                 Where-Object { $null -ne $_ -and -not $_.Current.IsOffscreen } | Select-Object -First 1
             } while ($null -eq $settingsWindow -and [DateTime]::UtcNow -lt $deadline)
             if ($null -eq $settingsWindow) {
+              $textCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
+              foreach ($window in $windows) {
+                $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCondition) | ForEach-Object { Write-Host "Eigene Startmeldung: $($_.Current.Name)" }
+              }
               throw 'Die Anwendung hat den Einstellungsdialog nicht geöffnet.'
             }
             $buttonCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
