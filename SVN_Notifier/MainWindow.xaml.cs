@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window
     private readonly HttpClient updateClient = ApplicationUpdater.CreateClient();
     private readonly bool shellIntegration;
     private TrayService? tray;
+    private readonly StatusIcons statusIcons = new();
     private NotificationService? notifications;
     private bool exiting, checkingUpdate, sessionEnding, initializing = true;
     private Version? announcedVersion;
@@ -70,7 +71,7 @@ public sealed partial class MainWindow : Window
         Commands.Loaded += (_, _) => AlignRepositoryCommands(Commands);
         pollTimer.Tick += async (_, _) => await RunAsync(() => coordinator.PollAsync());
         updateTimer.Tick += async (_, _) => await RunAsync(() => CheckApplicationUpdateAsync(false));
-        Closed += (_, _) => { cancellation.Cancel(); tray?.Dispose(); updateClient.Dispose(); coordinator.Dispose(); };
+        Closed += (_, _) => { cancellation.Cancel(); tray?.Dispose(); statusIcons.Dispose(); updateClient.Dispose(); coordinator.Dispose(); };
     }
 
     private async Task InitializeAsync()
@@ -80,7 +81,7 @@ public sealed partial class MainWindow : Window
         if (!shellIntegration) return;
         if (!Config.IsSettingsOK()) await ShowSettingsAsync();
         if (!Config.IsSettingsOK()) { await ExitAsync(); return; }
-        tray = new TrayService(Handle);
+        tray = new TrayService(Handle, statusIcons);
         tray.ShowRequested += ShowWindow;
         tray.UpdateAllRequested += () => _ = RunAsync(coordinator.UpdateAllAsync);
         tray.ExitRequested += () => _ = RunAsync(ExitAsync);
@@ -166,7 +167,9 @@ public sealed partial class MainWindow : Window
     private static void SizeRepositoryColumns(Grid row)
     {
         double size = Config.FontSize * 96d / 72d;
-        row.ColumnDefinitions[0].Width = new GridLength(Math.Max(64, size * 3.3));
+        var monitor = new TextBlock { Text = Loc.Col_Enabled, FontFamily = new FontFamily(Config.FontFamily), FontSize = size, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        monitor.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        row.ColumnDefinitions[0].Width = new GridLength(Math.Max(64, monitor.DesiredSize.Width + 8));
         row.ColumnDefinitions[2].Width = new GridLength(Math.Max(120, size * 7));
         row.ColumnDefinitions[4].Width = new GridLength(Math.Max(92, size * 6.4));
     }
@@ -174,7 +177,6 @@ public sealed partial class MainWindow : Window
     private void BuildCommands()
     {
         commandControls.Clear(); Menus.Items.Clear(); Commands.PrimaryCommands.Clear(); Commands.SecondaryCommands.Clear();
-        RepositoryTitle.Text = "Repositories";
         var file = new MenuBarItem { Title = Label(Loc.Menu_File), AccessKey = MenuKey(Loc.Menu_File) };
         AddMenu(file.Items, "AddFolder", Loc.Menu_AddFolder, AddFolderAsync);
         AddMenu(file.Items, "AddFile", Loc.Menu_AddFile, AddFileAsync);
@@ -219,12 +221,6 @@ public sealed partial class MainWindow : Window
     private void AddButton(string name, string text, Symbol symbol, Func<Task> action)
     {
         var button = new AppBarButton { Label = Label(text), Icon = new SymbolIcon(symbol) };
-        if (name == "AddFolder")
-        {
-            button.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("ms-appx:///ViewResources.xaml") });
-            button.CornerRadius = new CornerRadius(4);
-            button.Margin = new Thickness(0, 0, 8, 0);
-        }
         button.Loaded += (_, _) => Typography.Apply(button);
         Track(name, button); button.Click += async (_, _) => await RunAsync(action); Commands.PrimaryCommands.Add(button);
     }
@@ -246,6 +242,7 @@ public sealed partial class MainWindow : Window
         EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         ErrorsButton.Content = (Config.Language == 1 ? "Fehler" : "Errors") + " (" + coordinator.Errors.Count + ")";
         ErrorsButton.IsEnabled = coordinator.Errors.Count > 0;
+        statusIcons.Update(AppWindow, items);
         tray?.Update(items);
         notifications?.Reconcile(items);
         UpdateCommands();

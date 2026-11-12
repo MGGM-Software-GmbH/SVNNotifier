@@ -38,7 +38,7 @@ foreach ($font in @('default', 'large', 'maximum', 'dark')) {
 # Direkte Windows-Nachrichten bleiben auf das eigene fokussierte Testfenster beschränkt.
 Invoke-QuietConsole $executablePath (Join-Path $resultsPath 'keyboard') --diagnose-keyboard
 if ($LASTEXITCODE -ne 0) { throw "Eingabetasten-Prüfung fehlgeschlagen: $RuntimeIdentifier" }
-$counterexamples = @('missing-command', 'save-option', 'button-size', 'cleanup-command', 'cleanup-click', 'font-size', 'heading', 'command-alignment', 'roundtrip', 'session-end', 'properties-cancel', 'remove-binding', 'orphan-properties', 'doubleclick-gate', 'doubleclick-route', 'notification-option')
+$counterexamples = @('missing-command', 'save-option', 'button-size', 'cleanup-command', 'cleanup-click', 'font-size', 'heading', 'command-alignment', 'roundtrip', 'session-end', 'properties-cancel', 'remove-binding', 'orphan-properties', 'doubleclick-gate', 'doubleclick-route', 'notification-option', 'row-density', 'row-divider', 'window-icon')
 if ($IncludeShellSettings) { $counterexamples += @('settings-cancel','settings-effect') }
 foreach ($scenario in $counterexamples) {
     $testPath = Join-Path $resultsPath $scenario
@@ -56,7 +56,7 @@ foreach ($scenario in $counterexamples) {
         'cleanup-command' { '*Befehle erhalten: ItemMenu*' }
         'cleanup-click' { '*Cleanup-Menüklick startet den Dialog*' }
         'font-size' { '*Repository-Statustext verwendet die gespeicherte Schriftgr*' }
-        'heading' { '*Listenüberschrift besitzt eine erkennbare typografische Hierarchie*' }
+        'heading' { '*Repository-Liste verzichtet auf eine zusätzliche Überschrift*' }
         'command-alignment' { '*Listenaktion beginnt am linken Rand*' }
         'roundtrip' { '*Einstellung bleibt nach erneutem INI-Laden erhalten: DefaultIdleStatusUpdateInterval*' }
         'session-end' { '*Bestätigte Sitzungsbeendigung schließt das Fenster statt es nur auszublenden*' }
@@ -68,6 +68,9 @@ foreach ($scenario in $counterexamples) {
         'doubleclick-gate' { '*Deaktivierte Doppelklickaktion bleibt ohne SVN-Auftrag*' }
         'doubleclick-route' { '*Doppelklick startet den erwarteten eigenen Prozess*' }
         'notification-option' { '*Einstellung bleibt nach erneutem INI-Laden erhalten: ShowNotifications*' }
+        'row-density' { '*Repository-Zeilen bleiben bei der gespeicherten Schrift kompakt*' }
+        'row-divider' { '*Dezente Repository-Trennlinie bleibt innerhalb der kompakten Zeile*' }
+        'window-icon' { '*Natives Fenstersymbol folgt dem Gesamtstatus*' }
     }
     if ($process.ExitCode -eq 0 -or (Get-Content -LiteralPath $errorPath -Raw -Encoding UTF8) -notlike $expected) { throw "GUI-Gegenprobe hat den Fehler nicht erkannt: $scenario" }
     Write-Host "GUI-Gegenprobe erkannt: $RuntimeIdentifier, $scenario"

@@ -32,13 +32,11 @@ internal sealed class TrayService : IDisposable
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out Point point);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-    [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr CreateIconFromResourceEx(byte[] data, uint size, bool icon, uint version, int width, int height, uint flags);
-    [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr icon);
 
     private readonly IntPtr window;
     private readonly WindowCallback callback;
     private readonly uint taskbarCreated = RegisterWindowMessage("TaskbarCreated");
-    private readonly Dictionary<string, IntPtr> icons = new();
+    private readonly StatusIcons icons;
     private NotifyData data;
     private bool disposed;
     internal bool CanUpdateAll { get; set; }
@@ -48,23 +46,22 @@ internal sealed class TrayService : IDisposable
     internal event Action<bool>? SessionEnding;
     internal event Action<bool>? Suspended;
 
-    internal TrayService(IntPtr window)
+    internal TrayService(IntPtr window, StatusIcons icons)
     {
         this.window = window;
+        this.icons = icons;
         callback = OnMessage;
         try
         {
-            foreach (string name in new[] { "Unknown", "UpToDate", "NeedUpdate", "Error" }) icons.Add(name, LoadIcon(name));
             if (!SetWindowSubclass(window, callback, new UIntPtr(1), UIntPtr.Zero)) throw new Win32Exception(Marshal.GetLastWin32Error());
             data = new NotifyData { Size = (uint)Marshal.SizeOf<NotifyData>(), Window = window, Id = 1, Callback = 0x8001,
-                Flags = 1 | 2 | 4, Icon = icons["Unknown"], Tip = "SVN Notifier", Info = "", Title = "" };
+                Flags = 1 | 2 | 4, Icon = icons.Current, Tip = "SVN Notifier", Info = "", Title = "" };
             if (!Shell_NotifyIcon(0, ref data)) throw new Win32Exception(Marshal.GetLastWin32Error(), "Tray-Symbol konnte nicht registriert werden.");
         }
         catch
         {
             // Ein fehlgeschlagener Konstruktor darf keinen nativen Callback auf ein freigegebenes Delegate hinterlassen.
             RemoveWindowSubclass(window, callback, new UIntPtr(1));
-            foreach (var icon in icons.Values) DestroyIcon(icon);
             throw;
         }
     }
@@ -72,9 +69,7 @@ internal sealed class TrayService : IDisposable
     internal void Update(IEnumerable<SvnItem> folders)
     {
         var items = folders.ToArray();
-        string state = items.Any(item => item.Status == SvnStatus.Error) ? "Error" : items.Any(ApplicationCoordinator.NeedsUpdate) ? "NeedUpdate"
-            : items.Any(item => item.Status == SvnStatus.Unknown) || items.Length == 0 ? "Unknown" : "UpToDate";
-        data.Icon = icons[state];
+        data.Icon = icons.Current;
         string text = "SVN Notifier" + string.Concat(items.Where(item => item.Enabled && (item.Status == SvnStatus.Error || ApplicationCoordinator.NeedsUpdate(item)))
             .Select(item => "\n" + StatusTextConverter.Text(item.Status) + ": " + item.VisiblePath));
         data.Tip = text.Length > 127 ? text[..123] + "…" : text;
@@ -118,26 +113,11 @@ internal sealed class TrayService : IDisposable
         finally { DestroyMenu(menu); }
     }
 
-    private static IntPtr LoadIcon(string state)
-    {
-        var assembly = typeof(TrayService).Assembly;
-        string name = assembly.GetManifestResourceNames().Single(name => name.EndsWith("TrayIcon_" + state + ".ico", StringComparison.Ordinal));
-        using var input = assembly.GetManifestResourceStream(name)!;
-        using var buffer = new MemoryStream(); input.CopyTo(buffer); byte[] ico = buffer.ToArray();
-        int count = BitConverter.ToUInt16(ico, 4);
-        int entry = Enumerable.Range(0, count).OrderBy(index => Math.Abs((ico[6 + index * 16] == 0 ? 256 : ico[6 + index * 16]) - 32)).First() * 16 + 6;
-        int length = BitConverter.ToInt32(ico, entry + 8), offset = BitConverter.ToInt32(ico, entry + 12);
-        IntPtr icon = CreateIconFromResourceEx(ico.AsSpan(offset, length).ToArray(), (uint)length, true, 0x30000, 0, 0, 0);
-        if (icon == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Tray-Symbol konnte nicht geladen werden.");
-        return icon;
-    }
-
     public void Dispose()
     {
         if (disposed) return;
         disposed = true;
         Shell_NotifyIcon(2, ref data);
         RemoveWindowSubclass(window, callback, new UIntPtr(1));
-        foreach (IntPtr icon in icons.Values) DestroyIcon(icon);
     }
 }

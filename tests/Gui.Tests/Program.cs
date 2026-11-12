@@ -101,6 +101,8 @@ internal static class Program
         if (arguments.Contains("--dark")) main.RootElement.RequestedTheme = ElementTheme.Dark;
         main.Activate();
         await WaitAsync(() => main.RootElement.IsLoaded);
+        await CheckWindowIconsAsync(main);
+        if (arguments.Contains("--diagnose-status-icons")) { await main.ExitAsync(); return; }
         foreach (int language in new[] { 1, 0 })
         {
             Config.Language = language; Config.CheckForNewVersion = false;
@@ -151,9 +153,8 @@ internal static class Program
             AssertCommands(menus.Items[2].Items, new[] { "CheckApplicationUpdates", "About" }, "HelpMenuItem");
             var toolbar = Field<CommandBar>(main, "Commands");
             AssertCommands(toolbar.PrimaryCommands.OfType<DependencyObject>(), new[] { "AddFolder", "AddFile", "Remove", "ChangeLog", "Update", "Commit", "Open", "Log", "Properties" }, "Toolbar");
-            var heading = Field<TextBlock>(main, "RepositoryTitle");
-            if (arguments.Contains("--negative-heading")) heading.FontSize = 1;
-            Assert(heading.FontSize > Config.FontSize * 96d / 72d * 1.3, "Listenüberschrift besitzt eine erkennbare typografische Hierarchie");
+            if (arguments.Contains("--negative-heading")) ((Grid)main.RootElement).Children.Add(new TextBlock { Text = "Repositories" });
+            Assert(!Descendants(main.RootElement).OfType<TextBlock>().Any(text => text.Text == "Repositories"), "Repository-Liste verzichtet auf eine zusätzliche Überschrift");
             var addFolder = Find<AppBarButton>(toolbar, "AddFolder");
             if (arguments.Contains("--negative-command-alignment")) addFolder.RenderTransform = new TranslateTransform { X = 400 };
             Assert(addFolder.TransformToVisual(main.RootElement).TransformPoint(new Windows.Foundation.Point()).X < 80, "Häufige Listenaktion beginnt am linken Rand des Arbeitsbereichs");
@@ -162,8 +163,16 @@ internal static class Program
             list.SelectedItem = folders[0]; await RenderAsync();
             Assert(!Find<AppBarButton>(toolbar, "Update").IsEnabled, "Synchronisierte Repositories brauchen kein Update");
             var firstContainer = (ListViewItem)list.ContainerFromItem(folders[0]);
+            if (arguments.Contains("--negative-row-density")) { firstContainer.Height = 80; await RenderAsync(); }
+            double maximumRowHeight = Math.Max(34, Config.FontSize * 96d / 72d * 1.5 + 14);
+            Assert(firstContainer.ActualHeight <= maximumRowHeight, "Repository-Zeilen bleiben bei der gespeicherten Schrift kompakt");
+            var rowDivider = Descendants(firstContainer).OfType<Border>().Single(border => border.VerticalAlignment == VerticalAlignment.Bottom && Grid.GetColumnSpan(border) == 5);
+            if (arguments.Contains("--negative-row-divider")) { rowDivider.Height = 8; await RenderAsync(); }
+            Assert(rowDivider.ActualHeight == 1 && !rowDivider.IsHitTestVisible, "Dezente Repository-Trennlinie bleibt innerhalb der kompakten Zeile");
             var auto = Find<CheckBox>(firstContainer, "AutoUpdateToggle");
             var enabled = Find<CheckBox>(firstContainer, "MonitorToggle");
+            Assert(auto.ActualHeight >= 28 && enabled.ActualHeight >= 28, "Kompakte Repository-Zeilen erhalten bedienbare Checkboxen");
+            Assert(auto.ActualHeight <= firstContainer.ActualHeight && enabled.ActualHeight <= firstContainer.ActualHeight, "Checkboxen passen ohne vertikalen Überlauf in die Repository-Zeile");
             bool previous = folders[0].AutoUpdate;
             Toggle(auto); await RenderAsync();
             Assert(folders[0].AutoUpdate != previous, "Repository-Auto-Update lässt sich umschalten");
@@ -723,6 +732,54 @@ internal static class Program
             Config.ShowBalloonInterval = duration;
             Config.SaveSettings();
         }
+    }
+
+    /// <summary>Prüft die Statuspriorität am tatsächlichen Fenster-HICON und am gemeinsam verwendeten Tray-Symbol.</summary>
+    private static async Task CheckWindowIconsAsync(MainWindow main)
+    {
+        var icons = Field<StatusIcons>(main, "statusIcons");
+        var resources = Field<Dictionary<string, IntPtr>>(icons, "icons");
+        var cases = new (string Name, SvnStatus[] Statuses, bool Enabled, string Resource)[]
+        {
+            ("empty", [], true, "Unknown"),
+            ("green", [SvnStatus.UpToDate], true, "UpToDate"),
+            ("modified", [SvnStatus.UpToDate_Modified], true, "UpToDate"),
+            ("yellow", [SvnStatus.NeedUpdate], true, "NeedUpdate"),
+            ("yellow-modified", [SvnStatus.NeedUpdate_Modified], true, "NeedUpdate"),
+            ("gray", [SvnStatus.Unknown], true, "Unknown"),
+            ("red", [SvnStatus.Error], true, "Error"),
+            ("unknown-priority", [SvnStatus.UpToDate, SvnStatus.Unknown], true, "Unknown"),
+            ("incoming-priority", [SvnStatus.UpToDate, SvnStatus.Unknown, SvnStatus.NeedUpdate], true, "NeedUpdate"),
+            ("error-priority", [SvnStatus.UpToDate, SvnStatus.NeedUpdate_Modified, SvnStatus.Unknown, SvnStatus.Error], true, "Error"),
+            ("disabled-error", [SvnStatus.Error], false, "Error"),
+            ("green-again", [SvnStatus.UpToDate], true, "UpToDate"),
+            ("empty-again", [], true, "Unknown")
+        };
+        foreach (var sample in cases)
+        {
+            main.Coordinator.Folders.Clear();
+            foreach (SvnStatus status in sample.Statuses)
+                main.Coordinator.Folders.Add(new SvnItem(Path.Combine(output, "Icon " + status), PathType.Directory) { Status = status, Enabled = sample.Enabled });
+            main.Coordinator.Save(); await RenderAsync();
+            if (arguments.Contains("--negative-window-icon"))
+                main.AppWindow.SetIcon(Microsoft.UI.Win32Interop.GetIconIdFromIcon(resources["Unknown"]));
+            IntPtr actual = WindowIconProbe.SendMessage(main.Handle, 0x7f, new IntPtr(1), IntPtr.Zero);
+            byte[] pixels = WindowIconProbe.Pixels(actual);
+            Assert(pixels.SequenceEqual(WindowIconProbe.Pixels(resources[sample.Resource])), "Natives Fenstersymbol folgt dem Gesamtstatus: " + sample.Name);
+            Assert(icons.Current == resources[sample.Resource], "Tray und Taskleiste verwenden dasselbe Statussymbol: " + sample.Name);
+            if (arguments.Contains("--capture") || arguments.Contains("--diagnose-status-icons"))
+            {
+                using var stream = new InMemoryRandomAccessStream();
+                var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+                encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore, 32, 32, 96, 96, pixels);
+                await encoder.FlushAsync(); stream.Seek(0);
+                using var reader = new DataReader(stream.GetInputStreamAt(0));
+                await reader.LoadAsync((uint)stream.Size);
+                var png = new byte[(int)stream.Size]; reader.ReadBytes(png);
+                File.WriteAllBytes(Path.Combine(output, "window-icon-" + sample.Name + ".png"), png);
+            }
+        }
+        main.Coordinator.Folders.Clear(); main.Coordinator.Save();
     }
 
     /// <summary>Übt den tatsächlich gebundenen Cleanupbefehl an einer isolierten Arbeitskopie aus.</summary>

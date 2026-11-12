@@ -8,7 +8,7 @@ Small and portable application which notifies you about other people's commits t
 
 ### Entwicklungsbranch für WinUI und native Windows-Meldungen
 
-Der Branch `feature/winui-native-notifications` enthält den Entwicklungsbuild `3.0.0.14` mit WinUI 3 und Windows-App-Benachrichtigungen. Die veröffentlichten Versionshinweise unten beschreiben weiterhin den Ausgangsstand `3.0.0.13`. Aktuelle Prüfergebnisse und offene Integrationsnachweise stehen im [Umsetzungsstand](docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md).
+Der Branch `feature/winui-native-notifications` enthält den Entwicklungsbuild `3.0.0.14` mit WinUI 3 und Windows-App-Benachrichtigungen. Die veröffentlichten Versionshinweise unten beschreiben weiterhin den Ausgangsstand `3.0.0.13`. Aktuelle Prüfergebnisse und offene Integrationsnachweise stehen im [Umsetzungsstand](docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md). Der geplante [Merge- und Releaseablauf](docs/prp/winui-native-benachrichtigungen/04-merge-und-release.md) beschreibt Prüfungen, Freigaben und die Aktualisierung aus WinForms.
 
 Hauptfenster, Einstellungen, Repository-Eigenschaften, Protokolle, Info und Programmupdate verwenden WinUI. Die Repository-Liste behält Prüfung und Auto-Update als getrennte Schalter. Systemfarben, Hell-/Dunkelmodus sowie die konfigurierbare Sprache und Schrift werden übernommen. Die Anzeigedauer nativer Banner wird in Windows eingestellt; die bisherigen INI-Werte bleiben erhalten. Der normale Programmstart erfolgt ohne Administratorrechte.
 
@@ -74,7 +74,7 @@ Verhalten, Tests und Grenzen stehen in [SVN-Koordination](https://github.com/MGG
 
 ### Benutzeroberfläche
 
-Auf dem Entwicklungsbranch verwendet die C#-Anwendung WinUI 3 mit Windows App SDK 2.6.5. Die Repository-Liste zeigt beschriftete Spalten für Prüfung, Status, Pfad und Auto-Update. Auch in schmalen Fenstern bleiben die Symbolleistenbefehle über das Überlaufmenü erreichbar. Die veröffentlichte Ausgabe 3.0.0.13 verwendet Windows Forms.
+Auf dem Entwicklungsbranch verwendet die C#-Anwendung WinUI 3 mit Windows App SDK 2.6.5. Die Repository-Liste zeigt beschriftete Spalten für Prüfung, Status, Pfad und Auto-Update. Kompakte Zeilen wachsen bei größerer Schrift mit; dezente Trennlinien beanspruchen keine zusätzliche Zeilenhöhe. Menü und Symbolleiste sind in den Listenrahmen integriert, die Symbolleistenaktionen sind einheitlich neutral gestaltet. Fenster-, Taskleisten- und Tray-Symbol zeigen den gemeinsamen Gesamtstatus in Grau, Grün, Gelb oder Rot. Auch in schmalen Fenstern bleiben die Symbolleistenbefehle über das Überlaufmenü erreichbar. Die veröffentlichte Ausgabe 3.0.0.13 verwendet Windows Forms.
 
 Einstellungen, Repository-Eigenschaften und Protokolle verwenden dieselben vorhandenen Aktionen in neu angeordneten Dialogen. Schriftfamilie, Schriftgröße und Sprache bleiben konfigurierbar. Die Einstellungstabellen richten sich nach ihrem Inhalt; bei knappem Platz können die Einstellungsseiten gescrollt werden.
 
