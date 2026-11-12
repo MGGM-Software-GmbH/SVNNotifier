@@ -10,7 +10,7 @@ Der SVN Notifier erhält eine mit WinUI 3 gestaltete Windows-Oberfläche und mod
 
 Die vorhandene C#-Anwendung mit .NET 10 von Windows Forms auf WinUI 3 umstellen und die drei bisherigen Tray-Benachrichtigungsauslöser an Windows-App-Benachrichtigungen anbinden. Gestaltung, Funktionsumfang, portable Verteilung und Betriebssicherheit sind gleichrangige Anforderungen.
 
-**Auftragsgrenze dieses Dokuments:** Beauftragt ist zunächst ausschließlich die Erstellung des PRP einschließlich eigenem Branch und lokalem Dokumentationscommit. Nach Erstellung und Prüfung der Unterlagen stoppen. Dieses PRP erteilt keine Freigabe zur Implementierung, zu Push, Merge, Release, Installation oder Veröffentlichung.
+**Auftragsgrenze dieses Dokuments:** Beauftragt sind die Erstellung des PRP einschließlich eigenem Branch sowie der Push der PRP-Dokumentation auf diesen Branch. Die Anwendung noch nicht umstellen. Dieses PRP erteilt keine Freigabe zur Implementierung, zu Merge, Release, Installation oder Veröffentlichung von Anwendungspaketen.
 
 ### Dokumente und Lesereihenfolge
 
@@ -29,6 +29,24 @@ Die vorhandene C#-Anwendung mit .NET 10 von Windows Forms auf WinUI 3 umstellen 
 - Vor einer späteren Umsetzung den tatsächlichen Arbeitsstand erneut prüfen und eine reproduzierbare Baseline sichern. Keine fremden Änderungen pauschal stagen oder in Testsicherungskopien verstecken.
 - Umstellungsänderungen ausschließlich auf diesem Featurebranch. Kleine lokale Checkpoints; kein SVN-Check-in, Push, Merge, Tag oder Release ohne ausdrücklichen Auftrag.
 - Eine spätere Zusammenführung zielt auf den dann tatsächlich verwendeten Hauptbranch. Änderungen des Hauptbranches vor dem Merge berücksichtigen und betroffene Paritätsprüfungen erneut ausführen.
+
+### Geprüfter Git-Push aus WSL
+
+Für dieses Repository wurde der Push aus WSL über das vorhandene Windows-Git erfolgreich ausgeführt. Bei einem ausdrücklich beauftragten Push diesen geprüften Weg verwenden:
+
+```bash
+GIT_TERMINAL_PROMPT=0 '/mnt/c/Program Files/Git/cmd/git.exe' -c credential.interactive=false push --set-upstream mggm feature/winui-native-notifications
+```
+
+Anschließend den veröffentlichten Commit prüfen:
+
+```bash
+GIT_TERMINAL_PROMPT=0 '/mnt/c/Program Files/Git/cmd/git.exe' -c credential.interactive=false ls-remote --heads mggm refs/heads/feature/winui-native-notifications
+```
+
+Nachweis vom 12. November 2026: Push mit Exit-Code 0, neuer Remote-Branch und eingerichteter Upstream-Verknüpfung. Die anschließende Remote-Abfrage lieferte den PRP-Commit `11a1e804ce4fdd75fb8338e69fedc5a833776503`.
+
+Die in dieser Sitzung geprüften GitHub-App-Schreibaufrufe wurden mit HTTP 403 und `Resource not accessible by integration` abgewiesen. Dieser Befund erlaubt keine pauschale Aussage über die Schreibrechte anderer Sitzungen oder des Benutzers. Der erfolgreiche Windows-Git-Push ist für die hier vorhandene Umgebung nachgewiesen; auf anderen Rechnern muss der Zugriff erneut geprüft werden. Keine Zugangsdaten, Tokens oder sonstigen Authentifizierungsdaten in diesem PRP oder in Befehlen hinterlegen.
 
 ## Warum
 
