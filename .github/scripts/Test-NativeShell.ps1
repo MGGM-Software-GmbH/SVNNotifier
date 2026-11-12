@@ -6,6 +6,7 @@
     [ValidateSet('win-x64', 'win-x86')] [string] $RuntimeIdentifier = 'win-x64',
     [switch] $IncludeInstallerChecks,
     [switch] $Diagnostics,
+    [switch] $Quick,
     [string] $BaselinePackagesDirectory = ''
 )
 
@@ -50,6 +51,13 @@ public static class NativeShellInput {
     public static uint WindowThread(IntPtr window) { uint process; return GetWindowThreadProcessId(window, out process); }
     public static string WindowClass(IntPtr window) { var name = new System.Text.StringBuilder(256); GetClassName(window, name, name.Capacity); return name.ToString(); }
     public static uint WindowProcess(IntPtr window) { uint process; GetWindowThreadProcessId(window, out process); return process; }
+    [StructLayout(LayoutKind.Sequential)] public struct TrayRectangle { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] private struct TrayIdentifier { public uint Size; public IntPtr Window; public uint Id; public Guid Guid; }
+    [DllImport("shell32.dll")] private static extern int Shell_NotifyIconGetRect(ref TrayIdentifier identifier, out TrayRectangle rectangle);
+    public static bool TryGetTrayBounds(IntPtr window, uint id, out TrayRectangle rectangle) {
+        var identifier = new TrayIdentifier { Size = (uint)Marshal.SizeOf(typeof(TrayIdentifier)), Window = window, Id = id, Guid = Guid.Empty };
+        return Shell_NotifyIconGetRect(ref identifier, out rectangle) == 0;
+    }
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out CursorPoint point);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] private static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
@@ -170,6 +178,11 @@ function Wait-Test([scriptblock] $condition, [string] $message, [int] $seconds =
     throw $message
 }
 function Scenario([string] $name, [scriptblock] $test) {
+    # Ein kurzer Desktoplauf verändert keine systemweiten Anzeige- oder Benachrichtigungseinstellungen.
+    if ($Quick -and $name -in @('Nicht stören und deaktivierte Windows-Benachrichtigungen mit Wiederherstellung', 'Systemskalierung 100, 150 und 200 Prozent mit Wiederherstellung', 'Windows-Kontrastmodus mit Wiederherstellung')) {
+        Write-Host "AUSGELASSEN im kurzen Lauf: $name"
+        return
+    }
     if ([DateTimeOffset]::Now -ge $VisibleUntil.AddMinutes(-2)) { throw 'Kein weiterer Test vor Ende des sichtbaren Zeitfensters; Testlauf wird bereinigt.' }
     $foregroundProcess = Get-Process -Id ([NativeShellInput]::WindowProcess([NativeShellInput]::GetForegroundWindow())) -ErrorAction SilentlyContinue
     if ($null -ne $foregroundProcess -and $foregroundProcess.ProcessName -eq 'LockApp') { throw 'Die Windows-Sitzung wurde gesperrt; eigene Testinstanzen werden beendet.' }
@@ -261,11 +274,19 @@ function Click-OwnNotification($text) {
     [NativeShellInput]::Click([int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))
 }
 function Own-TrayIcon {
+    # HWND und Symbol-ID identifizieren ausschließlich das eigene Symbol, auch bei abgeschnittenem Tooltip.
+    $bounds = New-Object NativeShellInput+TrayRectangle
+    if (-not [NativeShellInput]::TryGetTrayBounds($windowHandles[$applicationA.Id], 1, [ref]$bounds)) { return $null }
+    $centerX = ($bounds.Left + $bounds.Right) / 2
+    $centerY = ($bounds.Top + $bounds.Bottom) / 2
     $shellIds = @(Get-Process explorer -ErrorAction SilentlyContinue | ForEach-Object Id)
     foreach ($window in [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)) {
         if ($window.Current.ProcessId -notin $shellIds) { continue }
         foreach ($element in $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
-            if (-not $element.Current.IsOffscreen -and $element.Current.Name.Contains('SVN Notifier') -and $element.Current.Name.Contains('PRP-Systemtest A')) { return $element }
+            $candidate = $element.Current.BoundingRectangle
+            if (-not $element.Current.IsOffscreen -and $element.Current.Name.Contains('SVN Notifier') -and
+                $candidate.Width -gt 0 -and $candidate.Height -gt 0 -and
+                $candidate.Left -le $centerX -and $candidate.Right -ge $centerX -and $candidate.Top -le $centerY -and $candidate.Bottom -ge $centerY) { return $element }
         }
     }
     return $null
@@ -481,8 +502,9 @@ try {
                     if ($null -ne $chevron) { $chevron.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); break }
                 }
             }
-            Wait-Test { $null -ne (Own-TrayIcon) } 'Eigenes Tray-Symbol enthält Status und den richtigen Testpfad' 5
+            Wait-Test { $null -ne (Own-TrayIcon) } 'Eigenes Tray-Symbol ist dem eigenen Fenster und seiner Symbol-ID zugeordnet' 5
             $icon = Own-TrayIcon
+            Check ($icon.Current.Name.Contains('Geändert')) 'Eigenes Tray-Symbol zeigt den aktuellen Änderungsstatus'
             Capture $icon 'tray-own-status'
             [NativeShellInput]::PostMessage($windowHandles[$applicationA.Id], 0x10, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
             $bounds = $icon.Current.BoundingRectangle

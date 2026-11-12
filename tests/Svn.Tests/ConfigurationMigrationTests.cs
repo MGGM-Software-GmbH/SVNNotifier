@@ -31,6 +31,9 @@ internal static class ConfigurationMigrationTests
                 string file = Path.Combine(directory, sample.Name + ".ini");
                 File.WriteAllText(file, "[Settings]\nVersion=" + sample.Version + "\n" + sample.Balloon + "\n[Folders]\nFolder1=" + sample.Folder + "\n");
                 Config.Init(file);
+                assert(Config.ShowNotifications, "Fehlende Benachrichtigungsoption beginnt eingeschaltet: " + sample.Name);
+                Config.ShowNotifications = false; Config.SaveSettings(); Config.Init(file);
+                assert(!Config.ShowNotifications, "Ausgeschaltete Benachrichtigungen bleiben nach erneutem Laden ausgeschaltet: " + sample.Name);
                 var item = Config.ReadSvnFolders().Single();
                 assert(item.Path == target, "Migration erhält das Repositoryziel: " + sample.Name);
                 assert(Config.ShowBalloonInterval == sample.Expected, "Migration erhält die vereinbarte Dauersemantik: " + sample.Name);

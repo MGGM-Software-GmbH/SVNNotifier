@@ -23,6 +23,7 @@ public sealed partial class SettingsView : UserControl
         Choice(behavior, nameof(Config.ItemDoubleClickAction), Loc.SF_Label_DblClick,
             new[] { Loc.SF_DblClick_Open, Loc.SF_DblClick_Log, Loc.SF_DblClick_Update, Loc.SF_DblClick_Commit, Loc.SF_DblClick_Check });
         var notifications = new Button { Content = Config.Language == 1 ? "Windows-Benachrichtigungseinstellungen" : "Windows notification settings" };
+        Toggle(behavior, nameof(Config.ShowNotifications), Loc.SF_Chk_ShowNotifications);
         notifications.Click += (_, _) =>
         {
             try { Process.Start(new ProcessStartInfo("ms-settings:notifications") { UseShellExecute = true }); }

@@ -36,7 +36,7 @@
             <ListView x:Name="Repositories" Grid.Row="2" SelectionMode="Single" IsItemClickEnabled="False" Margin="4,4,4,8"
                 AllowDrop="True" DragOver="Repositories_DragOver" Drop="Repositories_Drop"
                 SelectionChanged="Repositories_SelectionChanged" DoubleTapped="Repositories_DoubleTapped"
-                KeyDown="Repositories_KeyDown" RightTapped="Repositories_RightTapped"
+                RightTapped="Repositories_RightTapped"
                 AutomationProperties.AutomationId="Repositories">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style>

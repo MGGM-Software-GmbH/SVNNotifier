@@ -101,6 +101,9 @@ namespace CHD.SVN_Notifier
 		public static bool ShowInTaskbar;
 		public static bool CheckForNewVersion;
 
+		/// <summary>Steuert neue Windows-Benachrichtigungen unabhängig von Repository-Prüfung und Tray.</summary>
+		public static bool ShowNotifications;
+
 
 		/// <summary>
 		/// Force to see Change Log before Update
@@ -172,6 +175,7 @@ namespace CHD.SVN_Notifier
 			HideOnStartup = iniFile.ReadBoolean("Settings", "HideOnStartup", false);
 			ShowInTaskbar = iniFile.ReadBoolean("Settings", "ShowInTaskbar", false);
 			CheckForNewVersion = iniFile.ReadBoolean("Settings", "CheckForNewVersion", true);
+			ShowNotifications = iniFile.ReadBoolean("Settings", "ShowNotifications", true);
 			UpdateAllSilently = iniFile.ReadBoolean("Settings", "UpdateAllSilently", true);
 			UpdateWindowAction = iniFile.ReadInteger("Settings", "UpdateWindowAction", 2);
 
@@ -244,6 +248,7 @@ namespace CHD.SVN_Notifier
 			iniFile.Write("Settings", "HideOnStartup", HideOnStartup);
 			iniFile.Write("Settings", "ShowInTaskbar", ShowInTaskbar);
 			iniFile.Write("Settings", "CheckForNewVersion", CheckForNewVersion);
+			iniFile.Write("Settings", "ShowNotifications", ShowNotifications);
 			iniFile.Write("Settings", "ChangeLogBeforeUpdate", ChangeLogBeforeUpdate);
 			iniFile.Write("Settings", "UpdateAllSilently", UpdateAllSilently);
 			iniFile.Write("Settings", "UpdateWindowAction", UpdateWindowAction);

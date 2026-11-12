@@ -21,6 +21,7 @@ internal static class Program
 {
     [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr first, IntPtr second);
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] private static extern IntPtr GetFocus();
     private static int checks;
     private static string[] arguments = Array.Empty<string>();
     private static string output = "";
@@ -114,6 +115,14 @@ internal static class Program
             main.Coordinator.Save(); await RenderAsync();
             await CaptureAsync(main.RootElement, $"main-initial-{language}");
             var list = Field<ListView>(main, "Repositories");
+            if (arguments.Contains("--diagnose-keyboard"))
+            {
+                list.AddHandler(UIElement.KeyDownEvent, new Microsoft.UI.Xaml.Input.KeyEventHandler((_, key) =>
+                    Console.WriteLine($"Repository KeyDown: key={key.Key}; handled={key.Handled}; source={key.OriginalSource?.GetType().Name}")), true);
+                await CheckAllowedDoubleClicksAsync(main, true);
+                await main.ExitAsync();
+                return;
+            }
             if (arguments.Contains("--diagnose-checkboxes"))
             {
                 // Trennt den tatsächlichen SDK-Zustand von der Aufnahme eines animierten Composition-Symbols.
@@ -189,8 +198,11 @@ internal static class Program
                 }
                 tabs.SelectedIndex = 0; await RenderAsync();
                 Find<CheckBox>(settings, nameof(Config.CheckForNewVersion)).IsChecked = true;
+                Find<CheckBox>(settings, nameof(Config.ShowNotifications)).IsChecked = !Config.ShowNotifications;
             });
             Assert(!Config.CheckForNewVersion, "Abbrechen verwirft Einstellungsänderungen");
+            Assert(Find<CheckBox>(settings, nameof(Config.ShowNotifications)).IsChecked != Config.ShowNotifications,
+                "Abbrechen übernimmt den geänderten Benachrichtigungsschalter nicht");
             var save = new SettingsView(main.Handle);
             var svn = Find<TextBox>(save, nameof(Config.SVNpath)); string tool = svn.Text;
             svn.Text = Path.Combine(output, "missing-svn.exe");
@@ -262,8 +274,8 @@ internal static class Program
         await main.ExitAsync();
     }
 
-    /// <summary>Prüft gültige Doppelklickzuordnungen über echte eigene Kindprozesse und deren Argumente.</summary>
-    private static async Task CheckAllowedDoubleClicksAsync(MainWindow main)
+    /// <summary>Prüft konfigurierte Zeilenaktionen per Doppelklickaufruf oder eigener Eingabenachricht über echte eigene Kindprozesse und deren Argumente.</summary>
+    private static async Task CheckAllowedDoubleClicksAsync(MainWindow main, bool keyboard = false)
     {
         var originals = main.Coordinator.Folders.ToArray();
         string svn = Config.SVNpath, tortoise = Config.TortoiseSVNpath;
@@ -281,7 +293,15 @@ internal static class Program
             File.WriteAllText(calls, "");
             item.Status = status;
             Config.ItemDoubleClickAction = arguments.Contains("--negative-doubleclick-route") ? Config.Action.checkNow : selectedAction;
-            await (Task)typeof(MainWindow).GetMethod("DoubleClickAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null)!;
+            if (keyboard)
+            {
+                var list = Field<ListView>(main, "Repositories");
+                Assert(((ListViewItem)list.ContainerFromItem(item)).Focus(FocusState.Keyboard), "Repositoryzeile erhält den eigenen Tastaturfokus");
+                IntPtr focus = GetFocus();
+                Assert(focus != IntPtr.Zero && PostMessage(focus, 0x100, new IntPtr(0x0d), new IntPtr(1)), "Eingabenachricht wird ausschließlich an das eigene fokussierte Testfenster gesendet");
+                PostMessage(focus, 0x101, new IntPtr(0x0d), new IntPtr(unchecked((int)0xc0000001)));
+            }
+            else await (Task)typeof(MainWindow).GetMethod("DoubleClickAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null)!;
             await WaitAsync(() => File.Exists(calls) && new FileInfo(calls).Length > 0, "Eigener Doppelklick-Prozesstreiber hat einen Auftrag erhalten");
             await WaitAsync(() => !SvnTools.HasActiveOperations && !main.Coordinator.IsBusy, "Eigene Doppelklick-Prozesse und Reservierungen sind beendet");
             Assert(ReadCalls().Any(command => command[0] == expected), "Doppelklick startet den erwarteten eigenen Prozess: " + selectedAction + "/" + status);
@@ -647,6 +667,7 @@ internal static class Program
             [nameof(Config.HideOnStartup)] = !Config.HideOnStartup,
             [nameof(Config.ShowInTaskbar)] = !Config.ShowInTaskbar,
             [nameof(Config.CheckForNewVersion)] = !Config.CheckForNewVersion,
+            [nameof(Config.ShowNotifications)] = !Config.ShowNotifications,
             [nameof(Config.Language)] = 1 - Config.Language,
             [nameof(Config.FontFamily)] = "Arial",
             [nameof(Config.FontSize)] = 17.5f,
@@ -676,6 +697,8 @@ internal static class Program
                 else Find<NumberBox>(draft, pair.Key).Value = Convert.ToDouble(pair.Value);
             }
             draft.Apply();
+            if (arguments.Contains("--negative-notification-option"))
+                new IniFile(configuration, false).Write("Settings", nameof(Config.ShowNotifications), (bool)original[nameof(Config.ShowNotifications)]!);
             if (arguments.Contains("--negative-roundtrip"))
                 new IniFile(configuration, false).Write("Settings", "DefaultIdleStatusUpdateInterval", 7);
             Config.Init(configuration);

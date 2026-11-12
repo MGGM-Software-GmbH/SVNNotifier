@@ -14,6 +14,8 @@ Hauptfenster, Einstellungen, Repository-Eigenschaften, Protokolle, Info und Prog
 
 Der WinUI-Branch setzt Windows 10 Version 1809 oder neuer voraus. Nach einem Verschieben des portablen Programmordners die Anwendung einmal regulär am neuen Ort starten. Neue Meldungen werden diesem Pfad zugeordnet; zuvor erzeugte Meldungen können auf den nicht mehr vorhandenen alten EXE-Pfad verweisen.
 
+Unter **Einstellungen > Allgemein > Benachrichtigungen anzeigen** lassen sich neue Windows-Meldungen abschalten. Die Option ist standardmäßig eingeschaltet und wird als `ShowNotifications` in der INI gespeichert. SVN-Prüfung, Auto-Update, Tray-Symbol und manuelle Fehlerdialoge bleiben davon unabhängig. Bereits vorhandene Meldungen werden durch den Schalter nicht pauschal gelöscht.
+
 ### Neu in v3.0.0.13
 
 - Beim Start und vor späteren SVN-Aufträgen werden verwaiste eigene Reservierungen automatisch freigegeben. Auch Reservierungen im alten Notifier-Format werden geprüft.

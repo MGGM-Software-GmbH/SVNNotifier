@@ -35,7 +35,10 @@ foreach ($font in @('default', 'large', 'maximum', 'dark')) {
     Invoke-QuietConsole $executablePath @arguments
     if ($LASTEXITCODE -ne 0) { throw "GUI-Prüfung fehlgeschlagen: $RuntimeIdentifier, $font" }
 }
-$counterexamples = @('missing-command', 'save-option', 'button-size', 'cleanup-command', 'cleanup-click', 'font-size', 'heading', 'command-alignment', 'roundtrip', 'session-end', 'properties-cancel', 'remove-binding', 'orphan-properties', 'doubleclick-gate', 'doubleclick-route')
+# Direkte Windows-Nachrichten bleiben auf das eigene fokussierte Testfenster beschränkt.
+Invoke-QuietConsole $executablePath (Join-Path $resultsPath 'keyboard') --diagnose-keyboard
+if ($LASTEXITCODE -ne 0) { throw "Eingabetasten-Prüfung fehlgeschlagen: $RuntimeIdentifier" }
+$counterexamples = @('missing-command', 'save-option', 'button-size', 'cleanup-command', 'cleanup-click', 'font-size', 'heading', 'command-alignment', 'roundtrip', 'session-end', 'properties-cancel', 'remove-binding', 'orphan-properties', 'doubleclick-gate', 'doubleclick-route', 'notification-option')
 if ($IncludeShellSettings) { $counterexamples += @('settings-cancel','settings-effect') }
 foreach ($scenario in $counterexamples) {
     $testPath = Join-Path $resultsPath $scenario
@@ -64,6 +67,7 @@ foreach ($scenario in $counterexamples) {
         'settings-effect' { '*Bestätigte Einstellungen werden gespeichert und auf das tatsächliche Taskleistenfenster angewendet*' }
         'doubleclick-gate' { '*Deaktivierte Doppelklickaktion bleibt ohne SVN-Auftrag*' }
         'doubleclick-route' { '*Doppelklick startet den erwarteten eigenen Prozess*' }
+        'notification-option' { '*Einstellung bleibt nach erneutem INI-Laden erhalten: ShowNotifications*' }
     }
     if ($process.ExitCode -eq 0 -or (Get-Content -LiteralPath $errorPath -Raw -Encoding UTF8) -notlike $expected) { throw "GUI-Gegenprobe hat den Fehler nicht erkannt: $scenario" }
     Write-Host "GUI-Gegenprobe erkannt: $RuntimeIdentifier, $scenario"

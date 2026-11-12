@@ -64,6 +64,8 @@ public sealed partial class MainWindow : Window
         };
         Activated += (_, args) => coordinator.Active = args.WindowActivationState != WindowActivationState.Deactivated;
         Root.KeyDown += (_, args) => { if (args.Key == VirtualKey.Escape) { AppWindow.Hide(); args.Handled = true; } };
+        // ListViewItem verarbeitet Eingabe bereits selbst; die konfigurierten Befehle müssen sie dennoch erhalten.
+        Repositories.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(Repositories_KeyDown), true);
         Root.Loaded += async (_, _) => { ApplyFonts(); await RunAsync(InitializeAsync); };
         Commands.Loaded += (_, _) => AlignRepositoryCommands(Commands);
         pollTimer.Tick += async (_, _) => await RunAsync(() => coordinator.PollAsync());
@@ -409,7 +411,7 @@ public sealed partial class MainWindow : Window
         {
             Config.WriteLog("ApplicationUpdate", exception.ToString());
             if (manual) await windows.ErrorAsync(Loc.AppUpdate_CheckError(exception.Message));
-            else notifications?.Show(new(NotificationKind.ApplicationUpdateCheckFailed, Array.Empty<string>(), Loc.AppUpdate_Title, Loc.Msg_CantCheckVersion));
+            else coordinator.Notify(new(NotificationKind.ApplicationUpdateCheckFailed, Array.Empty<string>(), Loc.AppUpdate_Title, Loc.Msg_CantCheckVersion));
         }
         finally { checkingUpdate = false; UpdateCommands(); }
     }

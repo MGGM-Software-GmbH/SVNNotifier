@@ -100,6 +100,8 @@ Wenn ein Punkt nicht erfüllbar ist, die übrigen unabhängigen Arbeiten fortfü
 
 ## Vollständiger benötigter Kontext
 
+Zusätzlicher Benutzerauftrag: Die Einstellung **Benachrichtigungen anzeigen** ist standardmäßig eingeschaltet. `ShowNotifications` wird in der INI gespeichert und steuert neue native Meldungen für eingehende Änderungen, abgeschlossene Auto-Updates und Fehler automatischer Programmupdate-Prüfungen. Fehlende Werte bleiben eingeschaltet. SVN-Verarbeitung, Tray, manuelle Dialoge und aufbewahrte Meldungen bleiben unabhängig. Nachweis gemäß S-13 der Paritätsmatrix.
+
 ### Erforderliche MGGM-Skills und Regeln
 
 - Für die PRP-Erstellung verwendet: `/home/andreasht/.claude/skills/cmd-prp-base-create/SKILL.md` und dessen `references/prp_base.md`.

@@ -26,6 +26,12 @@ internal sealed class ApplicationCoordinator : IDisposable
     internal event Action<SvnFolderProcess>? UpdateLogRequested;
     internal event Action<string>? StatusChanged;
 
+    /// <summary>Der Benutzerschalter unterdrückt nur neue Meldungen, nicht die zugrunde liegenden Aufträge.</summary>
+    internal void Notify(NotificationRequest request)
+    {
+        if (Config.ShowNotifications) NotificationRequested?.Invoke(request);
+    }
+
     internal ApplicationCoordinator(Action<Action> dispatch)
     {
         this.dispatch = dispatch;
@@ -140,7 +146,7 @@ internal sealed class ApplicationCoordinator : IDisposable
                     {
                         // If auto-update was in progress and is now complete, show toast.
                         item._IsAutoUpdating = false;
-                        NotificationRequested?.Invoke(new(NotificationKind.AutoUpdateCompleted, new[] { item.Path },
+                        Notify(new(NotificationKind.AutoUpdateCompleted, new[] { item.Path },
                             Loc.Tooltip_AutoUpdate, Loc.Toast_AutoUpdateCompleted(item.VisiblePath)));
                     }
                     // Nach belegter Koordination auch bei unverändertem Änderungsstatus erneut versuchen.
@@ -156,7 +162,7 @@ internal sealed class ApplicationCoordinator : IDisposable
             {
                 if (stopping || installation) return;
                 if (incoming.Count > 0)
-                    NotificationRequested?.Invoke(new(NotificationKind.IncomingChanges, incoming.Select(item => item.Path).ToArray(),
+                    Notify(new(NotificationKind.IncomingChanges, incoming.Select(item => item.Path).ToArray(),
                         Loc.Balloon_UpdateNeeded, string.Join(Environment.NewLine, incoming.Select(item => item.VisiblePath))));
             });
         }

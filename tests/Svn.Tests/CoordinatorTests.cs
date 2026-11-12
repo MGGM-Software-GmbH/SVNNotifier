@@ -27,6 +27,21 @@ internal static class CoordinatorTests
             var item = coordinator.Folders.Single();
             var notifications = new List<NotificationRequest>();
             coordinator.NotificationRequested += notifications.Add;
+            foreach (bool enabled in new[] { false, true })
+            {
+                Config.ShowNotifications = enabled;
+                foreach (NotificationKind kind in Enum.GetValues<NotificationKind>())
+                    coordinator.Notify(new(kind, new[] { root }, "Isolierter Test", "Benachrichtigungsschalter"));
+                Check(notifications.Count == (enabled ? 3 : 0), "Benachrichtigungsschalter gilt für Änderungen, Auto-Update und Programmprüffehler: " + enabled);
+            }
+            notifications.Clear();
+            Config.ShowNotifications = false;
+            await coordinator.PollAsync();
+            Check(item.Status == SvnStatus.NeedUpdate && notifications.Count == 0,
+                "Ausgeschaltete Benachrichtigungen erhalten die tatsächliche SVN-Prüfung ohne neue Meldung.");
+            Config.ShowNotifications = true;
+            item.Status = SvnStatus.Unknown;
+            coordinator.CheckNow(item);
             Task polling = coordinator.PollAsync();
             Check(ReferenceEquals(polling, coordinator.PollAsync()), "Zwei Prüfauslöser verwenden denselben laufenden Auftrag.");
             await polling;

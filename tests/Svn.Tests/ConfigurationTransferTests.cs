@@ -17,6 +17,7 @@ internal static class ConfigurationTransferTests
             File.WriteAllText(active, "[Settings]\nVersion=1.9\nLanguage=1\nDefaultActiveStatusUpdateInterval=17\n[Folders]\nFolder1=" + repository + "|21|34|False|0|True\n");
             Config.Init(active);
             Config.DefaultActiveStatusUpdateInterval = 713;
+            Config.ShowNotifications = false;
             byte[] original = File.ReadAllBytes(active);
             void Reject(string source, Type expected)
             {
@@ -24,7 +25,7 @@ internal static class ConfigurationTransferTests
                 try { Config.Import(source); } catch (Exception exception) { failure = exception; }
                 assert(failure is not null && expected.IsInstanceOfType(failure), "Ungültiger Import meldet seinen konkreten Fehler: " + Path.GetFileName(source) + "; erhalten: " + failure?.GetType().Name + ": " + failure?.Message);
                 assert(File.ReadAllBytes(active).SequenceEqual(original) && Config.iniFileName == active &&
-                    Config.DefaultActiveStatusUpdateInterval == 713 && Config.Language == 1 && Config.ReadSvnFolders().Single().Path == repository,
+                    Config.DefaultActiveStatusUpdateInterval == 713 && !Config.ShowNotifications && Config.Language == 1 && Config.ReadSvnFolders().Single().Path == repository,
                     "Abgewiesener Import erhält Datei, nicht gespeicherte Optionen, INI-Cache und Repository-Zuordnung");
                 assert(!Directory.EnumerateFiles(directory, ".svnnotifier-import-*.ini").Any(), "Abgewiesener Import hinterlässt keine Importdatei");
             }
@@ -36,7 +37,7 @@ internal static class ConfigurationTransferTests
             File.WriteAllText(malformed, "[Settings]\nVersion=1.9\nLanguage=0\n[Folders]\nFolder1=" + repository + "|1|2|False|invalid|True\n");
             Reject(malformed, typeof(FormatException));
             string valid = Path.Combine(directory, "valid.ini");
-            string sourceText = "[Settings]\nVersion=1.8\nLanguage=0\nDefaultActiveStatusUpdateInterval=31\nShowBalloonInterval=23000\n[Folders]\nFolder1=" + repository + "|21|34|False|0\n";
+            string sourceText = "[Settings]\nVersion=1.8\nLanguage=0\nDefaultActiveStatusUpdateInterval=31\nShowBalloonInterval=23000\nShowNotifications=false\n[Folders]\nFolder1=" + repository + "|21|34|False|0\n";
             File.WriteAllText(valid, sourceText);
             using (var locked = new FileStream(active, FileMode.Open, FileAccess.Read, FileShare.Read))
                 Reject(valid, typeof(UnauthorizedAccessException));
@@ -45,7 +46,7 @@ internal static class ConfigurationTransferTests
                 "Import der aktiven Datei verändert weder Datei noch laufende Optionen");
             Config.Import(valid);
             assert(Config.iniFileName == active && Config.Language == 0 && Config.DefaultActiveStatusUpdateInterval == 31 &&
-                Config.ShowBalloonInterval == 23000 && !Config.ReadSvnFolders().Single().AutoUpdate,
+                Config.ShowBalloonInterval == 23000 && !Config.ShowNotifications && !Config.ReadSvnFolders().Single().AutoUpdate,
                 "Gültiger Import übernimmt migrierte Optionen und Repository-Zuordnungen in den aktiven Kontext");
             assert(File.ReadAllText(valid) == sourceText, "Import und Migration verändern die ausgewählte Quelldatei nicht");
             string exported = Path.Combine(directory, "exported.ini");
