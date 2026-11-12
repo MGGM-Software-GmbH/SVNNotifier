@@ -1,12 +1,21 @@
 ﻿param(
     [Parameter(Mandatory)] [string] $ArtifactsDirectory,
-    [Parameter(Mandatory)] [switch] $UseUserDesktop
+    [Parameter(Mandatory)] [switch] $UseUserDesktop,
+    [Parameter(Mandatory)] [DateTimeOffset] $VisibleFrom,
+    [Parameter(Mandatory)] [DateTimeOffset] $VisibleUntil,
+    [ValidateSet('win-x64', 'win-x86')] [string] $RuntimeIdentifier = 'win-x64',
+    [switch] $IncludeInstallerChecks,
+    [switch] $Diagnostics,
+    [string] $BaselinePackagesDirectory = ''
 )
 
 # Dieser Lauf benötigt eine ausdrücklich erlaubte sichtbare Windows-Testsitzung.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $UseUserDesktop) { throw 'Für diesen Test ist die Freigabe einer sichtbaren Testsitzung erforderlich.' }
+if ([DateTimeOffset]::Now -lt $VisibleFrom -or [DateTimeOffset]::Now -ge $VisibleUntil.AddMinutes(-5)) {
+    throw 'Der sichtbare Lauf liegt außerhalb des freigegebenen Zeitfensters oder hat weniger als fünf Minuten für Lauf und Bereinigung.'
+}
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Drawing
@@ -33,33 +42,107 @@ public static class NativeShellInput {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll", SetLastError=true)] public static extern bool AttachThreadInput(uint first, uint second, bool attach);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int maximum);
+    public static uint WindowThread(IntPtr window) { uint process; return GetWindowThreadProcessId(window, out process); }
+    public static string WindowClass(IntPtr window) { var name = new System.Text.StringBuilder(256); GetClassName(window, name, name.Capacity); return name.ToString(); }
     public static uint WindowProcess(IntPtr window) { uint process; GetWindowThreadProcessId(window, out process); return process; }
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out CursorPoint point);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] private static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
+    private static void EnsureInteractiveSession() {
+        uint processId = WindowProcess(GetForegroundWindow());
+        using (var process = System.Diagnostics.Process.GetProcessById((int)processId))
+            if (process.ProcessName == "LockApp") throw new InvalidOperationException("Windows-Sitzung ist gesperrt; keine Testeingabe gesendet.");
+    }
     [StructLayout(LayoutKind.Sequential)] public struct CursorPoint { public int X, Y; }
     public static void Click(int x, int y) {
+        EnsureInteractiveSession();
         CursorPoint saved; GetCursorPos(out saved); SetCursorPos(x, y);
         mouse_event(2, 0, 0, 0, UIntPtr.Zero); mouse_event(4, 0, 0, 0, UIntPtr.Zero);
         SetCursorPos(saved.X, saved.Y);
     }
     public static void RightClick(int x, int y) {
+        EnsureInteractiveSession();
         CursorPoint saved; GetCursorPos(out saved); SetCursorPos(x, y);
         mouse_event(8, 0, 0, 0, UIntPtr.Zero); mouse_event(16, 0, 0, 0, UIntPtr.Zero);
         SetCursorPos(saved.X, saved.Y);
     }
+    public static void Drag(int fromX, int fromY, int toX, int toY) {
+        EnsureInteractiveSession();
+        CursorPoint saved; GetCursorPos(out saved); SetCursorPos(fromX, fromY);
+        mouse_event(2, 0, 0, 0, UIntPtr.Zero);
+        try {
+            System.Threading.Thread.Sleep(150);
+            for (int step = 1; step <= 20; step++) {
+                EnsureInteractiveSession();
+                SetCursorPos(fromX + (toX - fromX) * step / 20, fromY + (toY - fromY) * step / 20);
+                System.Threading.Thread.Sleep(25);
+            }
+        } finally { mouse_event(4, 0, 0, 0, UIntPtr.Zero); SetCursorPos(saved.X, saved.Y); }
+    }
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr first, IntPtr second);
     [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     public static void NotificationCenter() {
+        EnsureInteractiveSession();
         keybd_event(0x5b, 0, 0, UIntPtr.Zero); keybd_event(0x4e, 0, 0, UIntPtr.Zero);
         keybd_event(0x4e, 0, 2, UIntPtr.Zero); keybd_event(0x5b, 0, 2, UIntPtr.Zero);
     }
-    public static void Escape() { keybd_event(0x1b, 0, 0, UIntPtr.Zero); keybd_event(0x1b, 0, 2, UIntPtr.Zero); }
-    public static void Key(byte key) { keybd_event(key, 0, 0, UIntPtr.Zero); keybd_event(key, 0, 2, UIntPtr.Zero); }
-    public static void AltKey(byte key) { keybd_event(0x12, 0, 0, UIntPtr.Zero); Key(key); keybd_event(0x12, 0, 2, UIntPtr.Zero); }
+    public static void Escape() { Key(0x1b); }
+    public static void Key(byte key) { EnsureInteractiveSession(); keybd_event(key, 0, 0, UIntPtr.Zero); keybd_event(key, 0, 2, UIntPtr.Zero); }
+    public static void AltKey(byte key) { EnsureInteractiveSession(); keybd_event(0x12, 0, 0, UIntPtr.Zero); try { Key(key); } finally { keybd_event(0x12, 0, 2, UIntPtr.Zero); } }
     [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
     public static bool IsOwnedBy(IntPtr window, IntPtr owner) { return GetAncestor(window, 3) == owner; }
+}
+'@
+$foregroundProcess = Get-Process -Id ([NativeShellInput]::WindowProcess([NativeShellInput]::GetForegroundWindow())) -ErrorAction SilentlyContinue
+if ($null -ne $foregroundProcess -and $foregroundProcess.ProcessName -eq 'LockApp') {
+    throw 'Die Windows-Sitzung ist gesperrt. Sichtbare Tests benötigen eine vom Benutzer entsperrte Sitzung.'
+}
+Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing -TypeDefinition @'
+using System;
+using System.Drawing;
+using System.Threading;
+using System.Windows.Forms;
+
+// Diese isolierte OLE-Quelle gehört ausschließlich zum Test, nicht zur Produktoberfläche.
+public sealed class NativeDragSource : IDisposable {
+    private Form form;
+    private readonly Thread thread;
+    private readonly ManualResetEvent ready = new ManualResetEvent(false);
+    private Exception failure;
+    public Point SourcePoint;
+    public DragDropEffects Result;
+    public NativeDragSource(string[] files) {
+        thread = new Thread(() => {
+            try {
+                form = new Form { Text = "SVN Notifier Drag-Test", Width = 260, Height = 120,
+                    ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new Point(10, 120) };
+                var source = new Label { Text = files.Length > 0 ? "Isolierte Dateien und Ordner" : "Ungeeigneter Text",
+                    Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter };
+                source.MouseDown += (sender, args) => {
+                    var data = new DataObject();
+                    if (files.Length > 0) data.SetData(DataFormats.FileDrop, files);
+                    else data.SetText("Isolierter Text, kein Dateisystemziel.");
+                    Result = source.DoDragDrop(data, DragDropEffects.Copy);
+                };
+                form.Controls.Add(source);
+                form.Shown += (sender, args) => { SourcePoint = source.PointToScreen(new Point(100, 40)); ready.Set(); };
+                Application.Run(form);
+            } catch (Exception exception) { failure = exception; ready.Set(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.IsBackground = true; thread.Start();
+        if (!ready.WaitOne(5000)) throw new TimeoutException("OLE-Testquelle konnte nicht geöffnet werden.");
+        if (failure != null) throw failure;
+    }
+    public void Dispose() {
+        if (form != null && !form.IsDisposed) form.BeginInvoke((Action)(() => form.Close()));
+        if (!thread.Join(5000)) throw new TimeoutException("OLE-Testquelle wurde nicht beendet.");
+        ready.Dispose();
+    }
 }
 '@
 $artifacts = [IO.Path]::GetFullPath($ArtifactsDirectory)
@@ -78,10 +161,18 @@ function Check($condition, [string] $message) {
 }
 function Wait-Test([scriptblock] $condition, [string] $message, [int] $seconds = 30) {
     $deadline = [DateTime]::UtcNow.AddSeconds($seconds)
-    do { if (& $condition) { Write-Host "OK: $message"; return }; Start-Sleep -Milliseconds 150 } while ([DateTime]::UtcNow -lt $deadline)
+    do {
+        if ([DateTimeOffset]::Now -ge $VisibleUntil.AddSeconds(-30)) { throw 'Das sichtbare Zeitfenster endet; Testlauf wird bereinigt.' }
+        $foregroundProcess = Get-Process -Id ([NativeShellInput]::WindowProcess([NativeShellInput]::GetForegroundWindow())) -ErrorAction SilentlyContinue
+        if ($null -ne $foregroundProcess -and $foregroundProcess.ProcessName -eq 'LockApp') { throw 'Die Windows-Sitzung wurde gesperrt; Testeingaben werden abgebrochen.' }
+        if (& $condition) { Write-Host "OK: $message"; return }; Start-Sleep -Milliseconds 150
+    } while ([DateTime]::UtcNow -lt $deadline)
     throw $message
 }
 function Scenario([string] $name, [scriptblock] $test) {
+    if ([DateTimeOffset]::Now -ge $VisibleUntil.AddMinutes(-2)) { throw 'Kein weiterer Test vor Ende des sichtbaren Zeitfensters; Testlauf wird bereinigt.' }
+    $foregroundProcess = Get-Process -Id ([NativeShellInput]::WindowProcess([NativeShellInput]::GetForegroundWindow())) -ErrorAction SilentlyContinue
+    if ($null -ne $foregroundProcess -and $foregroundProcess.ProcessName -eq 'LockApp') { throw 'Die Windows-Sitzung wurde gesperrt; eigene Testinstanzen werden beendet.' }
     Write-Host "PRÜFUNG: $name"
     try { & $test } catch { $failures.Add($name + ': ' + $_.Exception.Message); Write-Host ('FEHLER: ' + $_.Exception.Message) }
 }
@@ -101,6 +192,20 @@ function App-Window($process) {
     elseif ($windowHandles.ContainsKey($process.Id)) { $handle = $windowHandles[$process.Id] }
     if ($handle -eq [IntPtr]::Zero -or -not [NativeShellInput]::IsWindow($handle) -or [NativeShellInput]::WindowProcess($handle) -ne $process.Id) { return $null }
     return [System.Windows.Automation.AutomationElement]::FromHandle($handle)
+}
+function Stop-OwnProduct($process) {
+    if ($process.HasExited) { return }
+    $window = App-Window $process
+    if ($null -ne $window) {
+        $handle = [IntPtr]$window.Current.NativeWindowHandle
+        # Die Sitzungsnachrichten betreffen ausschließlich das eigene HWND und erlauben dessen reguläres Schließen.
+        [NativeShellInput]::PostMessage($handle, 0x11, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        [NativeShellInput]::PostMessage($handle, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        if ($process.WaitForExit(10000)) { Write-Host "Eigene Testinstanz regulär beendet: PID=$($process.Id)"; return }
+    }
+    $failures.Add("Eigene Testinstanz benötigte eine erzwungene Bereinigung: PID=$($process.Id)")
+    $process.Kill()
+    Check ($process.WaitForExit(10000)) 'Eigene Testinstanz ist nach erzwungener Bereinigung beendet'
 }
 function By-Id($root, [string] $id) {
     if ($null -eq $root) { return $null }
@@ -123,6 +228,8 @@ function Capture($element, [string] $name) {
     $window = [IntPtr]$element.Current.NativeWindowHandle
     if ($window -ne [IntPtr]::Zero) {
         [NativeShellInput]::ShowWindow($window, 9) | Out-Null
+        # Alt gibt während der erlaubten sichtbaren Sitzung die Windows-Vordergrundsperre frei.
+        [NativeShellInput]::Key(0x12)
         [NativeShellInput]::SetForegroundWindow($window) | Out-Null
         Start-Sleep -Milliseconds 300
         Check ([NativeShellInput]::GetForegroundWindow() -eq $window) "Eigenes Testfenster ist für die Aufnahme im Vordergrund: $name"
@@ -166,7 +273,7 @@ function Own-TrayIcon {
 function Display-ScaleCombo($settings) {
     $comboCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::ComboBox)
     foreach ($combo in $settings.FindAll([System.Windows.Automation.TreeScope]::Descendants, $comboCondition)) {
-        $selection = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).GetCurrentSelection()
+        $selection = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
         if ($selection.Count -gt 0 -and $selection[0].Current.Name -match '^\s*\d+\s*%') { return $combo }
     }
     return $null
@@ -181,7 +288,7 @@ function Select-DisplayScale($settings, [int] $percentage) {
     if ($null -eq $option) { throw "Windows bietet $percentage Prozent in dieser Anzeige nicht über den geprüften Bedienweg an." }
     $option.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
     Start-Sleep -Seconds 2
-    $selected = (Display-ScaleCombo $settings).GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).GetCurrentSelection()[0].Current.Name
+    $selected = (Display-ScaleCombo $settings).GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()[0].Current.Name
     Check ($selected -match ('^\s*' + $percentage + '\s*%')) "Windows-Skalierung beträgt $percentage Prozent"
 }
 function Contexts([string] $exe, [string] $config) {
@@ -199,7 +306,7 @@ function Make-Fixture([string] $name, [bool] $autoUpdate, [bool] $checkUpdates) 
     New-Item -ItemType Directory -Path (Join-Path $workingCopy '.svn') | Out-Null
     'Isolierte synthetische Testarbeitskopie.' | Set-Content (Join-Path $workingCopy '.svn/wc.db')
     if ($autoUpdate) { 'Isolierter erfolgreicher Aktualisierungslauf.' | Set-Content (Join-Path $workingCopy 'notification-autoupdate-fixture') }
-    $driver = Join-Path $artifacts 'svn-driver/win-x64/Svn.Tests.exe'
+    $driver = Join-Path $artifacts "svn-driver/$RuntimeIdentifier/Svn.Tests.exe"
     $config = Join-Path $directory 'SVN_Notifier.ini'
     @('[Settings]', 'Version=1.9', 'Language=1', 'FontFamily=Segoe UI', 'FontSize=8.5', 'HideOnStartup=false', 'ShowInTaskbar=true',
       "CheckForNewVersion=$checkUpdates", "SVN_path=$driver", "TortoiseSVN_path=$driver", 'DoPauseAfterApplicationStartup=false', 'ItemDoubleClickAction=4',
@@ -212,14 +319,44 @@ function Force-StatusA {
     [NativeShellInput]::ShowWindow([IntPtr]$window.Current.NativeWindowHandle, 9) | Out-Null
     [NativeShellInput]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle) | Out-Null
     $list = By-Id $window 'Repositories'
-    $list.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).GetCurrentSelection()[0].SetFocus()
+    $list.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()[0].SetFocus()
     [NativeShellInput]::Key(0x0d)
 }
 try {
-    $exe = Join-Path $artifacts 'publish/win-x64/SVN_Notifier.exe'
+    $productDirectory = Join-Path $run 'product'
+    New-Item -ItemType Directory -Path $productDirectory | Out-Null
+    $exe = Join-Path $productDirectory 'SVN_Notifier.exe'
+    Copy-Item -LiteralPath (Join-Path $artifacts "publish/$RuntimeIdentifier/SVN_Notifier.exe") -Destination $exe
     $fixtureA = Make-Fixture 'A' $false $false
     $fixtureB = Make-Fixture 'B' $true $true
     $applicationA = Start-Product $exe $fixtureA.Directory
+    if ($Diagnostics) {
+        Wait-Test { $null -ne (By-Id (App-Window $applicationA) 'Repositories') } 'Diagnoseinstanz zeigt ihre Repository-Liste'
+        Wait-Test { @(Contexts $exe $fixtureA.Configuration).Count -gt 0 } 'Diagnoseinstanz hat eine Meldung erzeugt'
+        $handle = [IntPtr](App-Window $applicationA).Current.NativeWindowHandle
+        foreach ($attempt in 1..3) {
+            $foreground = [NativeShellInput]::GetForegroundWindow()
+            Write-Host "Vordergrunddiagnose: own=$handle; foreground=$foreground; foregroundPID=$([NativeShellInput]::WindowProcess($foreground)); foregroundClass=$([NativeShellInput]::WindowClass($foreground)); ownThread=$([NativeShellInput]::WindowThread($handle)); inputThread=$([NativeShellInput]::WindowThread($foreground))"
+            [NativeShellInput]::ShowWindow($handle, 9) | Out-Null
+            $attached = [NativeShellInput]::AttachThreadInput([NativeShellInput]::GetCurrentThreadId(), [NativeShellInput]::WindowThread($foreground), $true)
+            try { Write-Host "SetForegroundWindow=$([NativeShellInput]::SetForegroundWindow($handle)); AttachThreadInput=$attached" }
+            finally { if ($attached) { [NativeShellInput]::AttachThreadInput([NativeShellInput]::GetCurrentThreadId(), [NativeShellInput]::WindowThread($foreground), $false) | Out-Null } }
+            Start-Sleep -Milliseconds 500
+        }
+        foreach ($center in @($false,$true)) {
+            if ($center) { [NativeShellInput]::NotificationCenter(); Start-Sleep -Seconds 1 }
+            foreach ($window in [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)) {
+                $process = Get-Process -Id $window.Current.ProcessId -ErrorAction SilentlyContinue
+                if ($null -eq $process -or $process.ProcessName -notin @('explorer','ShellHost','ShellExperienceHost','StartMenuExperienceHost','SVN_Notifier')) { continue }
+                Write-Host "Shellstruktur: center=$center; process=$($process.ProcessName); class=$($window.Current.ClassName); id=$($window.Current.AutomationId); type=$($window.Current.ControlType.ProgrammaticName); offscreen=$($window.Current.IsOffscreen)"
+                foreach ($element in $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
+                    if ($element.Current.Name.Contains('PRP-Systemtest A')) { Write-Host "Eigener Meldungstreffer: type=$($element.Current.ControlType.ProgrammaticName); class=$($element.Current.ClassName); offscreen=$($element.Current.IsOffscreen); name=$($element.Current.Name)" }
+                }
+            }
+        }
+        [NativeShellInput]::Escape()
+        return
+    }
     Scenario 'Produktstart und eingehende Änderungen' {
         Wait-Test { $null -ne (By-Id (App-Window $applicationA) 'Repositories') } 'Produktive Repository-Liste wird geöffnet'
         Wait-Test { @(Contexts $exe $fixtureA.Configuration | Where-Object Kind -eq 0).Count -gt 0 } 'Eingehende Änderung erzeugt einen eigenen Meldungskontext'
@@ -242,7 +379,7 @@ try {
         $activation = Start-Product $exe $fixtureB.Directory ('--notification ' + $context.Id)
         Check ($activation.WaitForExit(15000) -and $activation.ExitCode -eq 0) 'Aktivierung wird ohne zusätzlichen dauerhaften Prozess weitergeleitet'
         $list = By-Id (App-Window $applicationA) 'Repositories'
-        $selection = $list.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).GetCurrentSelection()
+        $selection = $list.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
         Check ($selection.Count -eq 1) 'Die ursprüngliche Instanz erhält die Auswahl'
         Capture (App-Window $applicationA) 'activation-origin'
     }
@@ -280,7 +417,7 @@ try {
         $withoutInput = if (Test-Path $calls) { @(Get-Content $calls).Count } else { 0 }
         Check ($withoutInput -eq $before) 'Ohne Eingabe läuft bei großem Intervall kein zusätzlicher Statusauftrag'
         $list = By-Id $window 'Repositories'
-        $selected = $list.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).GetCurrentSelection()[0]
+        $selected = $list.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()[0]
         $selected.SetFocus(); [NativeShellInput]::Key(0x0d)
         Wait-Test { (Test-Path $calls) -and @(Get-Content $calls).Count -gt $before } 'Eingabe führt die konfigurierte Aktion Jetzt prüfen aus'
         $selected.SetFocus(); [NativeShellInput]::Key(0x2e)
@@ -306,6 +443,32 @@ try {
             # Ist die eigene Meldung noch sichtbar, blieb die Zentrale offen.
             [NativeShellInput]::Escape()
         }
+    }
+    Scenario 'Echtes Drag-and-drop gemischter Ziele und Ablehnung von Text' {
+        $window = App-Window $applicationA
+        Capture $window 'before-drag-drop'
+        $directory = Join-Path $run 'Drag Ordner ä'
+        $file = Join-Path $run 'Drag Datei ß.txt'
+        New-Item -ItemType Directory -Path $directory | Out-Null
+        'Isolierte Drag-and-drop-Fixture.' | Set-Content -LiteralPath $file
+        $list = By-Id $window 'Repositories'
+        $bounds = $list.Current.BoundingRectangle
+        $source = New-Object NativeDragSource -ArgumentList (,[string[]]@($directory, $file))
+        try {
+            [NativeShellInput]::Drag($source.SourcePoint.X, $source.SourcePoint.Y, [int]($bounds.X + $bounds.Width * 0.7), [int]($bounds.Y + $bounds.Height * 0.7))
+            Wait-Test {
+                $content = Get-Content -LiteralPath $fixtureA.Configuration -Raw
+                $content.Contains($directory) -and $content.Contains($file)
+            } 'Echter OLE-Drop übernimmt sowohl Ordner als auch Datei in die gespeicherte Repository-Liste'
+            Check ($source.Result -eq [System.Windows.Forms.DragDropEffects]::Copy) 'Dragquelle erhält die tatsächlich akzeptierte Kopieroperation'
+        } finally { $source.Dispose() }
+        $before = (Get-FileHash -LiteralPath $fixtureA.Configuration -Algorithm SHA256).Hash
+        $source = New-Object NativeDragSource -ArgumentList (,[string[]]@())
+        try {
+            [NativeShellInput]::Drag($source.SourcePoint.X, $source.SourcePoint.Y, [int]($bounds.X + $bounds.Width * 0.7), [int]($bounds.Y + $bounds.Height * 0.7))
+            Check ($source.Result -eq [System.Windows.Forms.DragDropEffects]::None) 'Ungeeigneter Text-Drop wird als Operation abgewiesen'
+            Check ((Get-FileHash -LiteralPath $fixtureA.Configuration -Algorithm SHA256).Hash -eq $before) 'Abgewiesener Text verändert die Repository-Konfiguration nicht'
+        } finally { $source.Dispose() }
     }
     Scenario 'Eigenes Tray-Symbol, Status und native Menübefehle' {
         try {
@@ -390,7 +553,7 @@ try {
             } 'Windows-Anzeigeeinstellungen sind geöffnet'
             $settingsProcess = $script:displaySettingsProcess; $settingsWindow = App-Window $settingsProcess
             Wait-Test { $null -ne (Display-ScaleCombo $settingsWindow) } 'Aktuelle Windows-Skalierung ist lesbar' 10
-            $original = (Display-ScaleCombo $settingsWindow).GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).GetCurrentSelection()[0].Current.Name
+            $original = (Display-ScaleCombo $settingsWindow).GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()[0].Current.Name
             $originalScale = [int]([regex]::Match($original, '\d+').Value)
             foreach ($scale in @(100,150,200)) { Select-DisplayScale $settingsWindow $scale; Capture (App-Window $applicationA) "product-dpi-$scale" }
         } finally {
@@ -439,13 +602,59 @@ try {
             Capture (App-Window $script:restartedA) 'native-restart-original-config'
         } finally { [NativeShellInput]::Escape() }
     }
+    Scenario 'Abgebrochene und bestätigte Sitzungsbeendigung am eigenen Testfenster' {
+        $fixture = Make-Fixture 'Session' $false $false
+        $session = Start-Product $exe $fixture.Directory
+        Wait-Test { $null -ne (By-Id (App-Window $session) 'Repositories') } 'Eigenes Fenster für die abgegrenzte Sitzungssimulation ist geöffnet'
+        $handle = [IntPtr](App-Window $session).Current.NativeWindowHandle
+        # Nur das eigene HWND erhält Nachrichten; keine Windows-Abmeldung und kein Broadcast.
+        [NativeShellInput]::PostMessage($handle, 0x11, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        [NativeShellInput]::PostMessage($handle, 0x16, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        [NativeShellInput]::PostMessage($handle, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        Wait-Test { -not $session.HasExited -and -not [NativeShellInput]::IsWindowVisible($handle) } 'Abgebrochene Sitzungsbeendigung stellt das gewöhnliche Ausblenden wieder her'
+        [NativeShellInput]::ShowWindow($handle, 9) | Out-Null
+        [NativeShellInput]::PostMessage($handle, 0x11, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        [NativeShellInput]::PostMessage($handle, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        Check ($session.WaitForExit(15000) -and $session.ExitCode -eq 0) 'Bei laufender Sitzungsbeendigung darf das eigene Fenster den Prozess regulär beenden'
+    }
+    Scenario 'Neuer portabler Pfad und native Aktivierung nach Ordnerwechsel' {
+        $fixture = Make-Fixture 'Portable' $false $false
+        $origin = Join-Path $run 'portable-origin'
+        $destination = Join-Path $run 'portable-moved'
+        New-Item -ItemType Directory -Path $origin | Out-Null
+        $oldExe = Join-Path $origin 'SVN_Notifier.exe'
+        Copy-Item -LiteralPath $exe -Destination $oldExe
+        Copy-Item -LiteralPath $fixture.Configuration -Destination (Join-Path $origin 'SVN_Notifier.ini')
+        $old = Start-Product $oldExe $origin
+        Wait-Test { @(Contexts $oldExe (Join-Path $origin 'SVN_Notifier.ini') | Where-Object Kind -eq 0).Count -gt 0 } 'Regulärer Start erzeugt einen Kontext am ursprünglichen portablen Ort'
+        $old.Kill(); Check ($old.WaitForExit(10000)) 'Ursprüngliche portable Testinstanz ist vor dem Verschieben beendet'
+        [IO.Directory]::Move($origin, $destination)
+        $movedExe = Join-Path $destination 'SVN_Notifier.exe'
+        $movedConfig = Join-Path $destination 'SVN_Notifier.ini'
+        $moved = Start-Product $movedExe $destination
+        Wait-Test { @(Contexts $movedExe $movedConfig | Where-Object Kind -eq 0).Count -gt 0 } 'Regulärer Start am neuen Ort erzeugt eine Meldung mit neuer EXE und portabler INI'
+        Check (-not (Test-Path -LiteralPath $oldExe)) 'Der alte EXE-Pfad ist nach dem Verschieben ungültig'
+        Wait-Test { $null -ne (Own-Notification 'PRP-Systemtest Portable') } 'Neue Meldung wird nach dem Ordnerwechsel als Windows-Banner angezeigt' 10
+        $moved.Kill(); Check ($moved.WaitForExit(10000)) 'Verschobene Testinstanz ist vor dem nativen Meldungsklick beendet'
+        Click-OwnNotification (Own-Notification 'PRP-Systemtest Portable')
+        Wait-Test {
+            $script:movedActivation = @(Get-Process SVN_Notifier -ErrorAction SilentlyContinue | Where-Object {
+                -not $_.HasExited -and $_.MainModule.FileName -eq $movedExe
+            }) | Select-Object -First 1
+            $null -ne $script:movedActivation -and $null -ne (By-Id (App-Window $script:movedActivation) 'Repositories')
+        } 'Neue Windows-Meldung startet nach Ordnerwechsel die EXE am neuen Ort'
+        $processes.Add($script:movedActivation)
+        Wait-Test { @(Contexts $movedExe $movedConfig | Where-Object ProcessId -eq $script:movedActivation.Id).Count -gt 0 } 'Aktivierter neuer Prüfer verwendet nachweislich den neuen portablen Konfigurationskontext'
+    }
+    if ($IncludeInstallerChecks) {
+    if (-not $BaselinePackagesDirectory) { throw 'Für sichtbare Alt-zu-Neu-Prüfungen ist ein ausdrücklich geprüftes Baseline-Paketverzeichnis erforderlich.' }
     foreach ($runtime in @('win-x64', 'win-x86')) {
         Scenario "Installeraustausch, Neustart und Gegenproben $runtime" {
             & (Join-Path $PSScriptRoot 'Test-ApplicationUpdater.ps1') -RuntimeIdentifier $runtime -ArtifactsDirectory $artifacts | Out-Host
         }
         Scenario "WinForms-Ausgangspaket auf WinUI aktualisieren $runtime" {
             $fixture = Make-Fixture ('Baseline-' + $runtime) $false $false
-            $baseline = Join-Path (Split-Path $artifacts -Parent) "baseline-results/packages/SVNNotifier-3.0.0.13-$runtime.zip"
+            $baseline = Join-Path $BaselinePackagesDirectory "SVNNotifier-3.0.0.13-$runtime.zip"
             Expand-Archive -LiteralPath $baseline -DestinationPath $fixture.Directory
             $target = Join-Path $fixture.Directory 'SVN_Notifier.exe'
             $original = Start-Product $target $fixture.Directory
@@ -460,8 +669,8 @@ try {
             $ready = New-Object Threading.EventWaitHandle($false, [Threading.EventResetMode]::ManualReset, $readyName)
             try {
                 $plan = @{ TargetPath=$target; WorkingDirectory=$fixture.Directory; ParentId=$original.Id;
-                    ParentStartTicks=$original.StartTime.ToUniversalTime().Ticks; TargetHash=(Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant();
-                    PayloadHash=(Get-FileHash $payload -Algorithm SHA256).Hash.ToLowerInvariant(); Version=[Diagnostics.FileVersionInfo]::GetVersionInfo($payload).FileVersion;
+                    ParentStartTicks=$original.StartTime.ToUniversalTime().Ticks; TargetHash=(Get-FileHash $target -Algorithm SHA256).Hash;
+                    PayloadHash=(Get-FileHash $payload -Algorithm SHA256).Hash; Version=[Diagnostics.FileVersionInfo]::GetVersionInfo($payload).FileVersion;
                     Runtime=$runtime; ReadyEvent=$readyName; Language=1 }
                 $planPath = Join-Path $stage 'update.json'
                 $plan | ConvertTo-Json | Set-Content -LiteralPath $planPath -Encoding UTF8
@@ -495,16 +704,32 @@ try {
             $helper = Start-Product (Join-Path $artifacts "publish/$runtime/SVN_Notifier.exe") $directory ('--apply-update "' + $invalid + '"')
             Wait-Test { $null -ne (App-Window $helper) } 'Produktiver Hilfsmodus meldet die ungültige Übergabe'
             Check (@($helper.Modules | Where-Object ModuleName -in @('Microsoft.UI.Xaml.dll','Microsoft.WindowsAppRuntime.dll')).Count -eq 0) 'Hilfsmodus lädt weder XAML noch die Windows-App-Runtime'
-            $buttons = (App-Window $helper).FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))
-            Check ($buttons.Count -eq 1) 'Ungültige Installerübergabe zeigt eine konkrete Fehlermeldung'
-            $buttons[0].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            $confirm = By-Name (App-Window $helper) 'OK'
+            Check ($null -ne $confirm) 'Ungültige Installerübergabe zeigt eine konkrete Fehlermeldung'
+            $confirm.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             Check ($helper.WaitForExit(10000) -and $helper.ExitCode -eq 1) 'Ungültiger Hilfsstart endet mit Fehlercode'
         }
     }
-} finally {
-    foreach ($process in $processes) {
-        try { if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit() } } finally { $process.Dispose() }
     }
+} finally {
+    # Auch ein durch Windows gestarteter Aktivierungsprozess gehört zum Lauf, falls seine Erkennung zuvor scheiterte.
+    $ownedRoot = [IO.Path]::GetFullPath($run).TrimEnd('\') + '\'
+    foreach ($candidate in @(Get-Process SVN_Notifier -ErrorAction SilentlyContinue)) {
+        try {
+            if (-not $candidate.HasExited -and $candidate.MainModule.FileName.StartsWith($ownedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+                Stop-OwnProduct $candidate
+            }
+        } catch {
+            $failures.Add("Prozessprüfung oder Bereinigung fehlgeschlagen: PID=$($candidate.Id); $($_.Exception.Message)")
+        } finally { $candidate.Dispose() }
+    }
+    foreach ($process in $processes) {
+        try { if (-not $process.HasExited) { Stop-OwnProduct $process } }
+        catch { $failures.Add("Eigene Instanz konnte nicht bereinigt werden: $($_.Exception.Message)") }
+        finally { $process.Dispose() }
+    }
+    $remaining = @(Get-Process SVN_Notifier -ErrorAction SilentlyContinue | Where-Object { -not $_.HasExited -and $_.MainModule.FileName.StartsWith($ownedRoot, [StringComparison]::OrdinalIgnoreCase) })
+    Check ($remaining.Count -eq 0) 'Nach dem Testlauf ist keine eigene Notifier-Instanz mehr aktiv'
     Write-Host "Sichtbare Testsitzung endet: $([DateTime]::UtcNow.ToString('o'))"
     $failures | Set-Content -LiteralPath (Join-Path $run 'failures.txt') -Encoding UTF8
     Stop-Transcript | Out-Null

@@ -44,7 +44,7 @@ internal sealed class WorkingCopyLease : IDisposable
     /// <summary>Reservierungsdateien behalten bis zur geprüften Freigabe dasselbe gegen Ersetzen geschützte Windows-Handle.</summary>
     private static FileStream OpenClaim(string path, bool create)
     {
-        var handle = CreateFileW(path, create ? 0xC0010000u : 0x80010000u, create ? 1u : 0u,
+        var handle = CreateFileW(ExtendedWindowsPath(path), create ? 0xC0010000u : 0x80010000u, create ? 1u : 0u,
             IntPtr.Zero, create ? 1u : 3u, 0x00200000, IntPtr.Zero);
         if (handle.IsInvalid)
         {
@@ -296,7 +296,7 @@ internal sealed class WorkingCopyLease : IDisposable
     /// <summary>Vereinheitlicht auch Junctions, Laufwerksaliase und UNC-Pfade über das geöffnete Verzeichnis.</summary>
     private static string CanonicalWindowsPath(string path)
     {
-        using var handle = CreateFileW(path, 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
+        using var handle = CreateFileW(ExtendedWindowsPath(path), 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
         if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
         var buffer = new StringBuilder(32768);
         uint length = GetFinalPathNameByHandleW(handle, buffer, (uint)buffer.Capacity, 0);
@@ -304,6 +304,15 @@ internal sealed class WorkingCopyLease : IDisposable
         string result = buffer.ToString();
         if (result.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return @"\\" + result[8..];
         return result.StartsWith(@"\\?\", StringComparison.Ordinal) ? result[4..] : result;
+    }
+
+    /// <summary>Native Dateiöffnungen benötigen auch ohne globale Windows-Option die erweiterte Pfadsyntax.</summary>
+    private static string ExtendedWindowsPath(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (fullPath.StartsWith(@"\\?\", StringComparison.Ordinal)) return fullPath;
+        return fullPath.StartsWith(@"\\", StringComparison.Ordinal)
+            ? @"\\?\UNC\" + fullPath[2..] : @"\\?\" + fullPath;
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

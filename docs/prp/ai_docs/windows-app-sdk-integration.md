@@ -1,6 +1,6 @@
 # Windows App SDK: Integrationshinweise für SVN Notifier
 
-Diese Notiz hält die für das PRP kritischen Recherchebefunde fest. Sie ist keine Aussage über eine gebaute oder getestete WinUI-Ausgabe. Geprüft im Rahmen der Analyse am 12.11.2026: Microsoft-Dokumentation, SDK-Quellcode sowie NuGet-Metadaten und Build-Regeln. Bei Implementierung konkrete stabile Paketversion auswählen, erneut gegen deren Inhalt prüfen und durch Windows-Ausführung bestätigen.
+Diese Notiz verbindet die für das PRP kritischen Recherchebefunde mit den Windows-Prüfungen vom 12.11.2026. Die Implementierung verwendet `Microsoft.WindowsAppSDK` Version `2.6.5` und .NET SDK `10.0.114`. Einzelne Laufzeitnachweise sind weiterhin offen; maßgeblich ist der [Umsetzungsstand](../winui-native-benachrichtigungen/03-umsetzungsstand.md).
 
 ## Benachrichtigungen und UI sind unabhängige Bausteine
 
@@ -32,7 +32,7 @@ Quellen: [App notifications in .NET](https://learn.microsoft.com/en-us/windows/a
 
 Microsofts Dokumentationsseiten enthielten bei der Recherche unterschiedliche Aussagen zur Einzel-EXE. Deshalb wurde zusätzlich das öffentlich ausgelieferte NuGet-Paket geprüft. Die Paketdateien wurden nur im Arbeitsspeicher gelesen, nicht installiert.
 
-Geprüfter Paketinhalt: `Microsoft.WindowsAppSDK.Base` Version `2.6.5`, Datei `build/Microsoft.WindowsAppSDK.SingleFile.targets`; gleicher Inhalt unter `buildTransitive`. Diese konkrete Prüfung belegt die vorgesehenen Build-Bedingungen, keinen erfolgreichen Notifier-Build und keine Empfehlung, ungeprüft genau diese Version zu übernehmen.
+Geprüfter Paketinhalt: `Microsoft.WindowsAppSDK.Base` Version `2.6.5`, Datei `build/Microsoft.WindowsAppSDK.SingleFile.targets`; gleicher Inhalt unter `buildTransitive`. Die tatsächlichen x64-/x86-Paketbuilds und EXE-Austausche sind zusätzlich unter `integration-validation.log` mit Exit-Code 0 nachgewiesen.
 
 | Property | Befund der geprüften Build-Regeln |
 |---|---|
@@ -46,11 +46,19 @@ Geprüfter Paketinhalt: `Microsoft.WindowsAppSDK.Base` Version `2.6.5`, Datei `b
 
 Nicht mit `WindowsAppSDKSingleFileVerifyConfiguration=false` die Prüfung abschalten, um ein ungeklärtes Auslieferungsproblem zu verdecken. Die tatsächliche Ressourcenentpackung, der Start ohne vorinstallierte Laufzeiten und die Hilfsmodi sind auf beiden Architekturen nachzuweisen.
 
+`IncludeAllContentForSelfExtract=true` entpackt auch verwaltete Assemblies. Die ursprüngliche Prüfung auf einen leeren `Assembly.Location` lehnt deshalb die gebündelte WinUI-Anwendung als nicht portabel ab. `portable-gui-contract.log` reproduziert diesen Fehler. Die Implementierung prüft den Bundlemarker der tatsächlich laufenden EXE einschließlich gültigem Headeroffset. Das entspricht dem Format in [Microsoft.NET.HostModel.Bundle.Bundler für .NET 10](https://github.com/dotnet/runtime/blob/v10.0.0/src/installer/managed/Microsoft.NET.HostModel/Bundle/Bundler.cs). Ein nur erfolgreicher Austausch durch den separaten Installertreiber beweist die Aktualisierbarkeit aus der WinUI-Ansicht nicht; deren Download-, Fehler- und Abbruchpfade werden zusätzlich ausgeführt.
+
 Bei manuell verzögerter Initialisierung verlangt der Quellcode von `Microsoft.WindowsAppSDK.Foundation/2.6.5/include/UndockedRegFreeWinRT-AutoInitializer.cs` zusätzlich `MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY_PID` mit der aktuellen Prozess-ID in invariantem Zahlenformat. Damit übernimmt ein Kindprozess nicht versehentlich das Ressourcenverzeichnis seines Elternprozesses. Beide Werte vor dem Zugriff auf die SDK-Laufzeit setzen. Der aktuelle x64-Ansichtslauf `gui-check-application-definition.log` erreicht damit die Repository-Liste und Befehlsprüfungen; dies ist kein Nachweis für sauberes Windows oder native Shellzustellung.
 
 Primärquellen: [Unverpackte Auslieferung und Single-file EXE](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/unpackage-winui-app#single-file-exe), [Projektproperties](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/project-properties), [geprüftes NuGet-Paket](https://www.nuget.org/packages/Microsoft.WindowsAppSDK.Base/2.6.5).
 
 ## WinUI-Controls und Gestaltung
+
+Native Dateiöffnungen für die Arbeitskopiereservierung erhalten am Win32-Aufruf die erweiterte Windows-Pfadsyntax, einschließlich `\\?\UNC\` für UNC-Ziele. Verglichene und gespeicherte Arbeitskopiepfade bleiben unverändert. Der GUI-Lauf `gui-download-clean.log` reproduziert bei einer langen Testarbeitskopie `coordination-error:Win32Exception`; `gui-long-path-current.log` besteht danach denselben Befehlsablauf und alle zehn GUI-Gegenproben. Der anschließende Versuch, dasselbe SVN-Testverzeichnis erneut zu benutzen, wird vom Teststarter ausdrücklich abgewiesen. `lease-verified.log` verwendet neue Verzeichnisse und belegt 347 x64-Prüfungen einschließlich echtem SVN/TortoiseSVN und Reservierung, Konkurrenzschutz sowie erneuter Freigabe jenseits von 260 Zeichen. Quelle: [CreateFileW und erweiterte Pfade](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew).
+
+Für sichtbare Shelltests ist eine entsperrte Windows-Sitzung erforderlich. Im Lauf `portable-contract-clean/native-shell/1baccb747a424db6897a45f86226d193/test.log` lehnt Windows Vordergrundwechsel und Eingabekopplung ab; die gezielte Prozessprüfung `input-session-current.txt` identifiziert `LockApp` im Vordergrund. API-Annahme einer Meldung ist in diesem Zustand kein Nachweis eines sichtbaren Banners. Der sichtbare Starter weist die Sperroberfläche vor Prozessstart ab und beendet eigene Instanzen, falls die Sitzung während des Laufs gesperrt wird.
+
+`AppWindow.IsShownInSwitchers` benötigt in dieser Umgebung die Windows-Shell. Der tatsächliche Einstellungsdialog scheitert auf dem eigens angelegten inaktiven Desktop beim SDK-Aufruf `SetShownInSwitchers`. Derselbe Dialog besteht auf `Default` die Übernahme einschließlich Taskleistensichtbarkeit: `shell-settings-matrix.log` und `shell-settings-matrix-x86.log`, je viermal 497 GUI-Prüfungen und 17 erkannte Gegenproben, Exit-Code 0. Deshalb wird dieser Teil ausdrücklich mit `Test-Gui.ps1 -IncludeShellSettings` auf einem erlaubten Shell-Desktop geprüft; der Produktpfad bleibt unverändert. Programmgesteuerte eigene Dialogbedienung belegt keine Eingabefunktion auf einer gesperrten Sitzung.
 
 - Die aktuelle Microsoft-Zuordnung nennt für WinForms `DataGridView` keinen direkten stabilen WinUI-Ersatz. Für die Repository-Liste ist eine passende native Listenansicht mit Spalten und den bisherigen Interaktionen vorgesehen; experimentelle Tabellencontrols sind keine Voraussetzung.
 - Windows App SDK enthält keinen eigenen Tray-Control-Ersatz für `NotifyIcon`. Die Shell-Integration muss ausdrücklich erhalten werden.
@@ -60,4 +68,6 @@ Quellen: [WinForms-Patterns und WinUI-Entsprechungen](https://learn.microsoft.co
 
 ## Noch zu erbringende Laufzeitnachweise
 
-Einzel-EXE auf sauberem Windows, x86/x64, Alt-zu-Neu-Update mit unverändertem Paketvertrag, korrekte Versionsquelle, keine normale Initialisierung im Installer, echte Benachrichtigungsaktivierung vor/nach Programmende, verschobener Programmordner, mehrere Instanzen und Konfigurationen, Benachrichtigungsdauer und erhöhter Betrieb. Diese Punkte sind ausdrücklich keine bei PRP-Erstellung bestandenen Tests.
+Einzel-EXE auf sauberem Windows, echte Benachrichtigungsaktivierung aus Banner und Historie vor/nach Programmende, neue Shellzustellung nach Verschieben des Programmordners sowie Windows-Einstellungen und Nicht stören bleiben offen. `start-modes-modules.log` belegt für x64/x86 die richtige Konfiguration beim Modus `start`, eigene extrahierte Laufzeitmodule und den ungültigen Installerstart ohne XAML-/App-Runtime-Initialisierung. `legacy-transition.log` belegt den tatsächlichen WinForms-zu-WinUI-Austausch mit erhaltenen Einstellungen und Stagingbereinigung. Beide Läufe enden mit Exit-Code 0.
+
+Benutzerentscheidungen: Windows steuert die Banneranzeigedauer; normaler Betrieb ohne Administratorrechte genügt; Windows 10 1809 ist das Mindestziel. Alte Meldungen dürfen nach dem Verschieben des portablen Ordners ungültig werden, neue Meldungen müssen nach regulärem Start am neuen Ort wieder funktionieren. Diese Entscheidungen ersetzen keinen tatsächlichen Laufzeitnachweis.

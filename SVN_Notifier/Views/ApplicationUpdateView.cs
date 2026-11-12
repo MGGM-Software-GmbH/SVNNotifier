@@ -15,9 +15,9 @@ public sealed class ApplicationUpdateView : UserControl
     /// <summary>Download bleibt abbrechbar; die bestätigte Übergabe wartet auf eigene SVN-Prozesse.</summary>
     internal ApplicationUpdateView(ApplicationUpdater updater, ApplicationRelease release, Func<PreparedApplicationUpdate, Task> apply)
     {
-        var panel = new StackPanel { Spacing = 12 };
+        var panel = new StackPanel { Spacing = 16 };
         panel.Children.Add(new TextBlock { Text = Loc.AppUpdate_Current(ApplicationUpdater.CurrentVersion.ToString()), TextWrapping = TextWrapping.Wrap });
-        panel.Children.Add(new TextBlock { Text = Loc.AppUpdate_Available(release.Version.ToString()), TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = Loc.AppUpdate_Available(release.Version.ToString()), TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         panel.Children.Add(new HyperlinkButton { Content = Loc.AppUpdate_Notes, NavigateUri = release.PageUrl, HorizontalAlignment = HorizontalAlignment.Left });
         panel.Children.Add(state); panel.Children.Add(progress);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };

@@ -20,13 +20,27 @@ internal sealed class WindowService
             owner.ShowWindow();
             var dialog = new ContentDialog
             {
-                Title = title, Content = content, PrimaryButtonText = primary.Replace("&", ""),
+                Title = new TextBlock { Text = title, Tag = "Typography.Title", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                Content = content, PrimaryButtonText = primary.Replace("&", ""),
                 CloseButtonText = close.Length == 0 ? Loc.PF_Btn_Cancel : close.Replace("&", ""),
                 DefaultButton = primary.Length > 0 ? ContentDialogButton.Primary : ContentDialogButton.Close,
                 XamlRoot = owner.RootElement.XamlRoot, RequestedTheme = owner.RootElement.ActualTheme,
                 FontFamily = new FontFamily(Config.FontFamily), FontSize = Config.FontSize * 96d / 72d
             };
-            dialog.Resources["ContentDialogMaxWidth"] = Math.Max(320, Math.Min(900, owner.RootElement.ActualWidth - 24));
+            // Die Inhaltsart bestimmt die Dialogbreite; kurze Dialoge erhalten keine breite leere Formularfläche.
+            double preferredWidth = content switch
+            {
+                SettingsView => 720,
+                RepositoryPropertiesView => 620,
+                ErrorLogView => 680,
+                UpdateLogView => 760,
+                AboutView => 520,
+                ApplicationUpdateView => 460,
+                _ => 460
+            };
+            double width = Math.Max(280, Math.Min(preferredWidth * Math.Max(1, Config.FontSize / 12d), owner.RootElement.ActualWidth - 48));
+            dialog.Resources["ContentDialogMinWidth"] = width;
+            dialog.Resources["ContentDialogMaxWidth"] = width;
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(dialog, content.GetType().Name + "Dialog");
             dialog.Resources["ContentDialogMaxHeight"] = Math.Max(240, owner.RootElement.ActualHeight - 32);
             var buttonStyle = new Style(typeof(Button));

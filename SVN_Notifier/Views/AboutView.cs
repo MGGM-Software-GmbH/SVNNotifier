@@ -8,7 +8,7 @@ public sealed class AboutView : UserControl
     internal AboutView()
     {
         var panel = new StackPanel { Spacing = 12 };
-        panel.Children.Add(new TextBlock { Text = "SVN Notifier " + ApplicationUpdater.CurrentVersion, FontSize = 24 });
+        panel.Children.Add(new TextBlock { Text = "SVN Notifier " + ApplicationUpdater.CurrentVersion, Tag = "Typography.Title", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         panel.Children.Add(new TextBlock { Text = "Copyright (C) 2007-2011 CHD\nv1/v2: Vlad Rudenko, A. Vaschenko, N. Nahimov | v3: MGGM-Software", TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(new TextBlock { Text = Loc.AF_Description, TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(new HyperlinkButton { Content = "www.chd.lv", NavigateUri = new Uri("http://www.chd.lv"), HorizontalAlignment = HorizontalAlignment.Left });

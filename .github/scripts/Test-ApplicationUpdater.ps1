@@ -35,7 +35,7 @@ foreach ($scenario in @('valid', 'tampered', 'invalid')) {
     Copy-Item -LiteralPath (Join-Path $driverPath 'SVN_Notifier.exe') -Destination $targetPath
     $originalHash = (Get-FileHash -LiteralPath $targetPath -Algorithm SHA256).Hash
     $configPath = Join-Path $testPath 'SVN_Notifier.ini'
-    @('[Settings]', 'Version=1.9', 'Language=0', 'CheckForNewVersion=false', 'SVN_path=missing-svn.exe', 'TortoiseSVN_path=missing-tortoise.exe', '[Folders]', 'Folder1=isolated-test-fixture') |
+    @('[Settings]', 'Version=1.9', 'Language=0', 'CheckForNewVersion=false', 'SVN_path=missing-svn.exe', 'TortoiseSVN_path=missing-tortoise.exe', '[Folders]', ('Folder1=' + (Join-Path $testPath 'isolated-test-fixture') + '|-1|-1|False|0|True')) |
         Set-Content -LiteralPath $configPath -Encoding ascii
     $configHash = (Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash
     $mode = switch ($scenario) { 'valid' { '--install-payload' } 'tampered' { '--install-payload-tampered' } 'invalid' { '--install-payload-invalid' } }

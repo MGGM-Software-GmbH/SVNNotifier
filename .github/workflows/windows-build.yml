@@ -87,6 +87,11 @@ jobs:
         env:
           RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
         run: ./.github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER
+      - name: Startmodi und eingebettete Laufzeit prüfen
+        shell: powershell
+        env:
+          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
+        run: ./.github/scripts/Test-StartModes.ps1 -RuntimeIdentifier $env:RUNTIME_IDENTIFIER -ArtifactsDirectory artifacts
       - name: Oberfläche und bestehende Bedienfunktionen prüfen
         shell: powershell
         env:

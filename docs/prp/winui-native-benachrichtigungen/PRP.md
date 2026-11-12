@@ -93,8 +93,8 @@ Diese Punkte sind erforderliche Untersuchungen, keine bereits bestätigten Eigen
 | K-01 | Benutzerentscheidung: Windows steuert die Banneranzeigedauer. Die bisherige Sekunden-Einstellung wird in der WinUI-Oberfläche durch einen Zugang zu den Windows-Benachrichtigungseinstellungen ersetzt. Vorhandene INI-Werte einschließlich Migrationsregeln bleiben erhalten; keine Umdeutung als Ablaufzeit der Benachrichtigungszentrale. Die Wirkung der Windows-Einstellungen getrennt von der Historie prüfen. |
 | K-02 | Benutzerentscheidung: Normaler Betrieb ohne Administratorrechte ist ausreichend. Die WinUI-Anwendung benötigt keinen erhöhten Benachrichtigungsprozess. Einen erhöhten Start mit einer konkreten Meldung ablehnen, statt Benachrichtigungen still abzuschalten oder auf Balloons auszuweichen. |
 | K-03 | Einzel-EXE-Auslieferung ist in den geprüften SDK-Buildregeln vorgesehen. Tatsächlichen Start, COM-Aktivierung, Ressourcenauflösung und EXE-Austausch mit der konkret ausgewählten SDK-Version und beiden Architekturen nachweisen. Kein Paketformatwechsel als verdeckte Umgehung. |
-| K-04 | Unterstützte Windows-Versionen des Ausgangsprodukts und der ausgewählten .NET-/SDK-Kombination feststellen. Die Gestaltung ist an aktuellen Windows-Oberflächen orientiert; daraus folgt keine Freigabe, bisher unterstützte Systeme auszuschließen. |
-| K-05 | Registrierung einer Benachrichtigungsaktivierung verweist auf eine konkrete EXE. Mehrere Instanzen, verschobene portable Ordner, Installerkopien und Arbeitsverzeichnisse dürfen weder eine falsche Konfiguration öffnen noch parallele Hintergrundprüfer erzeugen. |
+| K-04 | Benutzerentscheidung: Windows 10 Version 1809 oder neuer ist als Mindestversion des WinUI-Branches freigegeben. Der Projektvertrag setzt mindestens Build 17763 voraus. Tatsächliche Laufzeitnachweise getrennt von der dokumentierten Plattformunterstützung führen. |
+| K-05 | Benutzerentscheidung: Vor einem Verschieben des portablen Ordners erzeugte Meldungen dürfen ungültig werden, weil Windows auf den bisherigen EXE-Pfad verweist. Nach dem regulären Start am neuen Ort müssen neue Meldungen zum neuen Pfad und richtigen Konfigurationskontext gehören. Kein dauerhaft installierter Starthelfer. Mehrere Instanzen, Installerkopien und Arbeitsverzeichnisse dürfen weder eine falsche Konfiguration öffnen noch parallele Hintergrundprüfer erzeugen. |
 
 Wenn ein Punkt nicht erfüllbar ist, die übrigen unabhängigen Arbeiten fortführen und die konkrete verbleibende Entscheidung benennen. Anforderungen nicht nachträglich für optional erklären. Eine nicht auflösbare Abweichung blockiert den Merge.
 
@@ -149,23 +149,26 @@ tests/{Gui.Tests,Svn.Tests,Updater.Tests}/
 docs/SVN-Koordination.md
 ```
 
-### Gewünschter Codebasis-Baum mit neu anzulegenden Dateien und deren Verantwortung
+### Codebasis und Verantwortung
 
-Die folgenden Namen sind geplante interne Einheiten, keine bereits vorhandenen APIs. Notwendige Grenzen umsetzen, keine zusätzliche Schichtenhierarchie für einzelne Getter einführen.
+Die Implementierung bündelt die Aktivierungszuordnung im Benachrichtigungsdienst. Die Ablaufsteuerung bleibt im UI-freien Kern. Keine zusätzliche Schichtenhierarchie für einzelne Getter einführen.
 
 ```text
 SVN_Notifier.Core/
   SVN_Notifier.Core.csproj            # UI-freie Klassenbibliothek für geteilten Code
+  ApplicationCoordinator.cs          # Polling und Übergang zu SVN/Programmupdates
+  NotificationContext.cs             # Stabile Meldungsziele und Konfigurationen
 SVN_Notifier/
   SVN_Notifier.csproj                 # WinUI-EXE, bisheriger EXE-Name/Versionsvertrag
   Program.cs, App.xaml, App.xaml.cs   # Moduserkennung, Initialisierung, Lebenszyklus
   MainWindow.xaml, MainWindow.xaml.cs
-  Views/{Settings,RepositoryProperties,ErrorLog,UpdateLog,About,ApplicationUpdate}View.xaml
-  ViewModels/                        # Nur für Ansichten mit relevantem Zustand
-  Services/ApplicationCoordinator.cs # Polling und Übergang zu SVN/Programmupdates
-  Services/NotificationService.cs    # Typisierte native Benachrichtigungen
+  ViewResources.xaml                 # Gemeinsame Theme-Ressourcen
+  Views/SettingsView.xaml            # Einstellungen mit Code-behind
+  Views/RepositoryPropertiesView.xaml # Repository-Eigenschaften mit Code-behind
+  Views/RepositoryStatusView.xaml    # Statusanzeige mit Theme-Ressourcen
+  Views/{ErrorLog,UpdateLog,About,ApplicationUpdate}View.cs
+  Services/NotificationService.cs    # Meldungen und Klick-/Instanzzuordnung
   Services/TrayService.cs            # Shell-Tray, native Menüs, Wiederherstellung
-  Services/ActivationRouter.cs       # Klickziel, Instanz-/Konfigurationszuordnung
   Services/WindowService.cs          # Fenster, Dialogbesitzer, Aktivierung
   Common/                            # Bestehender Quellcode bleibt maßgeblich
 tests/{Gui.Tests,Svn.Tests,Updater.Tests}/
@@ -222,7 +225,7 @@ tests/{Gui.Tests,Svn.Tests,Updater.Tests}/
 | `UpdateLogForm.cs:89`, `ErrorLogForm.cs:49` | Ergebniszeilen, Konflikte, Fehlerpuffer und Leeren | `UpdateLogView`, `ErrorLogView` | L-01 bis L-04, T-05 |
 | `ApplicationUpdateForm.cs`, `MainForm.ApplicationUpdates.cs` | Download-/Installationsablauf einschließlich Abbruch | `ApplicationUpdateView`, Coordinator | U-01 bis U-09, T-09 |
 | `MainForm.cs:651`, `MainForm.Designer.cs:134` | Tray-Klick, Tray-Menü, Fensterverbergen | `TrayService`, `WindowService` | W-01 bis W-05, T-06 |
-| Drei `ShowBalloonTip`-Aufrufe | Drei Benachrichtigungstypen, eigene Ziele und Historie | `NotificationService`, `ActivationRouter` | N-01 bis N-08, T-10 |
+| Drei `ShowBalloonTip`-Aufrufe | Drei Benachrichtigungstypen, eigene Ziele und Historie | `NotificationService`, `NotificationContextStore` | N-01 bis N-08, T-10 |
 | Benutzerauftrag und WinUI-Theme-Dokumentation | Moderne Gestaltung, Hell/Dunkel/Kontrast, lesbare Dichte | XAML-Ressourcen und alle sieben Ansichten | T-12, aktuelle Screenshots tatsächlich ansehen |
 | `Loc.cs`, `Config.FontFamily`, `Config.FontSize` | Deutsche/englische UI und konfigurierbare Schrift | Bestehende Texte und gemeinsame Ressourcen | S-09, T-12 |
 
@@ -238,7 +241,7 @@ UI-freien Kern mit denselben SVN-/INI-Regeln aufbauen
 ApplicationCoordinator übernimmt bisherige Abläufe aus MainForm
 UI-Commands rufen Coordinator und vorhandene SvnTools-Einstiegspunkte auf
 NotificationService empfängt fachliche Ereignisse und erzeugt native Meldungen
-ActivationRouter ordnet einen Klick dem richtigen Eintrag und Prozess zu
+NotificationService ordnet einen Klick dem richtigen Eintrag und Prozess zu
 Beenden/Installieren durchlaufen die vorhandenen unterschiedlichen Stoppregeln
 ```
 

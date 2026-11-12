@@ -16,9 +16,11 @@ public sealed partial class SettingsView : UserControl
         this.owner = owner;
         InitializeComponent();
         var general = AddTab(Loc.SF_Tab_General);
-        PathField(general, nameof(Config.SVNpath), Loc.SF_Label_SvnPath);
-        PathField(general, nameof(Config.TortoiseSVNpath), Loc.SF_Label_TortoisePath);
-        Choice(general, nameof(Config.ItemDoubleClickAction), Loc.SF_Label_DblClick,
+        var clients = Section(general, "Subversion");
+        PathField(clients, nameof(Config.SVNpath), Loc.SF_Label_SvnPath);
+        PathField(clients, nameof(Config.TortoiseSVNpath), Loc.SF_Label_TortoisePath);
+        var behavior = Section(general, Config.Language == 1 ? "Bedienung und Start" : "Behavior and startup");
+        Choice(behavior, nameof(Config.ItemDoubleClickAction), Loc.SF_Label_DblClick,
             new[] { Loc.SF_DblClick_Open, Loc.SF_DblClick_Log, Loc.SF_DblClick_Update, Loc.SF_DblClick_Commit, Loc.SF_DblClick_Check });
         var notifications = new Button { Content = Config.Language == 1 ? "Windows-Benachrichtigungseinstellungen" : "Windows notification settings" };
         notifications.Click += (_, _) =>
@@ -26,15 +28,14 @@ public sealed partial class SettingsView : UserControl
             try { Process.Start(new ProcessStartInfo("ms-settings:notifications") { UseShellExecute = true }); }
             catch (Exception exception) { ShowError(exception.Message); }
         };
-        general.Children.Add(notifications);
-        Toggle(general, nameof(Config.HideOnStartup), Loc.SF_Chk_HideOnStart);
-        Toggle(general, nameof(Config.ShowInTaskbar), Loc.SF_Chk_ShowTaskbar);
-        Toggle(general, nameof(Config.CheckForNewVersion), Loc.SF_Chk_CheckVersion);
-        var typography = new StackPanel { Spacing = 12 };
+        behavior.Children.Add(notifications);
+        Toggle(behavior, nameof(Config.HideOnStartup), Loc.SF_Chk_HideOnStart);
+        Toggle(behavior, nameof(Config.ShowInTaskbar), Loc.SF_Chk_ShowTaskbar);
+        Toggle(behavior, nameof(Config.CheckForNewVersion), Loc.SF_Chk_CheckVersion);
+        var typography = Section(general, Config.Language == 1 ? "Darstellung" : "Appearance");
         Choice(typography, nameof(Config.Language), Loc.SF_Label_Language, new[] { "English", "Deutsch" });
         Text(typography, nameof(Config.FontFamily), Loc.SF_Label_Font);
         Number(typography, nameof(Config.FontSize), Loc.SF_Label_FontSize, 6, 72, false);
-        general.Children.Add(typography);
         var status = AddTab(Loc.SF_Tab_Status);
         Number(status, nameof(Config.DefaultActiveStatusUpdateInterval), Seconds(Loc.SF_Label_Active), 0, 359999);
         Number(status, nameof(Config.DefaultIdleStatusUpdateInterval), Seconds(Loc.SF_Label_Inactive), 0, 359999);
@@ -54,7 +55,19 @@ public sealed partial class SettingsView : UserControl
             : new[] { "Do not close", "Close if no errors", "Close if no errors or conflicts", "Close if no errors, conflicts or merges", "Close for local operations if no errors, conflicts or merges" });
     }
 
-    private static string Seconds(string label) => label.TrimEnd(':') + " (" + Loc.SF_Label_Seconds.ToLowerInvariant() + ")";
+    private static string Seconds(string label) => label.TrimEnd(':') + " (" + Loc.SF_Label_Seconds + ")";
+
+    /// <summary>Fasst zusammengehörige Optionen zusammen, ohne zusätzliche Bedienseiten einzuführen.</summary>
+    private static StackPanel Section(StackPanel parent, string title)
+    {
+        var fields = new StackPanel { Spacing = 12 };
+        fields.Children.Add(new TextBlock { Text = title, Tag = "Typography.Section", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        var border = new Border { Child = fields };
+        border.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("ms-appx:///ViewResources.xaml") });
+        border.Style = (Style)border.Resources["SettingsSectionStyle"];
+        parent.Children.Add(border);
+        return fields;
+    }
     private static FieldInfo Field(string name) => typeof(Config).GetField(name, BindingFlags.Public | BindingFlags.Static)
         ?? throw new InvalidOperationException("Unbekannte Einstellung: " + name);
 

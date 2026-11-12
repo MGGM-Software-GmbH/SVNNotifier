@@ -24,7 +24,7 @@ public sealed partial class MainWindow : Window
     private readonly bool shellIntegration;
     private TrayService? tray;
     private NotificationService? notifications;
-    private bool exiting, checkingUpdate, initializing = true;
+    private bool exiting, checkingUpdate, sessionEnding, initializing = true;
     private Version? announcedVersion;
     internal FrameworkElement RootElement => Root;
     internal ApplicationCoordinator Coordinator => coordinator;
@@ -52,8 +52,11 @@ public sealed partial class MainWindow : Window
         ApplyFonts();
         RefreshRepositories();
         int[] size = Config.ReadMainFormSize();
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Max(760, size[0] > 0 ? size[0] : 1040), Math.Max(360, size[1] > 0 ? size[1] : 560)));
-        AppWindow.Closing += (_, args) => { if (!exiting) { args.Cancel = true; AppWindow.Hide(); } };
+        var workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        int width = Math.Clamp(size[0] > 0 ? size[0] : 1040, Math.Min(760, workArea.Width), workArea.Width);
+        int height = Math.Clamp(size[1] > 0 ? size[1] : 560, Math.Min(360, workArea.Height), workArea.Height);
+        AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(workArea.X + (workArea.Width - width) / 2, workArea.Y + (workArea.Height - height) / 2, width, height));
+        AppWindow.Closing += (_, args) => { if (!exiting && !sessionEnding) { args.Cancel = true; AppWindow.Hide(); } };
         AppWindow.Changed += (_, args) =>
         {
             if (args.DidSizeChange && !initializing && AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
@@ -62,9 +65,10 @@ public sealed partial class MainWindow : Window
         Activated += (_, args) => coordinator.Active = args.WindowActivationState != WindowActivationState.Deactivated;
         Root.KeyDown += (_, args) => { if (args.Key == VirtualKey.Escape) { AppWindow.Hide(); args.Handled = true; } };
         Root.Loaded += async (_, _) => { ApplyFonts(); await RunAsync(InitializeAsync); };
+        Commands.Loaded += (_, _) => AlignRepositoryCommands(Commands);
         pollTimer.Tick += async (_, _) => await RunAsync(() => coordinator.PollAsync());
         updateTimer.Tick += async (_, _) => await RunAsync(() => CheckApplicationUpdateAsync(false));
-        Closed += (_, _) => { cancellation.Cancel(); updateClient.Dispose(); coordinator.Dispose(); };
+        Closed += (_, _) => { cancellation.Cancel(); tray?.Dispose(); updateClient.Dispose(); coordinator.Dispose(); };
     }
 
     private async Task InitializeAsync()
@@ -72,19 +76,19 @@ public sealed partial class MainWindow : Window
         if (!initializing) return;
         initializing = false;
         if (!shellIntegration) return;
+        if (!Config.IsSettingsOK()) await ShowSettingsAsync();
+        if (!Config.IsSettingsOK()) { await ExitAsync(); return; }
         tray = new TrayService(Handle);
         tray.ShowRequested += ShowWindow;
         tray.UpdateAllRequested += () => _ = RunAsync(coordinator.UpdateAllAsync);
         tray.ExitRequested += () => _ = RunAsync(ExitAsync);
-        tray.SessionEnding += ending => coordinator.Suspended = ending;
+        tray.SessionEnding += SetSessionEnding;
         tray.Suspended += suspended => { if (suspended) coordinator.Suspended = true; else coordinator.Resume(); };
         notifications = NotificationService.Current ?? throw new InvalidOperationException("Benachrichtigungsregistrierung fehlt.");
         notifications.Failure += message => _ = RunAsync(() => windows.ErrorAsync(message));
         coordinator.NotificationRequested += notifications.Show;
         notifications.Attach(DispatcherQueue, ActivateNotificationAsync);
         AppWindow.IsShownInSwitchers = Config.ShowInTaskbar;
-        if (!Config.IsSettingsOK()) await ShowSettingsAsync();
-        if (!Config.IsSettingsOK()) { await ExitAsync(); return; }
         RefreshRepositories();
         pollTimer.Start();
         updateTimer.Start();
@@ -97,6 +101,13 @@ public sealed partial class MainWindow : Window
         AppWindow.Show();
         if (AppWindow.Presenter is OverlappedPresenter presenter) presenter.Restore();
         Activate();
+    }
+
+    /// <summary>Eine bestätigte Windows-Abmeldung darf nicht durch das gewöhnliche Ausblenden verhindert werden.</summary>
+    internal void SetSessionEnding(bool ending)
+    {
+        sessionEnding = ending;
+        coordinator.Suspended = ending;
     }
 
     private async Task RunAsync(Func<Task> action)
@@ -137,18 +148,31 @@ public sealed partial class MainWindow : Window
         var row = (Grid)sender; Typography.Apply(row); SizeRepositoryColumns(row);
     }
 
+    /// <summary>Die Aktionsleiste beginnt direkt am Listenrand, ohne den leeren Inhaltsbereich der SDK-Vorlage.</summary>
+    private static void AlignRepositoryCommands(DependencyObject element)
+    {
+        if (element is ItemsControl { Name: "PrimaryItemsControl" } commands && VisualTreeHelper.GetParent(commands) is Grid host && host.ColumnDefinitions.Count == 2)
+        {
+            host.ColumnDefinitions[0].Width = new GridLength(0);
+            host.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+            commands.HorizontalAlignment = HorizontalAlignment.Left;
+        }
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(element); index++) AlignRepositoryCommands(VisualTreeHelper.GetChild(element, index));
+    }
+
     /// <summary>Gibt Status und Spaltenköpfen auch mit großer Benutzerschrift Platz; der Pfad nutzt den verbleibenden Raum.</summary>
     private static void SizeRepositoryColumns(Grid row)
     {
         double size = Config.FontSize * 96d / 72d;
-        row.ColumnDefinitions[0].Width = new GridLength(Math.Max(80, size * 4));
-        row.ColumnDefinitions[2].Width = new GridLength(Math.Max(160, size * 7));
-        row.ColumnDefinitions[4].Width = new GridLength(Math.Max(110, size * 5.5));
+        row.ColumnDefinitions[0].Width = new GridLength(Math.Max(64, size * 3.3));
+        row.ColumnDefinitions[2].Width = new GridLength(Math.Max(120, size * 7));
+        row.ColumnDefinitions[4].Width = new GridLength(Math.Max(92, size * 6.4));
     }
 
     private void BuildCommands()
     {
         commandControls.Clear(); Menus.Items.Clear(); Commands.PrimaryCommands.Clear(); Commands.SecondaryCommands.Clear();
+        RepositoryTitle.Text = "Repositories";
         var file = new MenuBarItem { Title = Label(Loc.Menu_File), AccessKey = MenuKey(Loc.Menu_File) };
         AddMenu(file.Items, "AddFolder", Loc.Menu_AddFolder, AddFolderAsync);
         AddMenu(file.Items, "AddFile", Loc.Menu_AddFile, AddFileAsync);
@@ -193,6 +217,12 @@ public sealed partial class MainWindow : Window
     private void AddButton(string name, string text, Symbol symbol, Func<Task> action)
     {
         var button = new AppBarButton { Label = Label(text), Icon = new SymbolIcon(symbol) };
+        if (name == "AddFolder")
+        {
+            button.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("ms-appx:///ViewResources.xaml") });
+            button.CornerRadius = new CornerRadius(4);
+            button.Margin = new Thickness(0, 0, 8, 0);
+        }
         button.Loaded += (_, _) => Typography.Apply(button);
         Track(name, button); button.Click += async (_, _) => await RunAsync(action); Commands.PrimaryCommands.Add(button);
     }
@@ -226,11 +256,7 @@ public sealed partial class MainWindow : Window
         {
             bool enabled = pair.Key switch
             {
-                "Remove" or "Cleanup" or "Properties" or "CheckNow" => Selected is not null,
-                "Open" => Selected is not null && (Directory.Exists(Selected.Path) || File.Exists(Selected.Path)),
-                "Update" or "ChangeLog" => Selected is not null && ApplicationCoordinator.NeedsUpdate(Selected),
-                "Commit" => Selected?.Status is SvnStatus.NeedUpdate_Modified or SvnStatus.UpToDate_Modified,
-                "Log" => Selected is not null && Selected.Status is not (SvnStatus.Unknown or SvnStatus.Error),
+                "Remove" or "Cleanup" or "Properties" or "CheckNow" or "Open" or "Update" or "ChangeLog" or "Commit" or "Log" => CanExecuteSelectedAction(pair.Key),
                 "UpdateAll" => !Config.ChangeLogBeforeUpdate && items.Any(ApplicationCoordinator.NeedsUpdate),
                 "CheckApplicationUpdates" => !checkingUpdate,
                 _ => true
@@ -262,7 +288,7 @@ public sealed partial class MainWindow : Window
 
     private async Task SelectedActionAsync(string action)
     {
-        if (Selected is not { } item) return;
+        if (Selected is not { } item || !CanExecuteSelectedAction(action)) return;
         switch (action)
         {
             case "Update": await coordinator.UpdateAsync(item); break;
@@ -275,6 +301,17 @@ public sealed partial class MainWindow : Window
             case "Open": Process.Start(new ProcessStartInfo(File.Exists(item.Path) ? Path.GetDirectoryName(item.Path)! : item.Path) { UseShellExecute = true }); break;
         }
     }
+
+    /// <summary>Menü, Tastatur und Doppelklick beachten dieselben Statusvoraussetzungen des ausgewählten Eintrags.</summary>
+    private bool CanExecuteSelectedAction(string action) => action switch
+    {
+        "Remove" or "Cleanup" or "Properties" or "CheckNow" => Selected is not null,
+        "Open" => Selected is not null && (Directory.Exists(Selected.Path) || File.Exists(Selected.Path)),
+        "Update" or "ChangeLog" => Selected is not null && ApplicationCoordinator.NeedsUpdate(Selected),
+        "Commit" => Selected?.Status is SvnStatus.NeedUpdate_Modified or SvnStatus.UpToDate_Modified,
+        "Log" => Selected is not null && Selected.Status is not (SvnStatus.Unknown or SvnStatus.Error),
+        _ => false
+    };
 
     private Task DoubleClickAsync() => SelectedActionAsync(Config.ItemDoubleClickAction switch
     {
@@ -325,7 +362,7 @@ public sealed partial class MainWindow : Window
         {
             // Erst die laufende Prüfung beenden, bevor der globale INI-Kontext ersetzt wird.
             await coordinator.PollAsync();
-            File.Copy(file.Path, Config.iniFileName, true); Config.Init();
+            Config.Import(file.Path);
             coordinator.Folders.Clear(); foreach (var item in Config.ReadSvnFolders().OrderBy(item => item.Path, WindowsPathComparer.Instance)) coordinator.Folders.Add(item);
             coordinator.Save(); BuildCommands(); ApplyFonts();
             AppWindow.IsShownInSwitchers = Config.ShowInTaskbar;
@@ -346,7 +383,7 @@ public sealed partial class MainWindow : Window
     {
         var picker = new FileSavePicker { SuggestedFileName = "SVN_Notifier" }; picker.FileTypeChoices.Add("INI", new List<string> { ".ini" });
         WinRT.Interop.InitializeWithWindow.Initialize(picker, Handle); var file = await picker.PickSaveFileAsync();
-        if (file is not null) File.Copy(Config.iniFileName, file.Path, true);
+        if (file is not null) Config.Export(file.Path);
     }
 
     private async Task CheckApplicationUpdateAsync(bool manual)

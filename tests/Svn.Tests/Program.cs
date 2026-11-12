@@ -126,6 +126,8 @@ internal static class Program
 
     private static void CheckConfiguration(string root)
     {
+        ConfigurationMigrationTests.Run(root, Assert);
+        ConfigurationTransferTests.Run(root, Assert);
         Assert(!new SvnItem().AutoUpdate && !new SvnItem(root, PathType.Directory).AutoUpdate, "Neue Einträge benötigen Opt-in");
         string old = $"{root}|-1|-1|False|0";
         Assert(!SvnItem.Deserialize(old).AutoUpdate, "Alte Konfiguration ohne Feld bleibt ausgeschaltet");

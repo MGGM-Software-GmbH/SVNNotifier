@@ -14,7 +14,15 @@ internal static class Typography
         if (root is Control control) { control.FontFamily = family; control.FontSize = size; }
         if (root is TextBlock text && !text.FontFamily.Source.Contains("Icons", StringComparison.OrdinalIgnoreCase)
             && !text.FontFamily.Source.Contains("MDL2", StringComparison.OrdinalIgnoreCase))
-        { text.FontFamily = family; text.FontSize = size; }
+        {
+            text.FontFamily = family;
+            text.FontSize = (text.Tag as string) switch
+            {
+                "Typography.Title" => Math.Max(20, size * 1.35),
+                "Typography.Section" => Math.Max(14, size * 1.15),
+                _ => size
+            };
+        }
         for (int index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
             Apply(VisualTreeHelper.GetChild(root, index));
     }

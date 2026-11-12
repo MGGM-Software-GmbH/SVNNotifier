@@ -12,6 +12,8 @@ Der Branch `feature/winui-native-notifications` enthält den Entwicklungsbuild `
 
 Hauptfenster, Einstellungen, Repository-Eigenschaften, Protokolle, Info und Programmupdate verwenden WinUI. Die Repository-Liste behält Prüfung und Auto-Update als getrennte Schalter. Systemfarben, Hell-/Dunkelmodus sowie die konfigurierbare Sprache und Schrift werden übernommen. Die Anzeigedauer nativer Banner wird in Windows eingestellt; die bisherigen INI-Werte bleiben erhalten. Der normale Programmstart erfolgt ohne Administratorrechte.
 
+Der WinUI-Branch setzt Windows 10 Version 1809 oder neuer voraus. Nach einem Verschieben des portablen Programmordners die Anwendung einmal regulär am neuen Ort starten. Neue Meldungen werden diesem Pfad zugeordnet; zuvor erzeugte Meldungen können auf den nicht mehr vorhandenen alten EXE-Pfad verweisen.
+
 ### Neu in v3.0.0.13
 
 - Beim Start und vor späteren SVN-Aufträgen werden verwaiste eigene Reservierungen automatisch freigegeben. Auch Reservierungen im alten Notifier-Format werden geprüft.
@@ -117,9 +119,13 @@ powershell -File .github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier win-x
 powershell -File .github/scripts/Test-SvnOperations.ps1 -RuntimeIdentifier win-x86
 powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier win-x64
 powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier win-x86
+powershell -File .github/scripts/Test-StartModes.ps1 -RuntimeIdentifier win-x64 -ArtifactsDirectory artifacts
+powershell -File .github/scripts/Test-StartModes.ps1 -RuntimeIdentifier win-x86 -ArtifactsDirectory artifacts
 ```
 
 Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages/`. Mit `-ArtifactsDirectory` kann ein eigener Ausgabeordner gewählt werden. Für jeden Prüflauf muss dieser neue Installations-Testverzeichnisse erlauben. Der Workflow stellt die Pakete auch bei normalen Builds als herunterladbare Actions-Artefakte zur Verfügung und prüft den Anwendungsstart beider Architekturen. Die Updater-Prüfungen verwenden isolierte HTTP-Testdaten und separate Installationsordner. Sie prüfen auch den tatsächlichen EXE-Austausch mit Neustart und eine Manipulation zwischen Downloadprüfung und Installation.
+
+Die gewöhnlichen GUI-Prüfungen können über `Invoke-QuietWindows.vbs` und `Invoke-IsolatedDesktop.ps1` ohne sichtbare Konsole auf einem inaktiven Windows-Desktop laufen. `Test-Gui.ps1 -IncludeShellSettings` ergänzt die tatsächliche Anwendung der Taskleisteneinstellung und benötigt einen Desktop mit Windows-Shell. Native Banner, Benachrichtigungszentrale und Eingabewege benötigen zusätzlich eine ausdrücklich erlaubte, entsperrte Windows-Testsitzung. Voraussetzungen und Aufrufparameter stehen in [Validierung](docs/prp/winui-native-benachrichtigungen/02-validierung.md).
 
 Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach einem erfolgreichen Branch-Build löst ein Tag im Format `v3.0.0.13` die Veröffentlichung aus:
 

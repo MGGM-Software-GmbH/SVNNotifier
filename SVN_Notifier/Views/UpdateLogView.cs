@@ -13,6 +13,7 @@ public sealed class UpdateLogView : UserControl
     internal UpdateLogView(SvnFolderProcess process)
     {
         if (!process.isUpdateCommand) throw new ArgumentException("Kein Aktualisierungsprotokoll.", nameof(process));
+        Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("ms-appx:///ViewResources.xaml") });
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(new TextBlock { Text = process.folder.Path, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
         var rows = new StackPanel { Spacing = 6 };
@@ -30,11 +31,19 @@ public sealed class UpdateLogView : UserControl
             } : "";
             if (action.Length > 0) counts[action] = counts.GetValueOrDefault(action) + 1;
             conflict |= line.StartsWith("C ", StringComparison.Ordinal);
-            rows.Children.Add(new TextBlock { Text = action.Length > 0 ? action + ": " + line[5..] : line, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
+            bool completed = line.StartsWith("Updated to revision ", StringComparison.Ordinal);
+            string text = action.Length > 0 ? action + ": " + line[5..]
+                : completed ? (Config.Language == 1 ? "Abgeschlossen: Revision " : "Completed: At revision ") + line[20..]
+                : (Config.Language == 1 ? "Fehler: " : "Error: ") + line;
+            var row = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
+            if (action.Length == 0 && !completed || line.StartsWith("C ", StringComparison.Ordinal)) row.Style = (Style)Resources["UpdateLogErrorStyle"];
+            else if (completed || line.StartsWith("G ", StringComparison.Ordinal)) row.Style = (Style)Resources["UpdateLogSuccessStyle"];
+            rows.Children.Add(row);
         }
         panel.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 360, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         panel.Children.Add(new TextBlock { Text = string.Join("   ", counts.Select(pair => pair.Key + ": " + pair.Value)), TextWrapping = TextWrapping.Wrap });
         var warning = new TextBlock { Text = conflict ? Config.Language == 1 ? "Mindestens eine Datei enthält Konflikte." : "One or more files are in a conflicted state." : "", TextWrapping = TextWrapping.Wrap, Visibility = conflict ? Visibility.Visible : Visibility.Collapsed };
+        warning.Style = (Style)Resources["UpdateLogErrorStyle"];
         panel.Children.Add(warning);
         var showLog = new Button { Content = Loc.ULF_Btn_ShowLog, Visibility = counts.Count > 0 ? Visibility.Visible : Visibility.Collapsed };
         showLog.Click += async (_, _) =>

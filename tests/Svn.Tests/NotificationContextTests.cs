@@ -25,5 +25,35 @@ internal static class NotificationContextTests
             assert(rejected, "Fremde oder unbekannte Benachrichtigungspayload wird abgewiesen: " + invalid);
         }
         assert(NotificationContextStore.Identity(firstConfig) != NotificationContextStore.Identity(secondConfig), "Historiengruppen verschiedener Konfigurationen bleiben getrennt");
+        CheckPortableMove(root, assert);
+    }
+
+    /// <summary>Neue Meldungen nach einem Ordnerwechsel verwenden ausschließlich den neuen portablen Kontext.</summary>
+    private static void CheckPortableMove(string root, Action<bool, string> assert)
+    {
+        string originalDirectory = Path.Combine(root, "Portable Ursprung ä");
+        string movedDirectory = Path.Combine(root, "Portable Ziel ß");
+        Directory.CreateDirectory(originalDirectory);
+        string originalExecutable = Path.Combine(originalDirectory, "SVN_Notifier.exe");
+        string originalConfiguration = Path.Combine(originalDirectory, "SVN_Notifier.ini");
+        File.WriteAllText(originalExecutable, "Isolierte Kontextfixture, keine ausführbare Datei");
+        File.WriteAllText(originalConfiguration, "[Main]\n");
+        string contextRoot = Path.Combine(root, "portable-contexts");
+        var originalStore = new NotificationContextStore(Path.Combine(contextRoot, NotificationContextStore.Identity(originalExecutable)));
+        var request = new NotificationRequest(NotificationKind.IncomingChanges, new[] { root }, "Projekt", "Änderungen");
+        var original = originalStore.Create(request, originalExecutable, originalConfiguration);
+        Directory.Move(originalDirectory, movedDirectory);
+        string movedExecutable = Path.Combine(movedDirectory, "SVN_Notifier.exe");
+        string movedConfiguration = Path.Combine(movedDirectory, "SVN_Notifier.ini");
+        var movedStore = new NotificationContextStore(Path.Combine(contextRoot, NotificationContextStore.Identity(movedExecutable)));
+        var moved = movedStore.Create(request, movedExecutable, movedConfiguration);
+        var restored = movedStore.Read(moved.Id);
+        assert(restored.Executable == movedExecutable && File.Exists(restored.Executable), "Neue Meldung verwendet nach Ordnerwechsel die vorhandene neue EXE");
+        assert(restored.Configuration == movedConfiguration && File.Exists(restored.Configuration), "Neue Meldung verwendet nach Ordnerwechsel die neue portable INI");
+        assert(!File.Exists(originalStore.Read(original.Id).Executable), "Alte Meldung verweist nach Ordnerwechsel ausdrücklich auf den ungültigen alten Pfad");
+        bool rejected = false;
+        try { movedStore.Read(original.Id); }
+        catch (FileNotFoundException) { rejected = true; }
+        assert(rejected, "Alte Meldungs-ID wird nicht als neuer portabler Kontext interpretiert");
     }
 }

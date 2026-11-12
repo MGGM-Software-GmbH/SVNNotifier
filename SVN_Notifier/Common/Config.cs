@@ -21,6 +21,8 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 
 namespace CHD.SVN_Notifier
 {
@@ -184,6 +186,39 @@ namespace CHD.SVN_Notifier
 				System.Globalization.CultureInfo.InvariantCulture, out var fs) ? fs : 8.5f;
 		}
 
+
+		/// <summary>Validiert einen Import samt Migration getrennt, bevor die aktive Datei ersetzt wird. Laufende SVN-Prüfungen müssen zuvor beendet sein.</summary>
+		public static void Import(string source)
+		{
+			string target = Path.GetFullPath(iniFileName);
+			if (string.Equals(Path.GetFullPath(source), target, StringComparison.OrdinalIgnoreCase)) return;
+			string candidate = Path.Combine(Path.GetDirectoryName(target)!, ".svnnotifier-import-" + Guid.NewGuid().ToString("N") + ".ini");
+			var fields = typeof(Config).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+				.Where(field => !field.IsLiteral && !field.IsInitOnly).ToDictionary(field => field, field => field.GetValue(null));
+			try
+			{
+				File.Copy(source, candidate);
+				try
+				{
+					Init(candidate);
+					ReadSvnFolders();
+				}
+				finally
+				{
+					// Auch privater INI-Cache, Dateizuordnung und Fenstermaße gehören zum unveränderten aktiven Zustand.
+					foreach (var field in fields) field.Key.SetValue(null, field.Value);
+				}
+				File.Move(candidate, target, true);
+				Init(target);
+			}
+			finally
+			{
+				if (File.Exists(candidate)) File.Delete(candidate);
+			}
+		}
+
+		/// <summary>Exportiert die gespeicherte Konfiguration einschließlich Repository-Zuordnungen ohne Änderung des aktiven Kontexts.</summary>
+		public static void Export(string destination) => File.Copy(iniFileName, destination, true);
 
 		public static bool IsSettingsOK()
 		{

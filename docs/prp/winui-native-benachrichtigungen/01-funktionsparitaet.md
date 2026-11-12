@@ -2,7 +2,7 @@
 
 Diese Matrix beschreibt den verbindlich zu erhaltenden Funktionsbestand. Quellen sind relativ zum Repository angegeben; Zeilen beziehen sich auf die Recherche zum Ausgangsstand. Vor Umsetzung auch indirekte Aufrufer und den dann aktuellen Code prüfen. Eine fehlende Testabdeckung hebt keine Funktion auf. Unbeabsichtigte Fehler nicht als zu konservierende Fachregel übernehmen, aber eine notwendige Korrektur ausdrücklich von einem Funktionsverlust unterscheiden.
 
-**Nachweisstand:** Dokumentationsrecherche. Implementierungs- und Laufzeitnachweise für WinUI stehen aus. Keine Zeile gilt allein durch Aufnahme in diese Tabelle als bestanden.
+**Nachweisstand:** Die Implementierung und Windows-Prüfungen sind im [Umsetzungsstand](03-umsetzungsstand.md) belegt. Die Tabelle definiert weiterhin den zu prüfenden Umfang. Die folgende Zuordnung unterscheidet vorhandene Teilnachweise von noch offenen fachlichen oder Windows-spezifischen Prüfungen. Keine Zeile gilt allein durch Aufnahme in diese Tabelle als bestanden.
 
 Prüfgruppen T-01 bis T-13 sind in [02-validierung.md](02-validierung.md) definiert. Bei Umsetzung je Zeile aktuellen Prüflauf, Ergebnis und relevante Artefakte ergänzen; keine geschätzten Erfüllungsgrade verwenden.
 
@@ -103,11 +103,29 @@ Prüfgruppen T-01 bis T-13 sind in [02-validierung.md](02-validierung.md) defini
 | N-03 | Fehler der automatischen Programmupdate-Prüfung bleibt eine Meldung; manuelle Fehler-/Ergebnisdialoge erhalten. | `MainForm.ApplicationUpdates.cs:59` | T-09/T-10. |
 | N-04 | Klick zeigt die Anwendung mit dem richtigen Eintrag; verschiedene aufbewahrte Meldungen behalten ihr eigenes Ziel. | `MainForm.cs:661`; Benutzerauftrag native Meldungen | T-10: A/B, Klick auf ältere Meldung, entfernter Eintrag. |
 | N-05 | Meldungen sind in der Benachrichtigungszentrale verwaltbar; erledigte Änderungsmeldungen entfernen/aktualisieren, keine Erfolgshistorie ungefragt als ausstehend darstellen. | Benutzerauftrag; Microsoft-Verwaltungs-API | T-10: Bannerende, Historie, Statuswechsel, Neustart. |
-| N-06 | Klick bei beendetem Prozess, frühe Aktivierung, mehrere Instanzen und verschobener portabler Ordner öffnen den passenden Kontext. | K-05; `MainForm.cs:1239` | T-10: kein zusätzlicher Prüfer, keine falsche INI. |
+| N-06 | Klick bei beendetem Prozess, frühe Aktivierung und mehrere Instanzen öffnen den passenden Kontext. Gemäß Benutzerentscheidung K-05 dürfen vor einem Ordnerumzug erzeugte Meldungen ungültig werden. Neue Meldungen müssen nach regulärem Start am neuen Ort den neuen EXE-Pfad und die richtige Konfiguration verwenden. | Benutzerentscheidung K-05; `MainForm.cs:1239` | T-10: kein zusätzlicher Prüfer, keine falsche INI, neue Pfadregistrierung nach Umzug. |
 | N-07 | Betrieb bei deaktivierten Meldungen, Nicht stören und Registrierungsfehlern wird ausdrücklich geprüft. Einen erhöhten Start gemäß Benutzerentscheidung K-02 mit konkreter Meldung ablehnen. Kein behaupteter Versand-/Anzeigenachweis bei Fehlschlag. | Benutzerentscheidung K-02; Microsoft-Dokumentation | T-10/T-11: reale Shellzustände und kontrollierte Fehler. |
 | N-08 | Windows steuert gemäß Benutzerentscheidung K-01 die Dauer; gespeicherte INI-Werte bleiben erhalten. Normaler Betrieb ohne Administratorrechte ist gemäß Benutzerentscheidung K-02 ausreichend; weitere Abweichungen nicht stillschweigend akzeptieren. | Benutzerentscheidungen K-01/K-02; S-06 | T-01/T-10 und INI-Erhalt. |
 
 ## Regeln für die Paritätsentscheidung
+
+Aktuelle Zuordnung der Prüfnachweise:
+
+| Matrixbereich | Nachweis | Verbleibende Grenze |
+|---|---|---|
+| F-05/F-06/F-07/F-08/F-09/F-19 | `reviewed-valid.log`: gerenderte Status, gespeicherter Auto-Update-Schalter, Befehlsinventare, Auswahlzustände, Überlauf und tatsächlicher Cleanup-Menüklick; Gegenproben. | Echte Maus-/Tastatureingaben und sämtliche Statuskombinationen ergänzen. |
+| F-15/F-17/F-19, P-01 bis P-09 | `reviewed-valid.log`: 365 reale SVN-/TortoiseSVN-Prüfungen für x64 einschließlich langer Reservierungspfade; `transfer-validated.log`: 297 Kernprüfungen je Architektur. | Die fachlichen WinUI-Bedienwege nicht pauschal aus erfolgreichen Kernaufrufen ableiten. |
+| S-01 bis S-10 | `reviewed-valid.log`: sämtliche sichtbaren Optionen verändern, speichern, INI neu laden und erneuten Dialog prüfen; manipulierten gespeicherten Wert erkennen. `shell-settings-matrix.log`: tatsächlicher Einstellungsdialog mit Verwerfen, Speichern und Anwendung der Taskleistensichtbarkeit sowie zugehörigen Gegenproben. | Native Dateiauswahl, aktives/inaktives Fenster, Pausen und tatsächliche Windows-Einstellungen separat prüfen. |
+| S-06/S-12/R-01 | `transfer-validated.log`: sämtliche INI-Migrationsgenerationen, falsche Feldzahlen, unbekannte Version, Benachrichtigungsdauer und Auto-Update-Opt-in. Import mit Migration, bytegenauer Export sowie unveränderte aktive Daten bei ungültiger Quelle und gesperrtem Ziel. | Import/Export über die tatsächlichen Auswahl- und Rückfragewege bleibt gesondert zu prüfen. |
+| R-02/R-03 | `reviewed-valid.log`: eigene Intervalle einschließlich Null, Vorgabewerte, erneutes Öffnen, tatsächliches Abbrechen der Eigenschaften, bestätigtes/verworfenes Entfernen und Speichern nach zwischenzeitlichem Entfernen. | Native Eingabeführung und Neustart des Produktprozesses gesondert prüfen. |
+| F-14 | `reviewed-valid.log`: erlaubte Doppelklickaktionen für Protokoll, Änderungsprotokoll, Update, Commit und Jetzt prüfen starten den zugehörigen eigenen Fixture-Prozess mit richtigem Pfad und geben die Reservierung frei. Elf deaktivierte Status-/Aktionskombinationen bleiben ohne Auftrag; Gegenproben erkennen entfernte Sperre und falsche Route. | Tatsächliche Zeigereingabe und Öffnen im Explorer bleiben separat zu prüfen. |
+| L-01/L-03/L-04 | `reviewed-valid.log`: alle fünf Aktionszähler, Fehler-/Abschlusskennzeichnung, Konfliktwarnung, Leeren des gemeinsamen Fehlerpuffers und vorhandene Links. | Tatsächliches Linkziel und Klangpfad sowie neue Fehler bei offenem Dialog ergänzen. |
+| W-06/U-04/U-07/U-08 | `reviewed-valid.log`, `legacy-transition.log`: tatsächliche EXE-Prozesse, Hilfsmodus ohne XAML, Paketprüfungen, Austausch, Neustart, erhaltene INI und Stagingbereinigung für beide Architekturen. | AppData und sämtliche Kombinationen unterschiedlicher Startordner gesondert prüfen. |
+| U-05/U-06 | `integration-validation.log`: produktiver Coordinator-Installationsübergang einschließlich laufender Aufträge, Installerfehler und erneutem Versuch. `reviewed-valid.log`: tatsächlicher WinUI-Updatebutton mit HTTP-Fehler, Abbruch und Übergabe eines geprüften aktuellen Produktpakets an den Installationsaufruf. | Die tatsächliche Installerstrecke ist zusätzlich durch die EXE-Austauschprüfung zu belegen. |
+| N-01 bis N-08 | `reviewed-valid.log`: stabile Kontextziele, INI-Trennung, Prozessidentität und neuer Kontext nach portablem Umzug. Sichtbare Versuche und gesperrte Sitzung siehe Umsetzungsstand. | Banner, Historie, native Klicks, deaktivierte Meldungen und neuer Shellpfad nach Umzug sind eigene offene Windows-Nachweise. |
+| U-09 | Paketbuild und eigene extrahierte Laufzeitmodule für x64/x86 nachgewiesen. | Start auf Windows ohne vorinstallierte Laufzeiten weiterhin offen. |
+
+Die Zuordnung ist keine pauschale Freigabe eines Matrixbereichs. Für nicht genannte Zeilen bleiben die jeweils angegebenen Nachweisziele verbindlich.
 
 - Der aktuelle Code und das beobachtete Ausgangsverhalten ergänzen diese Liste. Neu entdeckte bestehende Funktionen vor dem Umbau ergänzen, nicht aus dem Umfang ausschließen.
 - Für jede bisher ungetestete Funktion einen passenden Regressionstest oder einen begründeten, konkreten manuellen Nachweis vorsehen.

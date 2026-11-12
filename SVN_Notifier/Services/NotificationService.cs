@@ -186,6 +186,8 @@ internal sealed class NotificationService : IDisposable
             Config.WriteLog("Notifications", "Windows-Benachrichtigungen sind deaktiviert: " + manager.Setting);
         manager.Show(notification);
         if (notification.Id == 0) throw new IOException("Windows hat die Benachrichtigung nicht angenommen.");
+        // Annahme durch die API und tatsächlich sichtbares Banner werden getrennt nachgewiesen.
+        Config.WriteLog("Notifications", $"Accepted id={notification.Id}; kind={request.Kind}; setting={manager.Setting}");
     }
 
     internal async void Reconcile(IEnumerable<SvnItem> folders)

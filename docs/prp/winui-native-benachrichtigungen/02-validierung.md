@@ -11,7 +11,7 @@ Die hier beschriebenen Prüfungen sind Bestandteil der beauftragten Implementier
 - Für gezielte Fehlererkennung jeweils einen gültigen und einen isoliert fehlerhaften Fall ausführen. Vor temporär defekten Builds oder Prozessen einen geprüften Wiederherstellungspfad sichern. Defekte Gegenprobe darf den regulären Arbeitsstand nicht beschädigen.
 - Bestehende Testprojekte und Windows UI Automation weiterverwenden. Keine Browserprüfung als Ersatz für native Fenster, Tray oder Benachrichtigungszentrale.
 - Nach erfolgreichen Prüfungen nur bei weiteren Änderungen, neuen Fehlern oder offenen betroffenen Risiken erneut ausführen bzw. erweitern.
-- Benutzeranforderung: Keine Testfenster, Konsolen oder Fokuswechsel auf dem aktiven Benutzerdesktop. Windows-Aufrufe aus WSL über `.github/scripts/Invoke-QuietWindows.vbs` starten, Desktoptests zusätzlich über `.github/scripts/Invoke-IsolatedDesktop.ps1`. Dieser Weg erstellt einen eigenen, nicht eingeblendeten Windows-Desktop und prüft vor dem Teststart, dass er vom Eingabedesktop abweicht. Nicht auf den Benutzerdesktop ausweichen, wenn eine Prüfung dort nicht ausführbar ist.
+- Benutzeranforderung für Routineprüfungen: Keine Testfenster, Konsolen oder Fokuswechsel auf dem aktiven Benutzerdesktop. Windows-Aufrufe aus WSL über `.github/scripts/Invoke-QuietWindows.vbs` starten, Desktoptests zusätzlich über `.github/scripts/Invoke-IsolatedDesktop.ps1`. Dieser Weg erstellt einen eigenen, nicht eingeblendeten Windows-Desktop und prüft vor dem Teststart, dass er vom Eingabedesktop abweicht. Eine gesonderte Benutzerfreigabe ist auf ihren konkreten Zeitraum begrenzt. Aktuell erlaubt: 12.11.2026, 13:00 bis 14:00 Uhr Europe/Berlin. Nach jedem Testlauf eigene gestartete Instanzen beenden und Prozessende prüfen.
 - Fensteraufnahmen direkt am getesteten Fenster erstellen; `CopyFromScreen` würde auf einem anderen Desktop keine verlässliche Aufnahme liefern und darf keine Benutzeroberflächen erfassen. Für Shell-Banner und Benachrichtigungszentrale eine getrennte Windows-Sitzung oder VM verwenden, wenn die isolierte Desktopprüfung keinen tatsächlichen Shellnachweis liefern kann.
 
 ## T-01: Baseline und technische Vorprüfung
@@ -98,7 +98,7 @@ Die Szenarien aus `docs/SVN-Koordination.md` und `tests/Svn.Tests/Program.cs` bl
 - Konfigurationsdatei und Repository-Liste vor/nachher vergleichen; Arbeitsverzeichnis ungleich Programmverzeichnis mitprüfen. Die alte Paketprüfung muss das neue Paket weiterhin akzeptieren.
 - Manipulation zwischen Download- und Installationsprüfung sowie Installerfehler und erneuten Installationsversuch prüfen.
 - Auf einer Windows-Umgebung ohne vorinstallierte .NET-/App-SDK-Laufzeit beide Architekturpakete starten. Keine nachinstallierte Runtime als Erfolg des Self-contained-Vertrags ausgeben.
-- EXE und native Aktivierung auch nach Verschieben eines portablen Ordners prüfen. Registrierung und spätere Bereinigung müssen zu diesem Pfad passen.
+- EXE nach Verschieben eines portablen Ordners regulär starten und neue Registrierung sowie neue Meldungen am neuen Pfad prüfen. Alte Meldungen dürfen gemäß Benutzerentscheidung K-05 ungültig werden; ihnen darf keine falsche Konfiguration untergeschoben werden.
 
 ## T-10: Native Benachrichtigungen
 
@@ -135,6 +135,7 @@ Gegenproben als Fixtures, injizierte Abhängigkeiten oder gesicherte temporäre 
 - DPI 100 %, 150 % und 200 % gezielt mit Hauptfenster, Einstellungen, nativen Dialogen und Monitorwechsel prüfen. Zusätzliche Kombinationen bei tatsächlich erkannten Problemen oder betroffenen Ansichten ergänzen; keine pauschale Behauptung über ungeprüfte Kombinationen.
 - Zustände gemäß UI-Zielbild aufnehmen: leer, Auswahl, alle Status, lange Pfade/Fehler, Prüfung/Update läuft, belegtes Ziel, Download, Abbruch und Fehler. Für jede wesentliche Ansicht einen aktuellen visuellen Nachweis vorhalten.
 - Screenshot tatsächlich ansehen: Hierarchie, Dichte, Abstände, Ausrichtung, Typografie, Kontrast, Auswahl/Fokus, abgeschnittene Inhalte und Überläufe. Unveränderte Screenshots nicht wiederholt laden.
+- `Gui.Tests.exe <eigener Ergebnisordner> --capture --diagnose-checkboxes` prüft den booleschen Wert und den zugehörigen SDK-Symbolzustand der sichtbaren Repository-Checkboxen. `--negative-checkbox-state` muss diesen Lauf mit gezielt falschem Zustand fehlschlagen lassen. Dies ergänzt die Umschaltprüfung, ersetzt aber keine Bildschirmaufnahme animierter Symbole.
 - Tastaturreihenfolge, zugängliche Namen, Checkboxzustände, Dialogfokus, Tooltips und Rückkehr zum Besitzerfenster prüfen. Notwendige Informationen dürfen nicht ausschließlich per Maus erreichbar sein.
 - Keine Eyebrows, Overlines, Subtitles oder redundanten Erklärungstexte in den bearbeiteten Ansichten. Das Entfernen solcher Texte darf keine notwendige Fehlermeldung/Identifikation entfernen.
 - Nach gestalterischer Korrektur betroffene Ansichten neu rendern, aufnehmen und ansehen. Keine visuelle Freigabe allein aus AutomationIds, Größenassertions oder erfolgreichem Build ableiten.
@@ -156,10 +157,20 @@ foreach ($runtime in @('win-x64', 'win-x86')) {
     if ($LASTEXITCODE -ne 0) { throw "SVN-Prüfung fehlgeschlagen: $runtime" }
     powershell -File .github/scripts/Test-ApplicationUpdater.ps1 -RuntimeIdentifier $runtime -ArtifactsDirectory $validationRoot
     if ($LASTEXITCODE -ne 0) { throw "Updater-Prüfung fehlgeschlagen: $runtime" }
+    powershell -File .github/scripts/Test-StartModes.ps1 -RuntimeIdentifier $runtime -ArtifactsDirectory $validationRoot
+    if ($LASTEXITCODE -ne 0) { throw "Startmodusprüfung fehlgeschlagen: $runtime" }
 }
 ```
 
 Echte SVN-/TortoiseSVN-Prüfungen zusätzlich mit einem separat neuen Ausgabeordner und dem vorhandenen Parameter `-SvnDirectory` ausführen, zum Beispiel dem lokal tatsächlich installierten TortoiseSVN-Verzeichnis. Diesen Pfad vor Ausführung prüfen; keinen unbestätigten Programmpfad voraussetzen.
+
+Die Befehle lokal in einem eigenen Prüflaufskript bündeln und dieses über `Invoke-QuietWindows.vbs` und `Invoke-IsolatedDesktop.ps1` ausführen. Für einen tatsächlichen WinForms-zu-WinUI-Übergang existiert `Test-LegacyUpgrade.ps1` mit den Parametern `-RuntimeIdentifier`, `-ArtifactsDirectory` und `-LegacyPackagesDirectory`. Das Ausgangspaket muss aus dem festgehaltenen Baseline-Commit stammen und als ZIP geprüft sein.
+
+`Test-Gui.ps1 -IncludeShellSettings` prüft zusätzlich Abbrechen und Übernehmen im tatsächlichen Einstellungsdialog einschließlich der angewendeten Taskleistensichtbarkeit sowie zwei zugehörige Fehlergegenproben. Dafür ist ein Desktop mit Windows-Shell erforderlich: Auf dem inaktiven Testdesktop schlägt die SDK-Eigenschaft `AppWindow.IsShownInSwitchers` fehl. Die gewöhnliche GUI-Matrix ohne diesen Parameter bleibt dort ausführbar. Diese Trennung verändert keine Produktfunktion und ist kein Ersatz für den zusätzlichen Shellnachweis. Jede GUI-Matrix erhält einen eigenen GUID-Ergebnisordner.
+
+`Test-NativeShell.ps1` ist ausschließlich für eine ausdrücklich erlaubte sichtbare Testsitzung vorgesehen. Erforderliche Parameter: `-ArtifactsDirectory`, `-UseUserDesktop`, `-VisibleFrom` und `-VisibleUntil`, zusätzlich `-RuntimeIdentifier` für x64 oder x86. Zeitpunkte mit Datum und Zeitzonenoffset angeben. Der Starter weist einen Aufruf außerhalb des Zeitfensters vor jeder sichtbaren Aktion ab, beginnt in dessen letzten fünf Minuten keinen Lauf und beendet eigene Instanzen im `finally` einschließlich nachträglich von Windows aktivierter Prozesse. `-IncludeInstallerChecks` benötigt zusätzlich `-BaselinePackagesDirectory`; die bereits unsichtbar bestandenen Installerprüfungen müssen im normalen Shell-Lauf nicht erneut ausgeführt werden.
+
+Eine gesperrte Sitzung mit `LockApp` wird vor dem Produktstart und vor Eingabeaktionen abgewiesen. Die Sperre darf nicht umgangen werden. Ein angenommener API-Aufruf während einer gesperrten Sitzung belegt weder Banner noch die Bedienung der Benachrichtigungszentrale.
 
 - Die GUI-/SVN-Testtreiber im Zuge des Umbaus auf native WinUI-Prozesse/Windows UI Automation umstellen; heutige WinForms-Reflection ist keine Vorgabe für den neuen Treiber.
 - Neue native Benachrichtigungsprüfungen an den passenden vorhandenen Test-/CI-Einstieg anbinden. Ihr tatsächliches Kommando und Voraussetzungen bei Implementierung dokumentieren, keine heute nicht existierenden Skripte als ausführbar ausgeben.

@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using CHD;
 using CHD.SVN_Notifier;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -17,6 +19,8 @@ using Windows.Storage.Streams;
 
 internal static class Program
 {
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr first, IntPtr second);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
     private static int checks;
     private static string[] arguments = Array.Empty<string>();
     private static string output = "";
@@ -35,6 +39,17 @@ internal static class Program
             var deadline = DateTime.UtcNow.AddSeconds(15);
             while (!File.Exists(Path.Combine(path, "cleanup-release")) && DateTime.UtcNow < deadline) Thread.Sleep(20);
             return File.Exists(Path.Combine(path, "cleanup-release")) ? 0 : 10;
+        }
+        if (args.Length > 0 && (args[0] is "info" or "status" || args[0].StartsWith("/command:", StringComparison.OrdinalIgnoreCase)))
+        {
+            string target = args[0].StartsWith("/command:", StringComparison.OrdinalIgnoreCase)
+                ? args.Single(argument => argument.StartsWith("/path:", StringComparison.OrdinalIgnoreCase))[6..]
+                : args[^1][..^1];
+            if (!File.Exists(Path.Combine(target, "gui-svn-fixture"))) return 12;
+            File.AppendAllText(Path.Combine(target, "gui-svn-calls.jsonl"), JsonSerializer.Serialize(args) + Environment.NewLine);
+            if (args[0] == "info") Console.WriteLine("<info><entry revision='2'><url>file:///gui-fixture</url></entry></info>");
+            if (args[0] == "status") Console.WriteLine("<status><target><entry path='fixture'><wc-status item='normal' props='none'><commit revision='2'/></wc-status></entry><against revision='2'/></target></status>");
+            return 0;
         }
         arguments = args; output = Path.GetFullPath(args[0]); Directory.CreateDirectory(output);
         string fixture = Path.Combine(output, "fixture.ini");
@@ -80,6 +95,7 @@ internal static class Program
 
     private static async Task RunAsync()
     {
+        Assert(ApplicationUpdateInstaller.IsPortable, "Die gebündelte WinUI-Anwendungsassembly bleibt automatisch aktualisierbar");
         var main = new MainWindow(false);
         if (arguments.Contains("--dark")) main.RootElement.RequestedTheme = ElementTheme.Dark;
         main.Activate();
@@ -98,6 +114,23 @@ internal static class Program
             main.Coordinator.Save(); await RenderAsync();
             await CaptureAsync(main.RootElement, $"main-initial-{language}");
             var list = Field<ListView>(main, "Repositories");
+            if (arguments.Contains("--diagnose-checkboxes"))
+            {
+                // Trennt den tatsächlichen SDK-Zustand von der Aufnahme eines animierten Composition-Symbols.
+                await Task.Delay(1000);
+                foreach (var checkbox in Descendants(list).OfType<CheckBox>())
+                {
+                    var glyph = Descendants(checkbox).OfType<AnimatedIcon>().Single();
+                    if (arguments.Contains("--negative-checkbox-state")) AnimatedIcon.SetState(glyph, "NormalIndeterminate");
+                    string state = AnimatedIcon.GetState(glyph);
+                    Console.WriteLine($"Checkbox {AutomationProperties.GetAutomationId(checkbox)}: IsChecked={checkbox.IsChecked}; AnimatedIcon.State={state}");
+                    Assert(checkbox.IsChecked.HasValue && state == (checkbox.IsChecked.Value ? "NormalOn" : "NormalOff"),
+                        "Checkbox-Symbolzustand entspricht dem tatsächlichen booleschen Wert");
+                }
+                await CaptureAsync(main.RootElement, $"checkbox-states-{language}");
+                main.Close();
+                return;
+            }
             if (arguments.Contains("--negative-font-size"))
                 foreach (var text in Descendants(list).OfType<TextBlock>().Where(text => text.Text == StatusTextConverter.Text(SvnStatus.UpToDate))) text.FontSize = 1;
             Assert(Descendants(list).OfType<TextBlock>().Any(text => text.Text == StatusTextConverter.Text(SvnStatus.UpToDate) && Math.Abs(text.FontSize - Config.FontSize * 96d / 72d) < 0.1), "Repository-Statustext verwendet die gespeicherte Schriftgröße");
@@ -109,6 +142,12 @@ internal static class Program
             AssertCommands(menus.Items[2].Items, new[] { "CheckApplicationUpdates", "About" }, "HelpMenuItem");
             var toolbar = Field<CommandBar>(main, "Commands");
             AssertCommands(toolbar.PrimaryCommands.OfType<DependencyObject>(), new[] { "AddFolder", "AddFile", "Remove", "ChangeLog", "Update", "Commit", "Open", "Log", "Properties" }, "Toolbar");
+            var heading = Field<TextBlock>(main, "RepositoryTitle");
+            if (arguments.Contains("--negative-heading")) heading.FontSize = 1;
+            Assert(heading.FontSize > Config.FontSize * 96d / 72d * 1.3, "Listenüberschrift besitzt eine erkennbare typografische Hierarchie");
+            var addFolder = Find<AppBarButton>(toolbar, "AddFolder");
+            if (arguments.Contains("--negative-command-alignment")) addFolder.RenderTransform = new TranslateTransform { X = 400 };
+            Assert(addFolder.TransformToVisual(main.RootElement).TransformPoint(new Windows.Foundation.Point()).X < 80, "Häufige Listenaktion beginnt am linken Rand des Arbeitsbereichs");
             list.SelectedItem = folders[1]; await RenderAsync();
             Assert(Find<AppBarButton>(toolbar, "Update").IsEnabled, "Eingehende Änderungen können aktualisiert werden");
             list.SelectedItem = folders[0]; await RenderAsync();
@@ -126,6 +165,7 @@ internal static class Program
             Assert(Descendants(firstContainer).OfType<TextBlock>().Any(text => text.Text == Loc.SvnStatusText(folders[0].Status, false)), "Deaktivierte Prüfung bleibt im gerenderten Statustext erkennbar");
             Toggle(enabled); await RenderAsync(); Assert(folders[0].Enabled, "Repository-Prüfung lässt sich einschalten");
             await CheckCleanupAsync(main, list, folders, language);
+            await CheckDisabledDoubleClicksAsync(main, list, folders);
             list.SelectedItem = folders[1];
             await CaptureAsync(main.RootElement, $"main-{language}");
             main.AppWindow.Resize(new Windows.Graphics.SizeInt32(760, 500)); await RenderAsync();
@@ -167,6 +207,7 @@ internal static class Program
             Assert(Config.DefaultActiveStatusUpdateInterval == 23 && Config.SvnCommandTimeout == 47 && (int)Config.ItemDoubleClickAction == 4, "Prüfintervalle, Timeout und Doppelklickaktion werden gespeichert");
             Assert(Find<ComboBox>(save, nameof(Config.UpdateWindowAction)).Items.Count == 5, "Alle fünf Tortoise-Fensterabschlussaktionen bleiben erhalten");
             Config.CheckForNewVersion = false;
+            CheckSettingsRoundtrip(main.Handle);
             var properties = new RepositoryPropertiesView(folders[0]);
             var custom = Field<CheckBox>(properties, "CustomInput");
             Toggle(custom);
@@ -174,6 +215,7 @@ internal static class Program
             Field<NumberBox>(properties, "ActiveInput").Value = 31; properties.Apply();
             Assert(folders[0].ActiveStatusUpdateInterval == 31, "Repository-Eigenschaften werden übernommen");
             await WithDialogAsync(main, Loc.PF_Title, properties, dialog => CaptureAsync(dialog, $"properties-{language}"));
+            CheckRepositoryProperties(folders[0]);
             var errorBuffer = new Dictionary<string, string> { ["fixture"] = "Testmeldung: Repository ist nicht erreichbar.\r\n" };
             var errors = new ErrorLogView(errorBuffer);
             await WithDialogAsync(main, Loc.ELF_Title, errors, async dialog =>
@@ -191,20 +233,473 @@ internal static class Program
             var update = new SvnFolderProcess(folders[0], process, true);
             update.processOutput.Add("U    C:\\Projekte\\Kundenportal\\README.md");
             update.processOutput.Add("A    C:\\Projekte\\Kundenportal\\Dokumente\\Anleitung.pdf");
+            update.processOutput.Add("D    C:\\Projekte\\Kundenportal\\Alt.txt");
+            update.processOutput.Add("C    C:\\Projekte\\Kundenportal\\Konflikt ä.txt");
+            update.processOutput.Add("G    C:\\Projekte\\Kundenportal\\Zusammenführung ß.txt");
+            update.processOutput.Add("svn: E170013: Isolierte Netzwerkfehlermeldung.");
             update.processOutput.Add("Updated to revision 123.");
             var log = new UpdateLogView(update);
             Assert(Descendants(log).OfType<TextBlock>().Any(text => text.Text.Contains("123")), "Updateprotokoll erhält Dateiaktionen und Ergebnis");
+            foreach (string action in language == 1 ? new[] { "Aktualisiert", "Hinzugefügt", "Gelöscht", "Konflikt", "Zusammengeführt" } : new[] { "Updated", "Added", "Deleted", "Conflicted", "Merged" })
+                Assert(Descendants(log).OfType<TextBlock>().Any(text => text.Text.Contains(action + ": 1")), "Updateprotokoll erhält den Aktionszähler: " + action);
+            Assert(Descendants(log).OfType<TextBlock>().Any(text => text.Text.StartsWith(language == 1 ? "Fehler: svn:" : "Error: svn:")), "Updateprotokoll kennzeichnet Fehlerausgaben ausdrücklich");
+            Assert(Descendants(log).OfType<TextBlock>().Any(text => text.Text == (language == 1 ? "Mindestens eine Datei enthält Konflikte." : "One or more files are in a conflicted state.")), "Updateprotokoll erhält die Konfliktwarnung");
             await WithDialogAsync(main, Loc.ULF_Title, log, dialog => CaptureAsync(dialog, $"update-log-{language}"));
             using var client = ApplicationUpdater.CreateClient();
-            var release = new ApplicationRelease(new Version(3, 0, 0, 14), new Uri("https://github.com/MGGM-Software-GmbH/SVNNotifier/releases"), new Uri("https://example.invalid/package.zip"), new Uri("https://example.invalid/checksums.txt"), 100);
+            var release = new ApplicationRelease(new Version(3, 0, 0, 15), new Uri("https://github.com/MGGM-Software-GmbH/SVNNotifier/releases"), new Uri("https://example.invalid/package.zip"), new Uri("https://example.invalid/checksums.txt"), 100);
             var applicationUpdate = new ApplicationUpdateView(new ApplicationUpdater(client), release, _ => throw new InvalidOperationException("Kein Installer im Ansichtstest."));
             await WithDialogAsync(main, Loc.AppUpdate_Title, applicationUpdate, async dialog =>
             {
                 Assert(Descendants(applicationUpdate).OfType<Button>().Any(button => Equals(button.Content, Loc.AppUpdate_Install)) && dialog.CloseButtonText.Length > 0, "Programmupdate behält Bestätigung und Abbruch");
                 await CaptureAsync(dialog, $"application-update-{language}"); CheckButtons(dialog);
             });
+            await CheckUpdateStatesAsync(main, release, language);
+            await CheckVerifiedDownloadAsync(main, language);
+            await CheckRepositoryDialogsAsync(main, language);
+            await CheckAllowedDoubleClicksAsync(main);
         }
+        await CheckSessionClosingAsync();
         await main.ExitAsync();
+    }
+
+    /// <summary>Prüft gültige Doppelklickzuordnungen über echte eigene Kindprozesse und deren Argumente.</summary>
+    private static async Task CheckAllowedDoubleClicksAsync(MainWindow main)
+    {
+        var originals = main.Coordinator.Folders.ToArray();
+        string svn = Config.SVNpath, tortoise = Config.TortoiseSVNpath;
+        bool changeLog = Config.ChangeLogBeforeUpdate;
+        var action = Config.ItemDoubleClickAction;
+        string root = Path.Combine(output, "Doppelklick Arbeitskopie ä " + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".svn"));
+        File.WriteAllText(Path.Combine(root, ".svn", "wc.db"), "Isolierte Testmarkierung.");
+        File.WriteAllText(Path.Combine(root, "gui-svn-fixture"), "Isolierter GUI-Prozesstreiber.");
+        string calls = Path.Combine(root, "gui-svn-calls.jsonl");
+        var item = new SvnItem(root, PathType.Directory);
+        string[][] ReadCalls() => File.Exists(calls) ? File.ReadAllLines(calls).Where(line => line.Length > 0).Select(line => JsonSerializer.Deserialize<string[]>(line)!).ToArray() : Array.Empty<string[]>();
+        async Task<string[][]> ExecuteAsync(Config.Action selectedAction, SvnStatus status, string expected)
+        {
+            File.WriteAllText(calls, "");
+            item.Status = status;
+            Config.ItemDoubleClickAction = arguments.Contains("--negative-doubleclick-route") ? Config.Action.checkNow : selectedAction;
+            await (Task)typeof(MainWindow).GetMethod("DoubleClickAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null)!;
+            await WaitAsync(() => File.Exists(calls) && new FileInfo(calls).Length > 0, "Eigener Doppelklick-Prozesstreiber hat einen Auftrag erhalten");
+            await WaitAsync(() => !SvnTools.HasActiveOperations && !main.Coordinator.IsBusy, "Eigene Doppelklick-Prozesse und Reservierungen sind beendet");
+            Assert(ReadCalls().Any(command => command[0] == expected), "Doppelklick startet den erwarteten eigenen Prozess: " + selectedAction + "/" + status);
+            Assert(!File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)), "Doppelklick gibt die eigene Arbeitskopiereservierung frei");
+            return ReadCalls();
+        }
+        try
+        {
+            Config.SVNpath = Config.TortoiseSVNpath = Environment.ProcessPath!;
+            Config.ChangeLogBeforeUpdate = false;
+            main.Coordinator.Folders.Clear(); main.Coordinator.Folders.Add(item); main.Coordinator.Save();
+            Field<ListView>(main, "Repositories").SelectedItem = item; await RenderAsync();
+            var fullLog = await ExecuteAsync(Config.Action.logAction, SvnStatus.UpToDate, "/command:log");
+            Assert(fullLog.Single(command => command[0] == "/command:log").Contains("/path:" + root) &&
+                !fullLog.Any(command => command.Any(argument => argument.StartsWith("/revend:", StringComparison.Ordinal))),
+                "Synchronisierter Eintrag öffnet das vollständige Protokoll für sein eigenes Ziel");
+            var changes = await ExecuteAsync(Config.Action.logAction, SvnStatus.NeedUpdate, "/command:log");
+            Assert(changes.Any(command => command[0] == "info") && changes.Single(command => command[0] == "/command:log").Contains("/revend:2") && item.reviewedRevision == 2,
+                "Eingehende Änderung bevorzugt das Änderungsprotokoll und merkt die geprüfte Revision");
+            var update = await ExecuteAsync(Config.Action.updateAction, SvnStatus.NeedUpdate, "/command:update");
+            Assert(update.Single(command => command[0] == "/command:update").Contains("/path:" + root) && !item.AutoUpdate,
+                "Manuelles Doppelklick-Update erhält sein Ziel und lässt Auto-Update ausgeschaltet");
+            var commit = await ExecuteAsync(Config.Action.commitAction, SvnStatus.UpToDate_Modified, "/command:commit");
+            Assert(commit.Single(command => command[0] == "/command:commit").Contains("/path:" + root),
+                "Commit-Doppelklick übergibt das ausgewählte eigene Ziel");
+            await ExecuteAsync(Config.Action.checkNow, SvnStatus.Unknown, "status");
+            await main.Coordinator.PollAsync();
+            Assert(item.Status == SvnStatus.UpToDate && !item.AutoUpdate, "Jetzt prüfen liefert den synchronisierten Status ohne Auto-Update-Änderung");
+        }
+        finally
+        {
+            Config.SVNpath = svn; Config.TortoiseSVNpath = tortoise; Config.ChangeLogBeforeUpdate = changeLog; Config.ItemDoubleClickAction = action;
+            main.Coordinator.Folders.Clear(); foreach (var original in originals) main.Coordinator.Folders.Add(original);
+            main.Coordinator.Save();
+        }
+    }
+
+    /// <summary>Eine statusabhängig deaktivierte Aktion darf auch über Doppelklick keinen SVN-Auftrag oder Fehler auslösen.</summary>
+    private static async Task CheckDisabledDoubleClicksAsync(MainWindow main, ListView list, BindingList<SvnItem> folders)
+    {
+        var previousAction = Config.ItemDoubleClickAction;
+        object previousSelection = list.SelectedItem;
+        var cases = new[]
+        {
+            (SvnStatus.UpToDate, Config.Action.updateAction), (SvnStatus.UpToDate_Modified, Config.Action.updateAction),
+            (SvnStatus.Unknown, Config.Action.updateAction), (SvnStatus.Error, Config.Action.updateAction),
+            (SvnStatus.UpToDate, Config.Action.commitAction), (SvnStatus.NeedUpdate, Config.Action.commitAction),
+            (SvnStatus.Unknown, Config.Action.commitAction), (SvnStatus.Error, Config.Action.commitAction),
+            (SvnStatus.Unknown, Config.Action.logAction), (SvnStatus.Error, Config.Action.logAction),
+            (SvnStatus.Unknown, Config.Action.openAction)
+        };
+        try
+        {
+            foreach (var (status, action) in cases)
+            {
+                var item = folders.First(folder => folder.Status == status);
+                list.SelectedItem = item; Config.ItemDoubleClickAction = action; await RenderAsync();
+                string before = item.Serialize();
+                long logSize = File.Exists(Config.logFileName) ? new FileInfo(Config.logFileName).Length : 0;
+                int errors = main.Coordinator.Errors.Count;
+                if (arguments.Contains("--negative-doubleclick-gate"))
+                    await Task.Run(() => SvnTools.Update(item, false));
+                else
+                    await (Task)typeof(MainWindow).GetMethod("DoubleClickAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null)!;
+                await RenderAsync();
+                long afterSize = File.Exists(Config.logFileName) ? new FileInfo(Config.logFileName).Length : 0;
+                Assert(item.Serialize() == before && item.Status == status && errors == main.Coordinator.Errors.Count && logSize == afterSize,
+                    "Deaktivierte Doppelklickaktion bleibt ohne SVN-Auftrag, Fehler oder Datenänderung: " + action + "/" + status);
+            }
+        }
+        finally { Config.ItemDoubleClickAction = previousAction; list.SelectedItem = previousSelection; }
+    }
+
+    /// <summary>Übt Entfernen und Eigenschaften über die produktiven Befehle und tatsächlichen Dialogaktionen.</summary>
+    private static async Task CheckRepositoryDialogsAsync(MainWindow main, int language)
+    {
+        var list = Field<ListView>(main, "Repositories");
+        var item = main.Coordinator.Folders[0];
+        list.SelectedItem = item;
+        await RenderAsync();
+        main.Coordinator.Save();
+        string before = item.Serialize();
+        async Task<ContentDialog> OpenAsync(string command)
+        {
+            if (command == "Settings")
+            {
+                var settings = Field<MenuBar>(main, "Menus").Items[1].Items.OfType<MenuFlyoutItem>()
+                    .Single(control => AutomationProperties.GetAutomationId(control) == command);
+                ((IInvokeProvider)new MenuFlyoutItemAutomationPeer(settings)).Invoke();
+            }
+            else
+            {
+                var button = Field<CommandBar>(main, "Commands").PrimaryCommands.OfType<AppBarButton>()
+                    .Single(control => AutomationProperties.GetAutomationId(control) == command);
+                if (command == "Remove" && arguments.Contains("--negative-remove-binding"))
+                {
+                    var commands = Field<CommandBar>(main, "Commands").PrimaryCommands;
+                    var detached = new AppBarButton { Label = button.Label };
+                    AutomationProperties.SetAutomationId(detached, command);
+                    commands[commands.IndexOf(button)] = detached;
+                    button = detached; await RenderAsync();
+                }
+                var peer = FrameworkElementAutomationPeer.CreatePeerForElement(button);
+                ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
+            }
+            ContentDialog? dialog = null;
+            await WaitAsync(() =>
+            {
+                dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(main.RootElement.XamlRoot)
+                    .Where(popup => popup.Child is not null).SelectMany(popup => Descendants(popup.Child)).OfType<ContentDialog>().FirstOrDefault();
+                return dialog?.IsLoaded == true;
+            }, "Repository-Befehl öffnet den zugehörigen Dialog: " + command);
+            return dialog!;
+        }
+        async Task CloseAsync(ContentDialog dialog, bool confirm)
+        {
+            string name = confirm ? "PrimaryButton" : "CloseButton";
+            string text = confirm ? dialog.PrimaryButtonText : dialog.CloseButtonText;
+            Invoke(Descendants(dialog).OfType<Button>().Single(button => button.Name == name && Equals(button.Content, text)));
+            await WaitAsync(() => !dialog.IsLoaded, "Repository-Dialogaktion schließt den Dialog");
+        }
+        if (arguments.Contains("--shell-settings"))
+        {
+            bool originalCheck = Config.CheckForNewVersion, originalTaskbar = Config.ShowInTaskbar;
+            byte[] originalIni = File.ReadAllBytes(Config.iniFileName);
+            var settingsDialog = await OpenAsync("Settings");
+            var settingsView = (SettingsView)settingsDialog.Content;
+            Find<CheckBox>(settingsView, nameof(Config.CheckForNewVersion)).IsChecked = !originalCheck;
+            Find<CheckBox>(settingsView, nameof(Config.ShowInTaskbar)).IsChecked = !originalTaskbar;
+            if (arguments.Contains("--negative-settings-cancel")) settingsView.Apply();
+            await CloseAsync(settingsDialog, false);
+            Assert(Config.CheckForNewVersion == originalCheck && Config.ShowInTaskbar == originalTaskbar && File.ReadAllBytes(Config.iniFileName).SequenceEqual(originalIni),
+                "Abbrechen im tatsächlichen Einstellungsdialog erhält Optionen und INI-Datei");
+            settingsDialog = await OpenAsync("Settings");
+            settingsView = (SettingsView)settingsDialog.Content;
+            Find<CheckBox>(settingsView, nameof(Config.CheckForNewVersion)).IsChecked = !originalCheck;
+            Find<CheckBox>(settingsView, nameof(Config.ShowInTaskbar)).IsChecked = !originalTaskbar;
+            await CloseAsync(settingsDialog, true);
+            await RenderAsync();
+            if (arguments.Contains("--negative-settings-effect")) main.AppWindow.IsShownInSwitchers = originalTaskbar;
+            var savedSettings = new CHD.IniFile(Config.iniFileName, true);
+            Assert(Config.CheckForNewVersion == !originalCheck && Config.ShowInTaskbar == !originalTaskbar &&
+                savedSettings.ReadBoolean("Settings", nameof(Config.ShowInTaskbar), originalTaskbar) == !originalTaskbar &&
+                main.AppWindow.IsShownInSwitchers == !originalTaskbar,
+                "Bestätigte Einstellungen werden gespeichert und auf das tatsächliche Taskleistenfenster angewendet");
+            settingsDialog = await OpenAsync("Settings");
+            settingsView = (SettingsView)settingsDialog.Content;
+            Find<CheckBox>(settingsView, nameof(Config.CheckForNewVersion)).IsChecked = originalCheck;
+            Find<CheckBox>(settingsView, nameof(Config.ShowInTaskbar)).IsChecked = originalTaskbar;
+            await CloseAsync(settingsDialog, true);
+        }
+        var cancelled = await OpenAsync("Properties");
+        var properties = (RepositoryPropertiesView)cancelled.Content;
+        Field<TextBox>(properties, "PathInput").Text = "cancelled-properties-path";
+        Field<CheckBox>(properties, "AutoUpdateInput").IsChecked = !item.AutoUpdate;
+        if (arguments.Contains("--negative-properties-cancel")) properties.Apply();
+        await CloseAsync(cancelled, false);
+        Assert(item.Serialize() == before && Config.ReadSvnFolders().Single(folder => folder.Path == item.Path).Serialize() == before,
+            "Abbrechen im tatsächlichen Eigenschaftendialog erhält Objekt und gespeicherten Eintrag");
+        var removal = await OpenAsync("Remove");
+        await CloseAsync(removal, false);
+        Assert(main.Coordinator.Folders.Contains(item) && Config.ReadSvnFolders().Any(folder => folder.Path == item.Path),
+            "Abbrechen der Entfernen-Rückfrage erhält den ausgewählten Eintrag");
+        removal = await OpenAsync("Remove");
+        await CaptureAsync(removal, $"remove-confirmation-{language}");
+        await CloseAsync(removal, true);
+        await WaitAsync(() => !main.Coordinator.Folders.Contains(item), "Bestätigtes Entfernen betrifft den ausgewählten Eintrag");
+        Assert(!Config.ReadSvnFolders().Any(folder => folder.Path == item.Path) && main.Coordinator.Folders.Count == 6,
+            "Bestätigtes Entfernen wird gespeichert und erhält die übrigen Einträge");
+        list.SelectedItem = main.Coordinator.Folders[0]; await RenderAsync();
+        var orphan = (SvnItem)list.SelectedItem;
+        var opened = await OpenAsync("Properties");
+        main.Coordinator.Folders.Remove(orphan); main.Coordinator.Save();
+        string[] remaining = main.Coordinator.Folders.Select(folder => folder.Serialize()).ToArray();
+        Field<TextBox>((RepositoryPropertiesView)opened.Content, "PathInput").Text = Path.Combine(output, "orphan-properties-path");
+        if (arguments.Contains("--negative-orphan-properties")) main.Coordinator.Folders.Add(orphan);
+        await CloseAsync(opened, true);
+        Assert(main.Coordinator.Folders.Select(folder => folder.Serialize()).SequenceEqual(remaining) &&
+            Config.ReadSvnFolders().Select(folder => folder.Serialize()).SequenceEqual(remaining),
+            "Speichern nach zwischenzeitlichem Entfernen verändert weder fremde Einträge noch fügt es den entfernten Eintrag wieder hinzu");
+    }
+
+    /// <summary>Prüft Verwerfen, Eingabefehler und beide Intervallarten an einem isolierten Eintrag.</summary>
+    private static void CheckRepositoryProperties(SvnItem source)
+    {
+        var item = new SvnItem(source.origPath, source.pathType);
+        bool enabled = item.Enabled, autoUpdate = item.AutoUpdate;
+        int active = item.ActiveStatusUpdateInterval, idle = item.IdleStatusUpdateInterval;
+        var discarded = new RepositoryPropertiesView(item);
+        Field<TextBox>(discarded, "PathInput").Text = "unapplied-path";
+        Field<CheckBox>(discarded, "EnabledInput").IsChecked = !enabled;
+        Field<CheckBox>(discarded, "AutoUpdateInput").IsChecked = !autoUpdate;
+        Assert(item.origPath == source.origPath && item.Enabled == enabled && item.AutoUpdate == autoUpdate && item.ActiveStatusUpdateInterval == active && item.IdleStatusUpdateInterval == idle,
+            "Verworfene Repository-Eigenschaften verändern den Eintrag nicht");
+        var invalid = new RepositoryPropertiesView(item);
+        Field<TextBox>(invalid, "PathInput").Text = "invalid|path";
+        bool rejected = false;
+        try { invalid.Apply(); } catch (InvalidDataException) { rejected = true; }
+        Assert(rejected && item.origPath == source.origPath && item.Enabled == enabled && item.AutoUpdate == autoUpdate,
+            "Ungültige Repository-Pfade werden vor jeder Übernahme abgewiesen");
+        var custom = new RepositoryPropertiesView(item);
+        Field<CheckBox>(custom, "CustomInput").IsChecked = true;
+        Field<NumberBox>(custom, "ActiveInput").Value = 0;
+        Field<NumberBox>(custom, "IdleInput").Value = 59;
+        Field<CheckBox>(custom, "AutoUpdateInput").IsChecked = !autoUpdate;
+        custom.Apply();
+        var reopened = new RepositoryPropertiesView(item);
+        Assert(item.ActiveStatusUpdateInterval == 0 && item.IdleStatusUpdateInterval == 59 && item.AutoUpdate == !autoUpdate &&
+            Field<NumberBox>(reopened, "ActiveInput").Value == 0 && Field<NumberBox>(reopened, "IdleInput").Value == 59,
+            "Eigene Repository-Intervalle einschließlich Null und Auto-Update bleiben beim Wiederöffnen erhalten");
+        Field<CheckBox>(reopened, "CustomInput").IsChecked = false;
+        reopened.Apply();
+        var defaults = new RepositoryPropertiesView(item);
+        Assert(item.ActiveStatusUpdateInterval == -1 && item.IdleStatusUpdateInterval == -1 &&
+            Field<CheckBox>(defaults, "CustomInput").IsChecked == false &&
+            Field<NumberBox>(defaults, "ActiveInput").Value == Config.DefaultActiveStatusUpdateInterval &&
+            Field<NumberBox>(defaults, "IdleInput").Value == Config.DefaultIdleStatusUpdateInterval,
+            "Globale Repository-Intervalle werden mit ihren gespeicherten Standardwerten wieder geöffnet");
+    }
+
+    /// <summary>Übt Fehler und Abbruch über die tatsächlichen Updatebuttons mit kontrollierten HTTP-Antworten aus.</summary>
+    private static async Task CheckUpdateStatesAsync(MainWindow main, ApplicationRelease release, int language)
+    {
+        foreach (bool blocked in new[] { false, true })
+        {
+            using var handler = new UpdateStateHandler(blocked);
+            using var client = new HttpClient(handler);
+            bool installerCalled = false;
+            var view = new ApplicationUpdateView(new ApplicationUpdater(client), release, _ => { installerCalled = true; return Task.CompletedTask; });
+            await WithDialogAsync(main, Loc.AppUpdate_Title, view, async dialog =>
+            {
+                Invoke(Field<Button>(view, "install"));
+                await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                if (blocked)
+                {
+                    Assert(Field<Button>(view, "cancel").Visibility == Visibility.Visible && !Field<Button>(view, "install").IsEnabled, "Laufender Download zeigt Abbrechen und sperrt einen zweiten Download");
+                    Invoke(Field<Button>(view, "cancel"));
+                    await WaitAsync(() => Field<TextBlock>(view, "state").Text == Loc.AppUpdate_Cancelled, "Abbruch des Updatebuttons beendet den tatsächlichen HTTP-Auftrag");
+                }
+                else
+                {
+                    await WaitAsync(() => Field<TextBlock>(view, "state").Text.Contains("503"), "HTTP-Fehler wird im tatsächlichen Programmupdatedialog angezeigt");
+                }
+                Assert(Field<Button>(view, "install").IsEnabled && Field<Button>(view, "cancel").Visibility == Visibility.Collapsed, "Nach Fehler oder Abbruch kann der Benutzer den Download erneut versuchen");
+                Assert(!installerCalled, "Fehlerhafter oder abgebrochener Download ruft keinen Installer auf");
+                await CaptureAsync(dialog, $"application-update-{(blocked ? "cancelled" : "error")}-{language}");
+            });
+        }
+    }
+
+    /// <summary>Bestätigt über den echten Button den geprüften Paketdownload und kontrolliert die Installerübergabe.</summary>
+    private static async Task CheckVerifiedDownloadAsync(MainWindow main, int language)
+    {
+        int index = Array.IndexOf(arguments, "--update-package");
+        Assert(index >= 0 && index + 1 < arguments.Length, "GUI-Prüfung erhält das tatsächlich gebaute Produktpaket");
+        string packagePath = arguments[index + 1];
+        byte[] archive = await File.ReadAllBytesAsync(packagePath);
+        using var handler = new ValidPackageHandler(archive, Path.GetFileName(packagePath));
+        using var client = new HttpClient(handler);
+        var release = new ApplicationRelease(ApplicationUpdater.CurrentVersion,
+            new Uri("https://example.invalid/release"), new Uri("https://example.invalid/" + Path.GetFileName(packagePath)),
+            new Uri("https://example.invalid/SHA256SUMS.txt"), archive.LongLength);
+        PreparedApplicationUpdate? received = null;
+        var continueInstall = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var view = new ApplicationUpdateView(new ApplicationUpdater(client), release, prepared =>
+        {
+            received = prepared;
+            return continueInstall.Task;
+        });
+        try
+        {
+            await WithDialogAsync(main, Loc.AppUpdate_Title, view, async dialog =>
+            {
+                Invoke(Field<Button>(view, "install"));
+                await WaitAsync(() => received is not null, "Bestätigter Download erreicht mit geprüftem Paket die Installerübergabe");
+                Assert(received!.Version == release.Version && File.Exists(Path.Combine(received.DirectoryPath, "payload.exe")), "Installerübergabe erhält die geprüfte Produkt-EXE und ihre Version");
+                Assert(!view.RequestClose() && !Field<Button>(view, "cancel").IsEnabled && !Field<Button>(view, "install").IsEnabled,
+                    "Während der Installerübergabe bleiben Schließen, Abbruch und erneuter Download gesperrt");
+                await CaptureAsync(dialog, $"application-update-installing-{language}");
+                continueInstall.TrySetResult();
+                await WaitAsync(() => Field<Button>(view, "install").IsEnabled, "Bestätigte Übergabe beendet den Downloadzustand");
+            });
+        }
+        finally
+        {
+            continueInstall.TrySetResult();
+            if (received is not null) ApplicationUpdater.DeleteStage(received.DirectoryPath, Environment.ProcessPath!);
+        }
+    }
+
+    /// <summary>Liefert unveränderte gebaute Paketbytes und ihre passende Prüfsumme über den HTTP-Testtransport.</summary>
+    private sealed class ValidPackageHandler(byte[] archive, string packageName) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            HttpContent content = request.RequestUri!.AbsolutePath.EndsWith("SHA256SUMS.txt", StringComparison.Ordinal)
+                ? new StringContent(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(archive)) + "  " + packageName)
+                : new ByteArrayContent(archive);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content });
+        }
+    }
+
+    /// <summary>Simuliert einen konkreten HTTP-Fehler oder wartet gezielt auf den Abbruch des UI-Auftrags.</summary>
+    private sealed class UpdateStateHandler(bool blocked) : HttpMessageHandler
+    {
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Entered.TrySetResult();
+            if (blocked) await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable) { Content = new StringContent("Isolierte HTTP-Fehlerfixture.") };
+        }
+    }
+
+    /// <summary>Sendet Schließnachrichten nur an ein eigenes Fenster; es wird keine Windows-Abmeldung ausgelöst.</summary>
+    private static async Task CheckSessionClosingAsync()
+    {
+        int[] originalSize = Config.ReadMainFormSize();
+        Config.SaveMainFormSize(50000, 50000);
+        var window = new MainWindow(false);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
+        try
+        {
+            window.Activate(); await RenderAsync();
+            var area = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(window.AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
+            Assert(window.AppWindow.Size.Width <= area.Width && window.AppWindow.Size.Height <= area.Height, "Gespeicherte übergroße Fenstermaße werden auf den aktuellen Arbeitsbereich begrenzt");
+            window.SetSessionEnding(true);
+            Assert(window.Coordinator.Suspended, "Sitzungsbeendigung hält neue Hintergrundprüfungen an");
+            window.SetSessionEnding(false);
+            Assert(!window.Coordinator.Suspended, "Abgebrochene Sitzungsbeendigung gibt die Hintergrundprüfung wieder frei");
+            Assert(PostMessage(window.Handle, 0x10, IntPtr.Zero, IntPtr.Zero), "Schließnachricht wird an das eigene Testfenster zugestellt");
+            await RenderAsync();
+            Assert(!closed && !IsWindowVisible(window.Handle), "Nach abgebrochener Sitzungsbeendigung blendet Schließen das eigene Fenster nur aus");
+            window.ShowWindow();
+            window.SetSessionEnding(!arguments.Contains("--negative-session-end"));
+            Assert(PostMessage(window.Handle, 0x10, IntPtr.Zero, IntPtr.Zero), "Bestätigtes Sitzungsschließen wird an das eigene Testfenster zugestellt");
+            for (int attempt = 0; attempt < 20 && !closed; attempt++) await RenderAsync();
+            Assert(closed, "Bestätigte Sitzungsbeendigung schließt das Fenster statt es nur auszublenden");
+        }
+        finally
+        {
+            if (!closed) await window.ExitAsync();
+            Config.SaveMainFormSize(originalSize[0], originalSize[1]);
+        }
+    }
+
+    /// <summary>Ändert sämtliche sichtbaren Optionen und lädt sie aus der geschriebenen INI erneut.</summary>
+    private static void CheckSettingsRoundtrip(IntPtr owner)
+    {
+        string clientDirectory = Path.Combine(output, "settings-clients-" + Config.Language);
+        Directory.CreateDirectory(clientDirectory);
+        string svnClient = Path.Combine(clientDirectory, "svn ä.exe");
+        string tortoiseClient = Path.Combine(clientDirectory, "Tortoise ß.exe");
+        File.Copy(Config.SVNpath, svnClient);
+        File.Copy(Config.TortoiseSVNpath, tortoiseClient);
+        var expected = new Dictionary<string, object>
+        {
+            [nameof(Config.SVNpath)] = svnClient,
+            [nameof(Config.TortoiseSVNpath)] = tortoiseClient,
+            [nameof(Config.ItemDoubleClickAction)] = Config.Action.commitAction,
+            [nameof(Config.HideOnStartup)] = !Config.HideOnStartup,
+            [nameof(Config.ShowInTaskbar)] = !Config.ShowInTaskbar,
+            [nameof(Config.CheckForNewVersion)] = !Config.CheckForNewVersion,
+            [nameof(Config.Language)] = 1 - Config.Language,
+            [nameof(Config.FontFamily)] = "Arial",
+            [nameof(Config.FontSize)] = 17.5f,
+            [nameof(Config.DefaultActiveStatusUpdateInterval)] = 41,
+            [nameof(Config.DefaultIdleStatusUpdateInterval)] = 91,
+            [nameof(Config.SvnCommandTimeout)] = 0,
+            [nameof(Config.DoPauseAfterApplicationStartup)] = !Config.DoPauseAfterApplicationStartup,
+            [nameof(Config.PauseAfterApplicationStartupInterval)] = 37,
+            [nameof(Config.DoPauseAfterWindowsResume)] = !Config.DoPauseAfterWindowsResume,
+            [nameof(Config.PauseAfterWindowsResumeInterval)] = 53,
+            [nameof(Config.ChangeLogBeforeUpdate)] = Config.IsTortoiseVersion_1_5_orHigher() && !Config.ChangeLogBeforeUpdate,
+            [nameof(Config.UpdateAllSilently)] = !Config.UpdateAllSilently,
+            [nameof(Config.UpdateWindowAction)] = (Config.UpdateWindowAction + 1) % 5
+        };
+        var original = expected.Keys.ToDictionary(name => name, name => typeof(Config).GetField(name)!.GetValue(null));
+        int duration = Config.ShowBalloonInterval;
+        string configuration = Config.iniFileName;
+        var draft = new SettingsView(owner);
+        try
+        {
+            foreach (var pair in expected)
+            {
+                if (pair.Value is bool enabled) Find<CheckBox>(draft, pair.Key).IsChecked = enabled;
+                else if (pair.Value is string text) Find<TextBox>(draft, pair.Key).Text = text;
+                else if (pair.Key is nameof(Config.Language) or nameof(Config.ItemDoubleClickAction) or nameof(Config.UpdateWindowAction))
+                    Find<ComboBox>(draft, pair.Key).SelectedIndex = Convert.ToInt32(pair.Value);
+                else Find<NumberBox>(draft, pair.Key).Value = Convert.ToDouble(pair.Value);
+            }
+            draft.Apply();
+            if (arguments.Contains("--negative-roundtrip"))
+                new IniFile(configuration, false).Write("Settings", "DefaultIdleStatusUpdateInterval", 7);
+            Config.Init(configuration);
+            foreach (var pair in expected)
+                Assert(Equals(typeof(Config).GetField(pair.Key)!.GetValue(null), pair.Value), "Einstellung bleibt nach erneutem INI-Laden erhalten: " + pair.Key);
+            Assert(Config.ShowBalloonInterval == duration, "Erneutes INI-Laden erhält den nicht mehr angebotenen Sekundenwert");
+            var reopened = new SettingsView(owner);
+            foreach (var pair in expected)
+            {
+                object actual;
+                if (pair.Value is bool) actual = Find<CheckBox>(reopened, pair.Key).IsChecked == true;
+                else if (pair.Value is string) actual = Find<TextBox>(reopened, pair.Key).Text;
+                else if (pair.Key is nameof(Config.Language) or nameof(Config.ItemDoubleClickAction) or nameof(Config.UpdateWindowAction))
+                    actual = Convert.ChangeType(Find<ComboBox>(reopened, pair.Key).SelectedIndex, pair.Value is Enum ? typeof(int) : pair.Value.GetType());
+                else actual = Convert.ChangeType(Find<NumberBox>(reopened, pair.Key).Value, pair.Value.GetType());
+                Assert(Equals(actual, pair.Value is Enum ? Convert.ToInt32(pair.Value) : pair.Value), "Erneut geöffnete Einstellungen zeigen den gespeicherten Wert: " + pair.Key);
+            }
+        }
+        finally
+        {
+            foreach (var pair in original) typeof(Config).GetField(pair.Key)!.SetValue(null, pair.Value);
+            Config.ShowBalloonInterval = duration;
+            Config.SaveSettings();
+        }
     }
 
     /// <summary>Übt den tatsächlich gebundenen Cleanupbefehl an einer isolierten Arbeitskopie aus.</summary>
