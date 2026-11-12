@@ -12,6 +12,7 @@ public static class OwnProcessWindows
 {
     private delegate bool EnumerateWindow(IntPtr window, IntPtr context);
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("kernel32.dll")] private static extern void SetLastError(uint error);
     [DllImport("user32.dll")] private static extern IntPtr GetThreadDesktop(uint thread);
     [DllImport("user32.dll", SetLastError=true)] private static extern bool EnumDesktopWindows(IntPtr desktop, EnumerateWindow callback, IntPtr context);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
@@ -27,8 +28,11 @@ public static class OwnProcessWindows
             if (owner == processId && IsWindowVisible(window)) windows.Add(window);
             return true;
         };
-        if (!EnumDesktopWindows(GetThreadDesktop(GetCurrentThreadId()), callback, IntPtr.Zero))
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        // Ein noch leerer Desktop beendet die Enumeration ohne Win32-Fehler; vorherige API-Fehler dürfen nicht als Enumerationsfehler gelten.
+        SetLastError(0);
+        bool enumerated = EnumDesktopWindows(GetThreadDesktop(GetCurrentThreadId()), callback, IntPtr.Zero);
+        int error = Marshal.GetLastWin32Error();
+        if (!enumerated && error != 0) throw new System.ComponentModel.Win32Exception(error);
         return windows.ToArray();
     }
 

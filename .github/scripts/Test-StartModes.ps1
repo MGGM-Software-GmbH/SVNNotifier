@@ -8,6 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+. (Join-Path $PSScriptRoot 'Get-OwnProcessWindows.ps1')
 if (-not ('PackagedRuntimePath' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
@@ -88,10 +89,9 @@ function Start-Mode([string] $arguments) {
     $process = [Diagnostics.Process]::Start($info); $processes.Add($process); return $process
 }
 function Find-Control($process, [string] $property, [string] $value) {
-    $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
     $searchProperty = if ($property -eq 'Name') { [System.Windows.Automation.AutomationElement]::NameProperty } else { [System.Windows.Automation.AutomationElement]::AutomationIdProperty }
     $search = New-Object System.Windows.Automation.PropertyCondition($searchProperty, $value)
-    foreach ($window in [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)) {
+    foreach ($window in @(Get-OwnProcessWindows $process.Id)) {
         $found = $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $search)
         if ($null -ne $found) { return $found }
     }

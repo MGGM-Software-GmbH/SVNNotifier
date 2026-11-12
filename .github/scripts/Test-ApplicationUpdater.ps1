@@ -9,6 +9,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Invoke-QuietConsole.ps1')
+. (Join-Path $PSScriptRoot 'Get-OwnProcessWindows.ps1')
 $repositoryPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $artifactsPath = if ([System.IO.Path]::IsPathRooted($ArtifactsDirectory)) { $ArtifactsDirectory } else { Join-Path $repositoryPath $ArtifactsDirectory }
 $archives = @(Get-ChildItem -LiteralPath (Join-Path $artifactsPath 'packages') -Filter "*-$RuntimeIdentifier.zip")
@@ -62,8 +63,7 @@ foreach ($scenario in @('valid', 'tampered', 'invalid')) {
                 })
                 if ($candidates.Count -gt 0) {
                     $updatedProcess = $candidates[0]
-                    $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $updatedProcess.Id)
-                    $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
+                    $windows = @(Get-OwnProcessWindows $updatedProcess.Id)
                     $dialogCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'SettingsViewDialog')
                     $settingsWindow = $windows | ForEach-Object { $_.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition) } |
                         Where-Object { $null -ne $_ -and -not $_.Current.IsOffscreen } | Select-Object -First 1
