@@ -9,6 +9,17 @@ if (-not ([Security.Principal.WindowsIdentity]::GetCurrent()).Groups.Value.Conta
 }
 Write-Host "Testsitzung: $([Diagnostics.Process]::GetCurrentProcess().SessionId)"
 
+# SDK und CLI benötigen benannte Synchronisationsobjekte auch bei einem anderen angemeldeten Testkonto.
+$mutexName = 'SVNNotifier-CI-' + [Guid]::NewGuid().ToString('N')
+$created = $false
+$mutex = [Threading.Mutex]::new($false, $mutexName, [ref]$created)
+try {
+    if (-not $created) { throw 'Das eindeutige CI-Synchronisationsobjekt wurde nicht neu angelegt.' }
+    $opened = [Threading.Mutex]::OpenExisting($mutexName)
+    try { Write-Host 'Eigenes benanntes Synchronisationsobjekt angelegt und erneut geöffnet.' }
+    finally { $opened.Dispose() }
+} finally { $mutex.Dispose() }
+
 # Eine eigene echte Windows-Ansicht trennt Desktop-/UI-Automation-Probleme vom WinUI-Produktstart.
 . (Join-Path $PSScriptRoot 'Get-OwnProcessWindows.ps1')
 Add-Type -AssemblyName System.Windows.Forms
