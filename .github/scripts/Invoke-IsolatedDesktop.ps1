@@ -59,6 +59,54 @@ public static class IsolatedDesktopTest
     [DllImport("user32.dll")] private static extern IntPtr GetProcessWindowStation();
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr OpenWindowStation(string name, bool inherit, uint access);
+    [DllImport("user32.dll")] private static extern bool CloseWindowStation(IntPtr station);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetUserObjectSecurity(IntPtr handle, ref uint information, byte[] descriptor, uint length, out uint needed);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetUserObjectSecurity(IntPtr handle, ref uint information, byte[] descriptor);
+
+    // Nur während eines erhöht gestarteten Prüflaufs Zugriff für denselben Benutzer ergänzen und danach exakt zurücksetzen.
+    private sealed class StationAccess : IDisposable
+    {
+        private IntPtr station;
+        private byte[] original;
+        public StationAccess(string name)
+        {
+            station = OpenWindowStation(name, false, 0x00060000);
+            if (station == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+            try
+            {
+                uint information = 4, size;
+                GetUserObjectSecurity(station, ref information, null, 0, out size);
+                if (size == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+                original = new byte[size];
+                if (!GetUserObjectSecurity(station, ref information, original, size, out size)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                var descriptor = new System.Security.AccessControl.RawSecurityDescriptor(original, 0);
+                if (descriptor.DiscretionaryAcl == null) throw new InvalidOperationException("Fensterstation hat keine begrenzte DACL.");
+                var user = System.Security.Principal.WindowsIdentity.GetCurrent().User;
+                descriptor.DiscretionaryAcl.InsertAce(0, new System.Security.AccessControl.CommonAce(
+                    System.Security.AccessControl.AceFlags.None, System.Security.AccessControl.AceQualifier.AccessAllowed,
+                    0x0002033f, user, false, null));
+                var updated = new byte[descriptor.BinaryLength]; descriptor.GetBinaryForm(updated, 0);
+                if (!SetUserObjectSecurity(station, ref information, updated)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                Console.WriteLine("Fensterstationszugriff für den eingeschränkten eigenen Benutzer ergänzt.");
+            }
+            catch { CloseWindowStation(station); station = IntPtr.Zero; throw; }
+        }
+        public void Dispose()
+        {
+            if (station == IntPtr.Zero) return;
+            try
+            {
+                uint information = 4;
+                if (!SetUserObjectSecurity(station, ref information, original)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                Console.WriteLine("Fensterstations-DACL wiederhergestellt.");
+            }
+            finally { CloseWindowStation(station); station = IntPtr.Zero; }
+        }
+    }
 
     // CI läuft erhöht. Der Produktpfad wird mit demselben Benutzer, deaktivierter Administratorgruppe und mittlerer Integrität geprüft.
     private static IntPtr StandardUserToken()
@@ -161,9 +209,11 @@ public static class IsolatedDesktopTest
             if (descriptor != IntPtr.Zero) LocalFree(descriptor);
         }
         if (desktop == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden.");
-        IntPtr job = IntPtr.Zero, token = IntPtr.Zero; var process = new ProcessInformation();
+        IntPtr job = IntPtr.Zero, token = IntPtr.Zero; StationAccess stationAccess = null; var process = new ProcessInformation();
         try
         {
+            var principal = new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent());
+            if (standardUser && principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator)) stationAccess = new StationAccess(station.ToString());
             job = CreateJobObject(IntPtr.Zero, null);
             if (job == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
             var limits = new ExtendedLimit(); limits.Basic.Flags = 0x2000; // KILL_ON_JOB_CLOSE
@@ -195,6 +245,7 @@ public static class IsolatedDesktopTest
         {
             if (token != IntPtr.Zero) CloseHandle(token);
             if (job != IntPtr.Zero) CloseHandle(job);
+            if (stationAccess != null) stationAccess.Dispose();
             if (process.Thread != IntPtr.Zero) CloseHandle(process.Thread);
             if (process.Process != IntPtr.Zero) CloseHandle(process.Process);
             CloseDesktop(desktop);
