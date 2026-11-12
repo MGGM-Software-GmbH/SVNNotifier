@@ -14,8 +14,9 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $UseUserDesktop) { throw 'Für diesen Test ist die Freigabe einer sichtbaren Testsitzung erforderlich.' }
-if ([DateTimeOffset]::Now -lt $VisibleFrom -or [DateTimeOffset]::Now -ge $VisibleUntil.AddMinutes(-5)) {
-    throw 'Der sichtbare Lauf liegt außerhalb des freigegebenen Zeitfensters oder hat weniger als fünf Minuten für Lauf und Bereinigung.'
+$minimumMinutes = if ($Quick) { 2 } else { 5 }
+if ([DateTimeOffset]::Now -lt $VisibleFrom -or [DateTimeOffset]::Now -ge $VisibleUntil.AddMinutes(-$minimumMinutes)) {
+    throw 'Der sichtbare Lauf liegt außerhalb des freigegebenen Zeitfensters oder hat nicht genug Zeit für Lauf und Bereinigung.'
 }
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -240,6 +241,11 @@ function By-Name($root, [string] $name) {
 function Capture($element, [string] $name) {
     $window = [IntPtr]$element.Current.NativeWindowHandle
     if ($window -ne [IntPtr]::Zero) {
+        if ($windowHandles.ContainsKey($element.Current.ProcessId) -and $windowHandles[$element.Current.ProcessId] -eq $window) {
+            # Ein per Escape ausgeblendetes WinUI-Fenster über seinen eigenen Anzeigen-Befehl wiederherstellen.
+            [NativeShellInput]::PostMessage($window, 0x8001, [IntPtr]::Zero, [IntPtr]0x202) | Out-Null
+            Start-Sleep -Milliseconds 150
+        }
         [NativeShellInput]::ShowWindow($window, 9) | Out-Null
         # Alt gibt während der erlaubten sichtbaren Sitzung die Windows-Vordergrundsperre frei.
         [NativeShellInput]::Key(0x12)
@@ -602,10 +608,10 @@ try {
         $completed = Join-Path $fixtureA.WorkingCopy 'notification-update-completed'
         Capture (App-Window $applicationA) 'before-native-restart'
         'Isolierter Statuswechsel.' | Set-Content -LiteralPath $completed
-        (By-Id (App-Window $applicationA) 'Repositories').SetFocus(); [NativeShellInput]::Key(0x0d)
+        Force-StatusA
         Wait-Test { $null -ne (By-Name (App-Window $applicationA) 'Synchronisiert') } 'Statuswechsel entfernt die ausstehende Änderungsmeldung'
         [IO.File]::Delete($completed)
-        (By-Id (App-Window $applicationA) 'Repositories').SetFocus(); [NativeShellInput]::Key(0x0d)
+        Force-StatusA
         Wait-Test { @(Contexts $exe $fixtureA.Configuration).Count -gt $before } 'Erneute Änderungen erzeugen eine neue Meldung'
         $applicationA.Kill(); $applicationA.WaitForExit()
         Start-Sleep -Seconds 7
