@@ -35,6 +35,18 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
+      - name: Windows-Testumgebung vor dem Paketbau prüfen
+        shell: powershell
+        env:
+          RUNTIME_IDENTIFIER: ${{ matrix.runtime }}
+        run: |
+          $testLog = "artifacts/ci-environment-$env:RUNTIME_IDENTIFIER.log"
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          try {
+            ./.github/scripts/Invoke-IsolatedDesktop.ps1 -ScriptPath .github/scripts/Test-WindowsTestEnvironment.ps1 -StandardUser -LogPath $testLog -TimeoutSeconds 60
+          } finally {
+            if (Test-Path -LiteralPath $testLog) { Get-Content -LiteralPath $testLog | Write-Host }
+          }
       - name: Windows-Paket erstellen und Version prüfen
         env:
           RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
@@ -56,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: validation-${{ matrix.runtime }}
-          path: artifacts/ci-validation-*.log
+          path: artifacts/ci-*.log
           if-no-files-found: warn
       - name: Pakete und Prüfsummen hochladen
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -56,6 +56,9 @@ public static class IsolatedDesktopTest
         IntPtr threadSecurity, bool inherit, uint flags, IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation process);
     [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr memory);
+    [DllImport("user32.dll")] private static extern IntPtr GetProcessWindowStation();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
 
     // CI läuft erhöht. Der Produktpfad wird mit demselben Benutzer, deaktivierter Administratorgruppe und mittlerer Integrität geprüft.
     private static IntPtr StandardUserToken()
@@ -132,6 +135,9 @@ public static class IsolatedDesktopTest
 
     public static int Run(string executable, string[] arguments, string directory, int timeoutSeconds, bool standardUser)
     {
+        var station = new StringBuilder(256); int needed;
+        if (!GetUserObjectInformation(GetProcessWindowStation(), 2, station, 512, out needed)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        Console.WriteLine("Testfensterstation: " + station + "; Sitzung=" + System.Diagnostics.Process.GetCurrentProcess().SessionId);
         string name = "SVNNotifierTests-" + Guid.NewGuid().ToString("N");
         // Kein DESKTOP_SWITCHDESKTOP: Der Testdesktop wird niemals zum Eingabedesktop.
         IntPtr descriptor = IntPtr.Zero, security = IntPtr.Zero, desktop = IntPtr.Zero;
@@ -163,7 +169,7 @@ public static class IsolatedDesktopTest
             var limits = new ExtendedLimit(); limits.Basic.Flags = 0x2000; // KILL_ON_JOB_CLOSE
             if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf(typeof(ExtendedLimit))))
                 throw new Win32Exception(Marshal.GetLastWin32Error());
-            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Desktop = "WinSta0\\" + name };
+            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Desktop = station.ToString() + "\\" + name };
             var command = new StringBuilder(Quote(executable));
             foreach (string argument in arguments) command.Append(' ').Append(Quote(argument));
             if (standardUser) token = StandardUserToken();
