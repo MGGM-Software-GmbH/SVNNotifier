@@ -43,7 +43,7 @@ jobs:
           $testLog = "artifacts/ci-environment-$env:RUNTIME_IDENTIFIER.log"
           New-Item -ItemType Directory -Path artifacts -Force | Out-Null
           try {
-            ./.github/scripts/Invoke-IsolatedDesktop.ps1 -ScriptPath .github/scripts/Test-WindowsTestEnvironment.ps1 -StandardUser -LogPath $testLog -TimeoutSeconds 60
+            ./.github/scripts/Invoke-IsolatedDesktop.ps1 -ScriptPath .github/scripts/Test-WindowsTestEnvironment.ps1 -StandardUser -ProbeNativeProcess -LogPath $testLog -TimeoutSeconds 60
           } finally {
             if (Test-Path -LiteralPath $testLog) { Get-Content -LiteralPath $testLog | Write-Host }
           }
