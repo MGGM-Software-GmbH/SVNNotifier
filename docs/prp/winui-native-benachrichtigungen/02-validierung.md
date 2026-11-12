@@ -108,7 +108,7 @@ Die Szenarien aus `docs/SVN-Koordination.md` und `tests/Svn.Tests/Program.cs` bl
 - Ein Benutzerklick darf keine Commit-, Cleanup- oder sonstige Schreibaktion ohne den bestehenden vorgesehenen Bedienablauf auslösen.
 - Nach erfolgreichem Update ausstehende Änderungsmeldung aktualisieren/entfernen. Erneute neue Änderungen müssen wieder eine passende Meldung erzeugen.
 - Mehrere Instanzen und Programmupdate mit noch vorhandenen Meldungen prüfen; keine Aktivierung einer Installerkopie und kein doppelter Pollingprozess.
-- Deaktivierte Benachrichtigungen, Nicht stören, erhöhte Anwendung und Registrierungsfehler prüfen. API-Annahme, tatsächliche Anzeige und Benutzerunterdrückung getrennt berichten.
+- Deaktivierte Benachrichtigungen, Nicht stören und Registrierungsfehler prüfen. Gemäß Benutzerentscheidung K-02 normalen Betrieb ohne Administratorrechte prüfen; beim erhöhten Start eine konkrete Ablehnung verlangen. API-Annahme, tatsächliche Anzeige und Benutzerunterdrückung getrennt berichten.
 - Benachrichtigungsdauer gemäß K-01 systemgesteuert prüfen; Banneranzeige und Historie getrennt betrachten.
 - Registrierung unter dem Benutzerkonto, normale Ressourcenfreigabe beim Beenden und dauerhafte Aufräumfunktion beim Entfernen/Verschieben einer Installation planen und prüfen. Nicht bei jedem normalen Beenden sämtliche aufbewahrten Meldungen löschen.
 

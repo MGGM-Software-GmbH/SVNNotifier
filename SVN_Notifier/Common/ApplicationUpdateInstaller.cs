@@ -30,7 +30,7 @@ internal static class ApplicationUpdateInstaller
         await File.WriteAllTextAsync(planPath, JsonSerializer.Serialize(plan));
         var installerPath = Path.Combine(update.DirectoryPath, "installer.exe");
         File.Copy(target, installerPath, false);
-        var start = new ProcessStartInfo(installerPath) { UseShellExecute = false, WorkingDirectory = update.DirectoryPath };
+        var start = new ProcessStartInfo(installerPath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = update.DirectoryPath };
         start.ArgumentList.Add("--apply-update");
         start.ArgumentList.Add(planPath);
         using var installer = Process.Start(start) ?? throw new InvalidOperationException("The update installer could not be started.");
@@ -106,7 +106,7 @@ internal static class ApplicationUpdateInstaller
             throw new InvalidDataException("The staged executable has changed. Installation stopped.");
         File.Replace(payload, plan.TargetPath, Path.Combine(directory, "previous.exe"));
         using var self = Process.GetCurrentProcess();
-        var start = new ProcessStartInfo(plan.TargetPath) { UseShellExecute = false, WorkingDirectory = plan.WorkingDirectory };
+        var start = new ProcessStartInfo(plan.TargetPath) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = plan.WorkingDirectory };
         start.ArgumentList.Add("--update-cleanup");
         start.ArgumentList.Add(directory);
         start.ArgumentList.Add(self.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));

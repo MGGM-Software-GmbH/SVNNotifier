@@ -2,7 +2,7 @@ name: Windows build
 
 on:
   push:
-    branches: [master]
+    branches: [master, feature/winui-native-notifications]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -69,15 +69,15 @@ jobs:
               $process.Refresh()
               if ($process.HasExited) { throw "Die Anwendung wurde beendet: Exit-Code $($process.ExitCode)" }
               $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
-              $settingsWindow = $windows | Where-Object { $_.Current.Name -ceq 'Settings' -and -not $_.Current.IsOffscreen } | Select-Object -First 1
+              $dialogCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'SettingsViewDialog')
+              $settingsWindow = $windows | ForEach-Object { $_.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition) } |
+                Where-Object { $null -ne $_ -and -not $_.Current.IsOffscreen } | Select-Object -First 1
             } while ($null -eq $settingsWindow -and [DateTime]::UtcNow -lt $deadline)
             if ($null -eq $settingsWindow) {
               throw 'Die Anwendung hat den Einstellungsdialog nicht geöffnet.'
             }
-            $windowPattern = $settingsWindow.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
-            if (-not $windowPattern.WaitForInputIdle(5000)) {
-              throw 'Der Einstellungsdialog reagiert nicht.'
-            }
+            $buttonCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+            if ($null -eq $settingsWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)) { throw 'Der Einstellungsdialog enthält keine bedienbaren Schaltflächen.' }
             Write-Host "Anwendungsstart erfolgreich: $env:RUNTIME_IDENTIFIER"
           } finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id }

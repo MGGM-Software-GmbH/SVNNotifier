@@ -91,7 +91,7 @@ Diese Punkte sind erforderliche Untersuchungen, keine bereits bestätigten Eigen
 | ID | Frage und verbindlicher Umgang |
 |---|---|
 | K-01 | Benutzerentscheidung: Windows steuert die Banneranzeigedauer. Die bisherige Sekunden-Einstellung wird in der WinUI-Oberfläche durch einen Zugang zu den Windows-Benachrichtigungseinstellungen ersetzt. Vorhandene INI-Werte einschließlich Migrationsregeln bleiben erhalten; keine Umdeutung als Ablaufzeit der Benachrichtigungszentrale. Die Wirkung der Windows-Einstellungen getrennt von der Historie prüfen. |
-| K-02 | Das aktuelle Windows-App-SDK dokumentiert keine Unterstützung für erhöhte Prozesse. Bestehenden Notifier auch erhöht prüfen. Ein bisher möglicher Bedien-/Benachrichtigungsweg darf nicht ungeprüft entfallen. Ein Konflikt mit dem Funktionserhalt blockiert diesen Umsetzungspfad; keine stille Abschaltung und kein ungefragter Rückfall auf Balloons. |
+| K-02 | Benutzerentscheidung: Normaler Betrieb ohne Administratorrechte ist ausreichend. Die WinUI-Anwendung benötigt keinen erhöhten Benachrichtigungsprozess. Einen erhöhten Start mit einer konkreten Meldung ablehnen, statt Benachrichtigungen still abzuschalten oder auf Balloons auszuweichen. |
 | K-03 | Einzel-EXE-Auslieferung ist in den geprüften SDK-Buildregeln vorgesehen. Tatsächlichen Start, COM-Aktivierung, Ressourcenauflösung und EXE-Austausch mit der konkret ausgewählten SDK-Version und beiden Architekturen nachweisen. Kein Paketformatwechsel als verdeckte Umgehung. |
 | K-04 | Unterstützte Windows-Versionen des Ausgangsprodukts und der ausgewählten .NET-/SDK-Kombination feststellen. Die Gestaltung ist an aktuellen Windows-Oberflächen orientiert; daraus folgt keine Freigabe, bisher unterstützte Systeme auszuschließen. |
 | K-05 | Registrierung einer Benachrichtigungsaktivierung verweist auf eine konkrete EXE. Mehrere Instanzen, verschobene portable Ordner, Installerkopien und Arbeitsverzeichnisse dürfen weder eine falsche Konfiguration öffnen noch parallele Hintergrundprüfer erzeugen. |
@@ -131,7 +131,7 @@ Wenn ein Punkt nicht erfüllbar ist, die übrigen unabhängigen Arbeiten fortfü
 | [XAML-Theme-Ressourcen](https://learn.microsoft.com/en-us/windows/apps/develop/platform/xaml/xaml-theme-resources) | Hell, Dunkel, Kontrast, Systemfarben und dynamische Themewechsel. |
 | [Shell-Benachrichtigungen](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shell_notifyiconw) | Bestehendes Tray-/Balloon-Verhalten, insbesondere Windows 11. |
 
-### Aktueller Codebasis-Baum
+### WinForms-Ausgangsstruktur
 
 ```text
 SVN_Notifier.sln

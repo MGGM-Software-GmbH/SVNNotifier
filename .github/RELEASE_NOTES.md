@@ -1,4 +1,12 @@
-SVN Notifier 3.0.0.13
+SVN Notifier 3.0.0.14 (Entwicklungsbranch)
+
+- WinUI-3-Oberfläche für Repository-Liste, Einstellungen, Eigenschaften, Protokolle, Info und Programmupdate.
+- Native Windows-App-Benachrichtigungen für eingehende Änderungen, erfolgreiche stille SVN-Updates und Fehler der automatischen Programmprüfung. Windows steuert die Banneranzeigedauer; vorhandene INI-Werte bleiben erhalten.
+- Gemeinsamer UI-freier Kern für Konfiguration, SVN-Koordination und Ablaufsteuerung. Deutsch, Englisch sowie Schriftfamilie und Schriftgröße bleiben konfigurierbar.
+
+Prüfstand und offene Integrationsnachweise stehen im [PRP-Umsetzungsstand](../docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md). Diese Hinweise beschreiben den Entwicklungsbranch, keine veröffentlichte Ausgabe.
+
+Beibehaltene SVN-Koordination:
 
 - Verwaiste Notifier-Reservierungen werden beim Start und vor späteren SVN-Aufträgen automatisch freigegeben. Auch das alte Reservierungsformat wird berücksichtigt.
 - Aktive Instanzen und nach einem Absturz weiterlaufende SVN-Prozesse bleiben geschützt. Anschließend erfolgt die Freigabe bei einer späteren Prüfung. Rechnerkennung und Prozessstartzeiten unterscheiden neue Reservierungen auch bei wiederverwendeten Prozess-IDs.

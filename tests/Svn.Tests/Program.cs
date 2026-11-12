@@ -85,7 +85,13 @@ internal static class Program
                 var path = System.Text.RegularExpressions.Regex.Match(Marshal.PtrToStringUni(GetCommandLineW())!, "(?:^| )/path:(?:\"(?<path>[^\"]*)\"|(?<path>[^ ]*))");
                 if (!path.Success || !Directory.Exists(path.Groups["path"].Value)) return 9;
             }
-            if (args[0] == "status") Console.WriteLine("<status><target><entry path='fixture'><wc-status item='normal' props='none'><commit revision='1'/></wc-status><repos-status item='modified'/></entry><against revision='2'/></target></status>");
+            if (args[0] == "update" && File.Exists(Path.Combine(args[^1][..^1], "notification-autoupdate-fixture")))
+                File.WriteAllText(Path.Combine(args[^1][..^1], "notification-update-completed"), "Isoliertes erfolgreiches Testupdate.");
+            if (args[0] == "status" && File.Exists(Path.Combine(args[^1][..^1], "notification-keyboard-fixture")))
+                File.AppendAllText(Path.Combine(args[^1][..^1], "notification-status-calls"), DateTime.UtcNow.ToString("O") + Environment.NewLine);
+            if (args[0] == "status") Console.WriteLine(File.Exists(Path.Combine(args[^1][..^1], "notification-update-completed"))
+                ? "<status><target><entry path='fixture'><wc-status item='normal' props='none'><commit revision='2'/></wc-status></entry><against revision='2'/></target></status>"
+                : "<status><target><entry path='fixture'><wc-status item='normal' props='none'><commit revision='1'/></wc-status><repos-status item='modified'/></entry><against revision='2'/></target></status>");
             if (args[0] == "info") Console.WriteLine("<info><entry revision='2'><url>file:///fixture</url></entry></info>");
             await Task.Delay(100);
             return 0;
@@ -103,6 +109,7 @@ internal static class Program
             Config.SVNpath = Config.TortoiseSVNpath = executable;
             CheckConfiguration(root);
             checks += await CoordinatorTests.RunAsync(output, executable);
+            NotificationContextTests.Run(output, Assert);
             await CheckCoordinationAsync(root);
             await CheckRecoveryAsync(root);
             await CheckProcessesAsync(root);
@@ -447,96 +454,68 @@ internal static class Program
         Assert(finalClaim is not null, "Auch nach Diagnosefehler ist die Arbeitskopie nach Prozessende freigegeben");
     }
 
-    /// <summary>Prüft den echten WinForms-Installationsübergang einschließlich laufender Statusprüfung und Installerfehler.</summary>
+    /// <summary>Prüft den produktiven Installationsübergang einschließlich laufender Statusprüfung und Installerfehler.</summary>
     private static async Task CheckApplicationInstallationAsync(string root)
     {
         using (await CrashOwnerAsync(root, "reserved")) { }
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
+        Config.CheckForNewVersion = false;
+        Config.DoPauseAfterApplicationStartup = false;
+        Config.SVNpath = Config.TortoiseSVNpath = executable;
+        Config.SaveSvnFolders(new BindingList<SvnItem> { new(root, PathType.Directory) { Enabled = false } });
+        using var coordinator = new ApplicationCoordinator(action => action());
+        Assert(!File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)),
+            "Produktstart übernimmt verwaiste konfigurierte Reservierungen vor der ersten Statusprüfung");
+        var runner = (SvnOperationRunner)typeof(SvnTools).GetField("runner", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        try
         {
+            string statusRoot = Path.Combine(Path.GetDirectoryName(root)!, "installation-status");
+            Directory.CreateDirectory(Path.Combine(statusRoot, ".svn"));
+            File.WriteAllText(Path.Combine(statusRoot, ".svn", "wc.db"), "Synthetische Testmarkierung.");
+            File.WriteAllText(Path.Combine(statusRoot, "hold-status"), "Isolierte blockierende Statusprüfung.");
+            var item = new SvnItem(statusRoot, PathType.Directory) { AutoUpdate = false };
+            coordinator.Folders.Add(item);
+            var polling = coordinator.PollAsync();
+            await WaitAsync(() => File.Exists(Path.Combine(statusRoot, "status.pid")));
+            item.Enabled = false;
+            var writing = runner.TryStart(root, "installation-write", executable, new[] { "--child", "60000", "0" }, false)!;
+            int installerCalls = 0;
+            Func<Task> installer = () =>
+            {
+                installerCalls++;
+                Assert(!SvnTools.HasActiveOperations && writing.IsCompleted && writing.Result.Cancelled,
+                    "Echter Updater beendet laufende SVN-Vorgänge vor dem Installeraufruf");
+                Assert(polling.IsCompleted, "Echter Updater wartet auf das Ende der Hintergrundprüfung");
+                Assert(runner.TryStart(root, "status", executable, Array.Empty<string>(), true) is null,
+                    "Während des Installerstarts kann kein neuer SVN-Prozess starten");
+                throw new IOException("Isolierter Installerfehler.");
+            };
             try
             {
-                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
-                Config.CheckForNewVersion = false;
-                Config.SVNpath = Config.TortoiseSVNpath = executable;
-                Config.SaveSvnFolders(new BindingList<SvnItem> { new(root, PathType.Directory) { Enabled = false } });
-                using var main = new MainForm();
-                Assert(!File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)), "Echter MainForm-Start übernimmt verwaiste konfigurierte Reservierungen vor der ersten Statusprüfung");
-                var flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic;
-                FieldInfo Field(string name) => typeof(MainForm).GetField(name, flags)!;
-                var prepare = typeof(MainForm).GetMethod("PrepareApplicationInstallationAsync", flags)!;
-                var runner = (SvnOperationRunner)typeof(SvnTools).GetField("runner", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
-                Exception? failure = null;
-                main.Shown += async (sender, eventArgs) =>
-                {
-                    try
-                    {
-                        string statusRoot = Path.Combine(Path.GetDirectoryName(root)!, "installation-status");
-                        Directory.CreateDirectory(Path.Combine(statusRoot, ".svn"));
-                        File.WriteAllText(Path.Combine(statusRoot, ".svn", "wc.db"), "Synthetische Testmarkierung.");
-                        File.WriteAllText(Path.Combine(statusRoot, "hold-status"), "Isolierte blockierende Statusprüfung.");
-                        var folders = (BindingList<SvnItem>)Field("folders").GetValue(main)!;
-                        var item = new SvnItem(statusRoot, PathType.Directory) { AutoUpdate = false };
-                        folders.Add(item);
-                        typeof(MainForm).GetMethod("BeginUpdateFolderStatuses", flags)!.Invoke(main, null);
-                        await WaitAsync(() => File.Exists(Path.Combine(statusRoot, "status.pid")));
-                        item.Enabled = false;
-                        var writing = runner.TryStart(root, "installation-write", executable, new[] { "--child", "60000", "0" }, false)!;
-                        int installerCalls = 0;
-                        Func<Task> installer = () =>
-                        {
-                            installerCalls++;
-                            Assert(!SvnTools.HasActiveOperations && writing.IsCompleted && writing.Result.Cancelled,
-                                "Echter Updater beendet laufende SVN-Vorgänge vor dem Installeraufruf");
-                            Assert(Field("statusThread").GetValue(main) is null, "Echter Updater wartet auf das Ende der Hintergrundprüfung");
-                            Assert(runner.TryStart(root, "status", executable, Array.Empty<string>(), true) is null,
-                                "Während des Installerstarts kann kein neuer SVN-Prozess starten");
-                            throw new IOException("Isolierter Installerfehler.");
-                        };
-                        try
-                        {
-                            await (Task)prepare.Invoke(main, new object[] { installer })!;
-                            throw new Exception("Der Installerfehler wurde nicht gemeldet.");
-                        }
-                        catch (IOException error) when (error.Message == "Isolierter Installerfehler.")
-                        {
-                            Assert(installerCalls == 1 && !(bool)Field("applicationInstallationInProgress").GetValue(main)!,
-                                "Installerfehler wird weitergegeben und hebt den Installationszustand auf");
-                        }
-                        var retry = runner.TryStart(root, "status", executable, new[] { "--child", "0", "0" }, true);
-                        Assert(retry is not null, "Installerfehler gibt neue SVN-Aufträge wieder frei");
-                        Assert((await retry!).Success,
-                            "Nach echtem Installerfehler funktionieren weitere SVN-Prüfungen");
-                        Func<Task> successfulInstaller = () =>
-                        {
-                            Assert(!SvnTools.HasActiveOperations, "Auch ein erneuter Installationsversuch beginnt ohne laufende SVN-Prozesse");
-                            return Task.CompletedTask;
-                        };
-                        await (Task)prepare.Invoke(main, new object[] { successfulInstaller })!;
-                        Assert((bool)Field("applicationInstallationInProgress").GetValue(main)!
-                            && runner.TryStart(root, "update", executable, Array.Empty<string>(), false) is null,
-                            "Nach erfolgreicher Installerübergabe bleiben SVN-Aufträge bis zum Neustart gesperrt");
-                    }
-                    catch (Exception error) { failure = error; }
-                    finally
-                    {
-                        Field("applicationInstallationInProgress").SetValue(main, true);
-                        await SvnTools.PauseForApplicationUpdateAsync();
-                        SvnTools.ResumeAfterApplicationUpdate();
-                        await (Task)typeof(MainForm).GetMethod("ExitSafelyAsync", flags)!.Invoke(main, null)!;
-                        Assert(!SvnTools.HasActiveOperations && !File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)),
-                            "Echter Menü-Beenden-Pfad stoppt eigene Aufträge und hinterlässt keine Reservierung");
-                    }
-                };
-                Application.Run(main);
-                if (failure is not null) completion.SetException(failure);
-                else completion.SetResult();
+                await coordinator.PrepareInstallationAsync(installer);
+                throw new Exception("Der Installerfehler wurde nicht gemeldet.");
             }
-            catch (Exception error) { completion.TrySetException(error); }
-        }) { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        await completion.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            catch (IOException error) when (error.Message == "Isolierter Installerfehler.")
+            {
+                Assert(installerCalls == 1, "Installerfehler wird weitergegeben und hebt den Installationszustand auf");
+            }
+            var retry = runner.TryStart(root, "status", executable, new[] { "--child", "0", "0" }, true);
+            Assert(retry is not null, "Installerfehler gibt neue SVN-Aufträge wieder frei");
+            Assert((await retry!).Success, "Nach echtem Installerfehler funktionieren weitere SVN-Prüfungen");
+            await coordinator.PrepareInstallationAsync(() =>
+            {
+                Assert(!SvnTools.HasActiveOperations, "Auch ein erneuter Installationsversuch beginnt ohne laufende SVN-Prozesse");
+                return Task.CompletedTask;
+            });
+            Assert(runner.TryStart(root, "update", executable, Array.Empty<string>(), false) is null,
+                "Nach erfolgreicher Installerübergabe bleiben SVN-Aufträge bis zum Neustart gesperrt");
+        }
+        finally
+        {
+            await coordinator.StopAsync();
+            SvnTools.ResumeAfterApplicationUpdate();
+            Assert(!SvnTools.HasActiveOperations && !File.Exists(Path.Combine(root, ".svn", WorkingCopyLease.FileName)),
+                "Produktiver Beenden-Pfad stoppt eigene Aufträge und hinterlässt keine Reservierung");
+        }
     }
 
     private static async Task CheckEntryPointsAsync(string root)

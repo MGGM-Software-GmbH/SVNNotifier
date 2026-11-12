@@ -7,6 +7,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../SVN_Notifier/SVN_Notifier.csproj" />
+    <ProjectReference Include="../../SVN_Notifier.Core/SVN_Notifier.Core.csproj" />
   </ItemGroup>
 </Project>

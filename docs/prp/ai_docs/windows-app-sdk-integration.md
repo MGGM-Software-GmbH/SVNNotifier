@@ -46,6 +46,8 @@ Geprüfter Paketinhalt: `Microsoft.WindowsAppSDK.Base` Version `2.6.5`, Datei `b
 
 Nicht mit `WindowsAppSDKSingleFileVerifyConfiguration=false` die Prüfung abschalten, um ein ungeklärtes Auslieferungsproblem zu verdecken. Die tatsächliche Ressourcenentpackung, der Start ohne vorinstallierte Laufzeiten und die Hilfsmodi sind auf beiden Architekturen nachzuweisen.
 
+Bei manuell verzögerter Initialisierung verlangt der Quellcode von `Microsoft.WindowsAppSDK.Foundation/2.6.5/include/UndockedRegFreeWinRT-AutoInitializer.cs` zusätzlich `MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY_PID` mit der aktuellen Prozess-ID in invariantem Zahlenformat. Damit übernimmt ein Kindprozess nicht versehentlich das Ressourcenverzeichnis seines Elternprozesses. Beide Werte vor dem Zugriff auf die SDK-Laufzeit setzen. Der aktuelle x64-Ansichtslauf `gui-check-application-definition.log` erreicht damit die Repository-Liste und Befehlsprüfungen; dies ist kein Nachweis für sauberes Windows oder native Shellzustellung.
+
 Primärquellen: [Unverpackte Auslieferung und Single-file EXE](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/unpackage-winui-app#single-file-exe), [Projektproperties](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/project-properties), [geprüftes NuGet-Paket](https://www.nuget.org/packages/Microsoft.WindowsAppSDK.Base/2.6.5).
 
 ## WinUI-Controls und Gestaltung

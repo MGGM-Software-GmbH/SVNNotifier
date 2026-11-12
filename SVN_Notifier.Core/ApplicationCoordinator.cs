@@ -52,7 +52,8 @@ internal sealed class ApplicationCoordinator : IDisposable
     private void OnError(string path, string error) => dispatch(() =>
     {
         if (stopping || installation) return;
-        Errors[path] = error;
+        path ??= "Checking for new version";
+        Errors[path] = $"[{DateTime.Now}] {Environment.NewLine}{path}:{Environment.NewLine}{error.Replace("\n", Environment.NewLine)}{Environment.NewLine}{Environment.NewLine}";
         Changed?.Invoke();
     });
 

@@ -2,18 +2,29 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+    <WindowsAppSdkDeploymentManagerInitialize>false</WindowsAppSdkDeploymentManagerInitialize>
+    <WindowsAppSdkUndockedRegFreeWinRTInitialize>false</WindowsAppSdkUndockedRegFreeWinRTInitialize>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <StartupObject>CHD.SVN_Notifier.Program</StartupObject>
+    <Platforms>x64;x86</Platforms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>CHD.SVN_Notifier</RootNamespace>
     <AssemblyName>SVN_Notifier</AssemblyName>
     <ApplicationIcon>App.ico</ApplicationIcon>
     <AssemblyTitle>SVN Notifier</AssemblyTitle>
-    <AssemblyVersion>3.0.0.13</AssemblyVersion>
-    <FileVersion>3.0.0.13</FileVersion>
-    <Version>3.0.0.13</Version>
-    <InformationalVersion>3.0.0.13</InformationalVersion>
+    <AssemblyVersion>3.0.0.14</AssemblyVersion>
+    <FileVersion>3.0.0.14</FileVersion>
+    <Version>3.0.0.14</Version>
+    <InformationalVersion>3.0.0.14</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Company>CHD</Company>
     <Product>SVN Notifier</Product>
@@ -25,19 +36,24 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <Optimize>false</Optimize>
     <DebugType>embedded</DebugType>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>$(DefineConstants);DEBUG;TRACE</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <Optimize>true</Optimize>
     <DebugType>none</DebugType>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>$(DefineConstants);TRACE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../SVN_Notifier.Core/SVN_Notifier.Core.csproj" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
+    <Compile Remove="*Form*.cs;Common/ApplicationTheme.cs;Common/ControlHelper.cs;Common/DialogLayout.cs;Common/UiIcons.cs;Properties/Resources.Designer.cs" />
+    <EmbeddedResource Remove="*.resx;Properties/Resources.resx" />
+    <EmbeddedResource Include="Images/Icons/TrayIcon_*.ico" />
     <Compile Remove="Common/Attributes.cs;Common/Config.cs;Common/IniFile.cs;Common/Loc.cs;Common/PathType.cs;Common/SvnItem.cs;Common/SvnOperationRunner.cs;Common/SvnStatus.cs;Common/SvnTools.cs;Common/SvnXml.cs;Common/WindowsPathComparer.cs;Common/WorkingCopyLease.cs" />
     <InternalsVisibleTo Include="Svn.Tests" />
+    <InternalsVisibleTo Include="Gui.Tests" />
     <!-- Designer-generated files: disable nullable analysis to avoid noise -->
     <Compile Update="AboutForm.Designer.cs">
       <DependentUpon>AboutForm.cs</DependentUpon>

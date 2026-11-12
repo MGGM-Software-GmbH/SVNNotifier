@@ -104,8 +104,8 @@ Prüfgruppen T-01 bis T-13 sind in [02-validierung.md](02-validierung.md) defini
 | N-04 | Klick zeigt die Anwendung mit dem richtigen Eintrag; verschiedene aufbewahrte Meldungen behalten ihr eigenes Ziel. | `MainForm.cs:661`; Benutzerauftrag native Meldungen | T-10: A/B, Klick auf ältere Meldung, entfernter Eintrag. |
 | N-05 | Meldungen sind in der Benachrichtigungszentrale verwaltbar; erledigte Änderungsmeldungen entfernen/aktualisieren, keine Erfolgshistorie ungefragt als ausstehend darstellen. | Benutzerauftrag; Microsoft-Verwaltungs-API | T-10: Bannerende, Historie, Statuswechsel, Neustart. |
 | N-06 | Klick bei beendetem Prozess, frühe Aktivierung, mehrere Instanzen und verschobener portabler Ordner öffnen den passenden Kontext. | K-05; `MainForm.cs:1239` | T-10: kein zusätzlicher Prüfer, keine falsche INI. |
-| N-07 | Betrieb bei deaktivierten Meldungen, Nicht stören, Registrierungsfehlern und erhöhter Anwendung wird ausdrücklich geprüft. Kein behaupteter Versand-/Anzeigenachweis bei Fehlschlag. | K-02; Microsoft-Dokumentation | T-10/T-11: reale Shellzustände und kontrollierte Fehler. |
-| N-08 | Windows steuert gemäß Benutzerentscheidung K-01 die Dauer; gespeicherte INI-Werte bleiben erhalten. Normale Betriebsfunktionen und erhöhter Betrieb gemäß K-02 prüfen; weitere Abweichungen nicht stillschweigend akzeptieren. | K-01/K-02; S-06 | T-01/T-10 und INI-Erhalt. |
+| N-07 | Betrieb bei deaktivierten Meldungen, Nicht stören und Registrierungsfehlern wird ausdrücklich geprüft. Einen erhöhten Start gemäß Benutzerentscheidung K-02 mit konkreter Meldung ablehnen. Kein behaupteter Versand-/Anzeigenachweis bei Fehlschlag. | Benutzerentscheidung K-02; Microsoft-Dokumentation | T-10/T-11: reale Shellzustände und kontrollierte Fehler. |
+| N-08 | Windows steuert gemäß Benutzerentscheidung K-01 die Dauer; gespeicherte INI-Werte bleiben erhalten. Normaler Betrieb ohne Administratorrechte ist gemäß Benutzerentscheidung K-02 ausreichend; weitere Abweichungen nicht stillschweigend akzeptieren. | Benutzerentscheidungen K-01/K-02; S-06 | T-01/T-10 und INI-Erhalt. |
 
 ## Regeln für die Paritätsentscheidung
 
