@@ -21,6 +21,8 @@ Zusätzlich wurde nach dem Entsperren ausdrücklich ein kurzer Desktoplauf erlau
 
 Eine weitere Freigabe lautete ausdrücklich „Jetzt höchstens fünf Minuten“. Der Produktlauf endete um 14:46:20 Uhr, eine begrenzte Shell-Diagnose um 14:47:32 Uhr. Danach wurden keine weiteren Desktop-Eingaben ausgeführt. Die Prozesskontrolle um 14:48:25 Uhr findet null eigene Testinstanzen. Diese Freigabe ist verbraucht.
 
+Auf die erneute Freigabe „Prüf eben schnell“ folgte ein Kurzlauf von 14:55:40 bis 14:56:36 Uhr. Alle drei dabei gestarteten Produktinstanzen wurden regulär geschlossen; die Kontrolle um 14:57:29 Uhr findet null eigene Testinstanzen. Weitere sichtbare Läufe sind damit nicht freigegeben.
+
 ## Technischer und gestalterischer Stand
 
 - WinUI 3, Windows App SDK 2.6.5, portable Einzel-EXE für x64/x86 und Produktversionsangaben 3.0.0.14. Dies ist keine Veröffentlichung.
@@ -59,6 +61,7 @@ Artefaktwurzel: `artifacts/winui-implementation-20261112/`. Die isolierten Testd
 | Begrenzte Shell-Diagnose | `notification-switch-product/native-shell/69103d7cb3f146fe931abbaae20ecc40/test.log`, Exit-Code 0: Die UI-Automation findet vor und nach dem Öffnungsversuch keinen sichtbaren Benachrichtigungsbereich. Der eigene Pfadmarker erscheint nur im eigenen Hauptfenster. `SetForegroundWindow` liefert in den Diagnoseversuchen false. Das belegt weder einen Meldungsklick noch einen Zustellungsfehler im Produkt. |
 | Shell-Teststarter nach dem Kurzlauf | `native-script-after-short-run.log`, Exit-Code 0: PowerShell-Syntax und beide C#-Helfer kompiliert, unbekannte Tray-Zuordnung abgewiesen und Aufruf außerhalb des Zeitfensters vor Verzeichnis- und Prozessstart abgelehnt. Keine Desktop-Eingaben oder Systemeinstellungen verändert. Die Änderung am Fokusziel benötigt noch den tatsächlichen Aktivierungslauf. |
 | Aktuelle Prozesskontrolle | `own-process-check-after-short-run.log`, Exit-Code 0, und `own-test-processes-current.txt`, 12.11.2026 um 14:54:38 Uhr: null eigene Testinstanzen. Die Kontrolle verwendet ausschließlich ausführbare Dateien unter der eigenen Artefaktwurzel. |
+| Erneuter Kurzlauf | `notification-switch-product/native-shell/8a00e8817d4441e4b311a03f89014300/test.log`: 33 erfolgreiche Prüfungen, sechs fehlgeschlagene Szenarien, drei ausgelassene Systemänderungen; Exit-Code 1. Eingabe, Entf und Einfg bestehen erneut. Drag-and-drop und Aktivierung nach Prozessende erreichen wegen fehlendem Vordergrund des eigenen Fensters bereits die nächste Testhandlung nicht. Banner, Historie und Tray-Erkennung schlagen weiterhin fehl. `own-process-check-1457.log`, Exit-Code 0: null eigene Testinstanzen um 14:57:29 Uhr. |
 
 ## Benutzerentscheidungen und offene Nachweise
 
