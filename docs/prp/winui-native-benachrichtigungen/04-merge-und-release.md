@@ -56,6 +56,17 @@ Diese Befehle wurden hier nicht ausgeführt. Vorher prüfen, dass `HEAD` genau d
 
 Der aktuelle Workflow reagiert auf `v*`-Tags und prüft zusätzlich, dass der Tag-Commit in `master` enthalten ist. Nach beiden erfolgreichen Windows-Jobs prüft er die Paketprüfsummen, erstellt einen Release-Entwurf und veröffentlicht ihn automatisch als neuestes Release. Ein Tag-Push löst daher bereits die Veröffentlichung aus. Ein Branch-Push veröffentlicht kein Release. Das automatische `GITHUB_TOKEN` genügt; keine Zugangsdaten in Dateien oder Befehle übernehmen.
 
+## Letzter Ausweg: lokaler Build und manuelle Veröffentlichung
+
+Benutzerentscheidung: Falls GitHub Actions trotz Ursachenprüfung und Korrekturen nicht nutzbar ist, kann die Veröffentlichung mit lokal gebauten und geprüften Paketen erfolgen. GitHub Actions bleibt der vorgesehene Weg. Der lokale Veröffentlichungsweg ist vorgemerkt und noch nicht ausgeführt.
+
+1. Den vorgesehenen integrierten `master`-Commit mit allen vier Versionsfeldern auf 3.1.0.0 unter Windows für x64 und x86 bauen. Die vorhandenen Build- und Prüfscripte verwenden und neue Artefaktordner anlegen.
+2. Die erforderlichen Paketstart-, Startmodus-, GUI-, SVN-, Updater- und WinForms-Übergangsprüfungen lokal ausführen. Offene Shell-, Sicht- und Systemprüfungen bleiben erforderlich. Einen Fehler der Anwendung oder einen fehlenden Funktionsnachweis nicht durch den Wechsel des Buildorts umgehen. Unsichtbare Tests und das Beenden eigener Testinstanzen beibehalten; sichtbare Desktopläufe benötigen eine konkrete Freigabe.
+3. Die geprüften ZIP-Pakete für beide Architekturen samt README, Lizenz und gemeinsamer `SHA256SUMS.txt` bereitstellen. EXE-Version, Architektur, Paketinhalt und SHA-256 prüfen. Die bisherigen Paketnamen und das vom Programmupdater erwartete Prüfsummenformat erhalten; keine Benutzerkonfiguration oder Zugangsdaten veröffentlichen.
+4. Vor dem Tag-Push die konkurrierende automatische Actions-Veröffentlichung gezielt ausschließen und die gewählte Workflow-Anpassung dokumentieren. Der bestehende `v*`-Auslöser darf nicht parallel dieselbe Release-Version veröffentlichen.
+5. Den freien Tag `v3.1.0.0` auf genau den geprüften Hauptbranch-Commit setzen und pushen. Über die GitHub-Oberfläche oder einen dafür autorisierten Zugriff einen Release-Entwurf erstellen, beide ZIP-Dateien und `SHA256SUMS.txt` hochladen und nach Paketprüfung als stabiles neuestes Release veröffentlichen. Keine vorhandenen Tags verschieben oder Release-Dateien ungeprüft ersetzen.
+6. Release-Version, Tag-Zuordnung, Download-Dateien und Prüfsummen nach Veröffentlichung prüfen und die tatsächlichen Nachweise im Umsetzungsstand erfassen. Der vorhandene Programmupdater verwendet weiterhin das stabile GitHub-Release mit unveränderten Paketnamen und Prüfsummenregeln.
+
 ## Update von WinForms und Rückkehr
 
 Der vorhandene Updater ab 3.0.0.4 kann eine neuere stabile WinUI-Ausgabe anhand derselben Paketnamen und Architektur installieren. Der tatsächliche Übergang 3.0.0.13 zu 3.1.0.0 wurde lokal für x64 und x86 mit EXE-Austausch, Neustart, INI und Repository-Zuordnung geprüft (`release-3100.log` und `release-3100-continue.log`). Erst ein veröffentlichtes stabiles Release wird regulären Benutzern angeboten; der Featurebranch ist keine Updatequelle.
