@@ -68,6 +68,8 @@ public static class NativeShellInput {
             if (process.ProcessName == "LockApp") throw new InvalidOperationException("Windows-Sitzung ist gesperrt; keine Testeingabe gesendet.");
     }
     [StructLayout(LayoutKind.Sequential)] public struct CursorPoint { public int X, Y; }
+    [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(CursorPoint point);
+    public static uint ProcessAtPoint(int x, int y) { return WindowProcess(WindowFromPoint(new CursorPoint { X = x, Y = y })); }
     public static void Click(int x, int y) {
         EnsureInteractiveSession();
         CursorPoint saved; GetCursorPos(out saved); SetCursorPos(x, y);
@@ -124,6 +126,7 @@ public sealed class NativeDragSource : IDisposable {
     private readonly ManualResetEvent ready = new ManualResetEvent(false);
     private Exception failure;
     public Point SourcePoint;
+    public volatile bool DragStarted;
     public DragDropEffects Result;
     public NativeDragSource(string[] files) {
         thread = new Thread(() => {
@@ -133,6 +136,7 @@ public sealed class NativeDragSource : IDisposable {
                 var source = new Label { Text = files.Length > 0 ? "Isolierte Dateien und Ordner" : "Ungeeigneter Text",
                     Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter };
                 source.MouseDown += (sender, args) => {
+                    DragStarted = true;
                     var data = new DataObject();
                     if (files.Length > 0) data.SetData(DataFormats.FileDrop, files);
                     else data.SetText("Isolierter Text, kein Dateisystemziel.");
@@ -361,6 +365,11 @@ try {
         Wait-Test { $null -ne (By-Id (App-Window $applicationA) 'Repositories') } 'Diagnoseinstanz zeigt ihre Repository-Liste'
         Wait-Test { @(Contexts $exe $fixtureA.Configuration).Count -gt 0 } 'Diagnoseinstanz hat eine Meldung erzeugt'
         $handle = [IntPtr](App-Window $applicationA).Current.NativeWindowHandle
+        $source = New-Object NativeDragSource -ArgumentList (,[string[]]@())
+        try {
+            $hitProcess = [NativeShellInput]::ProcessAtPoint($source.SourcePoint.X, $source.SourcePoint.Y)
+            Write-Host "OLE-Quelldiagnose: expectedPID=$PID; hitPID=$hitProcess; x=$($source.SourcePoint.X); y=$($source.SourcePoint.Y); started=$($source.DragStarted)"
+        } finally { $source.Dispose() }
         foreach ($attempt in 1..3) {
             $foreground = [NativeShellInput]::GetForegroundWindow()
             Write-Host "Vordergrunddiagnose: own=$handle; foreground=$foreground; foregroundPID=$([NativeShellInput]::WindowProcess($foreground)); foregroundClass=$([NativeShellInput]::WindowClass($foreground)); ownThread=$([NativeShellInput]::WindowThread($handle)); inputThread=$([NativeShellInput]::WindowThread($foreground))"
