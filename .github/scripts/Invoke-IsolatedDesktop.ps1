@@ -63,12 +63,55 @@ public static class IsolatedDesktopTest
     private static extern bool CreateProcessWithLogonW(string user, string domain, string password, uint logonFlags,
         string application, StringBuilder command, uint flags, IntPtr environment, string directory, ref StartupInfo startup, out ProcessInformation process);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr CreateWindowStation(string name, uint flags, uint access, IntPtr security);
-    [DllImport("user32.dll", SetLastError = true)] private static extern bool SetProcessWindowStation(IntPtr station);
+    private static extern IntPtr OpenWindowStation(string name, bool inherit, uint access);
     [DllImport("user32.dll")] private static extern bool CloseWindowStation(IntPtr station);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetUserObjectSecurity(IntPtr handle, ref uint information, byte[] descriptor, uint length, out uint needed);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetUserObjectSecurity(IntPtr handle, ref uint information, byte[] descriptor);
     [DllImport("user32.dll")] private static extern IntPtr GetProcessWindowStation();
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
+
+    // Ausschließlich das temporäre CI-Konto benötigt Stationszugriff; die vorhandene DACL wird danach wiederhergestellt.
+    private sealed class StationAccess : IDisposable
+    {
+        private IntPtr station;
+        private byte[] original;
+        public StationAccess(string name, string loginUser)
+        {
+            station = OpenWindowStation(name, false, 0x00060000);
+            if (station == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+            try
+            {
+                uint information = 4, size;
+                GetUserObjectSecurity(station, ref information, null, 0, out size);
+                if (size == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+                original = new byte[size];
+                if (!GetUserObjectSecurity(station, ref information, original, size, out size)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                var descriptor = new System.Security.AccessControl.RawSecurityDescriptor(original, 0);
+                if (descriptor.DiscretionaryAcl == null) throw new InvalidOperationException("Fensterstation hat keine begrenzte DACL.");
+                var user = (System.Security.Principal.SecurityIdentifier)new System.Security.Principal.NTAccount(Environment.MachineName, loginUser)
+                    .Translate(typeof(System.Security.Principal.SecurityIdentifier));
+                descriptor.DiscretionaryAcl.InsertAce(0, new System.Security.AccessControl.CommonAce(
+                    System.Security.AccessControl.AceFlags.None, System.Security.AccessControl.AceQualifier.AccessAllowed,
+                    0x000f037f, user, false, null));
+                var updated = new byte[descriptor.BinaryLength]; descriptor.GetBinaryForm(updated, 0);
+                if (!SetUserObjectSecurity(station, ref information, updated)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            catch { CloseWindowStation(station); station = IntPtr.Zero; throw; }
+        }
+        public void Dispose()
+        {
+            try
+            {
+                uint information = 4;
+                if (!SetUserObjectSecurity(station, ref information, original)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                Console.WriteLine("CI-Fensterstationsrechte wiederhergestellt.");
+            }
+            finally { CloseWindowStation(station); }
+        }
+    }
 
     // CI läuft erhöht. Der Produktpfad wird mit demselben Benutzer, deaktivierter Administratorgruppe und mittlerer Integrität geprüft.
     private static IntPtr StandardUserToken()
@@ -154,8 +197,7 @@ public static class IsolatedDesktopTest
         Console.WriteLine("Testfensterstation: " + station + "; Sitzung=" + System.Diagnostics.Process.GetCurrentProcess().SessionId);
         string name = "SVNNotifierTests-" + Guid.NewGuid().ToString("N");
         // Kein DESKTOP_SWITCHDESKTOP: Der Testdesktop wird niemals zum Eingabedesktop.
-        IntPtr descriptor = IntPtr.Zero, security = IntPtr.Zero, desktop = IntPtr.Zero, privateStation = IntPtr.Zero;
-        IntPtr originalStation = GetProcessWindowStation();
+        IntPtr descriptor = IntPtr.Zero, security = IntPtr.Zero, desktop = IntPtr.Zero;
         try
         {
             if (standardUser || loginUser != null)
@@ -170,31 +212,24 @@ public static class IsolatedDesktopTest
                 var attributes = new SecurityAttributes { Size = Marshal.SizeOf(typeof(SecurityAttributes)), Descriptor = descriptor };
                 security = Marshal.AllocHGlobal(attributes.Size); Marshal.StructureToPtr(attributes, security, false);
             }
-            if (loginUser != null)
-            {
-                // Eigene Station statt Zugriffsänderungen an WinSta0 oder am Desktop des angemeldeten Benutzers.
-                station.Clear(); station.Append("SVNNotifierStation-" + Guid.NewGuid().ToString("N"));
-                privateStation = CreateWindowStation(station.ToString(), 0, 0x000f037f, security);
-                if (privateStation == IntPtr.Zero || !SetProcessWindowStation(privateStation)) throw new Win32Exception(Marshal.GetLastWin32Error());
-            }
             desktop = CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, 0x00cf, security);
         }
         catch
         {
             if (desktop != IntPtr.Zero) CloseDesktop(desktop);
-            if (privateStation != IntPtr.Zero) { SetProcessWindowStation(originalStation); CloseWindowStation(privateStation); }
             throw;
         }
         finally
         {
-            if (!SetProcessWindowStation(originalStation)) throw new Win32Exception(Marshal.GetLastWin32Error());
             if (security != IntPtr.Zero) Marshal.FreeHGlobal(security);
             if (descriptor != IntPtr.Zero) LocalFree(descriptor);
         }
-        if (desktop == IntPtr.Zero) { if (privateStation != IntPtr.Zero) CloseWindowStation(privateStation); throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden."); }
+        if (desktop == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), "Testdesktop konnte nicht erstellt werden.");
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero; var process = new ProcessInformation();
+        StationAccess stationAccess = null;
         try
         {
+            if (loginUser != null) stationAccess = new StationAccess(station.ToString(), loginUser);
             job = CreateJobObject(IntPtr.Zero, null);
             if (job == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
             var limits = new ExtendedLimit(); limits.Basic.Flags = 0x2000; // KILL_ON_JOB_CLOSE
@@ -231,7 +266,7 @@ public static class IsolatedDesktopTest
             if (process.Thread != IntPtr.Zero) CloseHandle(process.Thread);
             if (process.Process != IntPtr.Zero) CloseHandle(process.Process);
             if (desktop != IntPtr.Zero) CloseDesktop(desktop);
-            if (privateStation != IntPtr.Zero) CloseWindowStation(privateStation);
+            if (stationAccess != null) stationAccess.Dispose();
         }
     }
 }
@@ -251,8 +286,10 @@ public static string Name(IntPtr desktop) { var name = new StringBuilder(256); i
 }'
 $currentName = [DesktopGuard]::Name([DesktopGuard]::GetThreadDesktop([DesktopGuard]::GetCurrentThreadId()))
 $stationName = [DesktopGuard]::Name([DesktopGuard]::GetProcessWindowStation())
-if ($stationName.StartsWith('SVNNotifierStation-') -and $currentName.StartsWith('SVNNotifierTests-')) {
-    Write-Host 'CI-Test auf eigener Fensterstation und eigenem Desktop.'
+if ($request.ciAccount) {
+    # Das neue Konto erhält keinen Zugriff auf den Standarddesktop. Der Elternprozess aktiviert den Testdesktop niemals.
+    if ($stationName -ne 'WinSta0' -or -not $currentName.StartsWith('SVNNotifierTests-')) { throw 'CI-GUI-Test außerhalb des isolierten Desktops verweigert.' }
+    Write-Host 'CI-Test auf isoliertem Desktop der interaktiven Fensterstation.'
 } else {
 $inputDesktop = [DesktopGuard]::OpenInputDesktop(0, $false, 1)
 if ($inputDesktop -eq [IntPtr]::Zero) { throw 'Eingabedesktop konnte nicht geprüft werden.' }
@@ -260,7 +297,7 @@ try { $inputName = [DesktopGuard]::Name($inputDesktop) } finally { [void][Deskto
 if ($currentName -eq $inputName -or -not $currentName.StartsWith('SVNNotifierTests-')) { throw 'GUI-Test auf dem Benutzerdesktop verweigert.' }
 }
 '@
-$payload = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject @{ path = $scriptFile; arguments = @($ScriptArguments); log = $transcriptPath } -Compress)))
+$payload = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject @{ path = $scriptFile; arguments = @($ScriptArguments); log = $transcriptPath; ciAccount = [bool]$TestCredential } -Compress)))
 $bootstrap = "`$request = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$payload')) | ConvertFrom-Json; Start-Transcript -LiteralPath `$request.log | Out-Null;"
 $environmentSetup = ''
 if ($TestCredential) {

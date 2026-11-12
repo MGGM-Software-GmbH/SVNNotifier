@@ -38,7 +38,7 @@ Diese Zusammenstellung ist eine noch nicht ausgeführte Release-Ablaufvorlage. D
 
 Der Workflow `.github/workflows/windows-build.yml` baut x64/x86 und führt Paketstart, Updater-, Startmodus-, GUI- und SVN-Prüfungen aus. Zusätzlich lädt er das veröffentlichte WinForms-Ausgangspaket 3.0.0.13, prüft dessen SHA-256 und testet den tatsächlichen EXE-Austausch samt WinUI-Neustart und Konfiguration. Manuelle Shell-, Sicht- und Systemwechselprüfungen deckt er nicht ab.
 
-Die Produktprüfungen laufen über `Invoke-CiStandardUser.ps1` und `Test-WindowsProduct.ps1` in einem temporären Standardkonto mit geladenem Profil auf eigener Fensterstation und eigenem Desktop. Kontoanlage ist nur auf gehosteten GitHub-Runnern erlaubt. Das zufällige Kennwort bleibt im Speicher; gestartete Prozesse werden begrenzt, Arbeitsverzeichnisrechte zurückgesetzt und das Konto entfernt. Der Paketbuild bleibt davon getrennt. Das Prüfprotokoll wird auch bei Fehlern als eigenes Actions-Artefakt hochgeladen; nur Paketartefakte mit Namen `windows-*` gelangen in den Releasejob. Überholte Branchläufe werden abgebrochen, laufende Tag-Veröffentlichungen erhalten.
+Die Produktprüfungen laufen über `Invoke-CiStandardUser.ps1` und `Test-WindowsProduct.ps1` in einem temporären Standardkonto mit geladenem Profil auf eigenem, nicht aktiviertem Desktop innerhalb der interaktiven Fensterstation. Kontoanlage ist nur auf gehosteten GitHub-Runnern erlaubt. Das zufällige Kennwort bleibt im Speicher; gestartete Prozesse werden begrenzt, Arbeitsverzeichnisrechte und vorübergehende Fensterstationsrechte zurückgesetzt und das Konto entfernt. Der Standarddesktop erhält keine zusätzliche Freigabe. Der Paketbuild bleibt davon getrennt. Das Prüfprotokoll wird auch bei Fehlern als eigenes Actions-Artefakt hochgeladen; nur Paketartefakte mit Namen `windows-*` gelangen in den Releasejob. Überholte Branchläufe werden abgebrochen, laufende Tag-Veröffentlichungen erhalten.
 
 ## Release
 
@@ -58,7 +58,7 @@ Der aktuelle Workflow reagiert auf `v*`-Tags und prüft zusätzlich, dass der Ta
 
 ## Update von WinForms und Rückkehr
 
-Der vorhandene Updater ab 3.0.0.4 kann eine neuere stabile WinUI-Ausgabe anhand derselben Paketnamen und Architektur installieren. Der tatsächliche Übergang 3.0.0.13 zu 3.0.0.14 wurde lokal für x64 und x86 mit EXE-Austausch, Neustart, INI und Repository-Zuordnung geprüft (`legacy-transition.log`). Erst ein veröffentlichtes stabiles Release wird regulären Benutzern angeboten; der Featurebranch ist keine Updatequelle.
+Der vorhandene Updater ab 3.0.0.4 kann eine neuere stabile WinUI-Ausgabe anhand derselben Paketnamen und Architektur installieren. Der tatsächliche Übergang 3.0.0.13 zu 3.1.0.0 wurde lokal für x64 und x86 mit EXE-Austausch, Neustart, INI und Repository-Zuordnung geprüft (`release-3100.log` und `release-3100-continue.log`). Erst ein veröffentlichtes stabiles Release wird regulären Benutzern angeboten; der Featurebranch ist keine Updatequelle.
 
 Eine lokale Entwicklungsinstanz mit derselben Versionsnummer erhält diese Veröffentlichung nicht erneut als Update (`ApplicationUpdater.CheckAsync` verwirft gleiche oder kleinere Versionen). Eine solche Vergleichsinstanz gegebenenfalls manuell gegen das veröffentlichte Paket austauschen; die reguläre WinForms-Ausgabe 3.0.0.13 hat eine kleinere Versionsnummer.
 
