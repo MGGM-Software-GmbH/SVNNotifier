@@ -8,6 +8,7 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+. (Join-Path $PSScriptRoot 'Get-OwnProcessWindows.ps1')
 Write-Host "Testprozess mit Administratorrechten: $(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
 $archive = @(Get-ChildItem -LiteralPath (Join-Path $ArtifactsDirectory 'packages') -Filter "*-$RuntimeIdentifier.zip")
 if ($archive.Count -ne 1) { throw 'Genau ein ZIP-Paket wird erwartet.' }
@@ -24,21 +25,30 @@ foreach ($fileName in @('SVN_Notifier.exe', 'LICENSE', 'README.md')) {
   Set-Content -LiteralPath (Join-Path $testPath 'SVN_Notifier.ini') -Encoding ascii
 $process = Start-Process -FilePath (Join-Path $testPath 'SVN_Notifier.exe') -WorkingDirectory $testPath -PassThru
 try {
-  $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
   do {
     Start-Sleep -Milliseconds 500
     $process.Refresh()
     if ($process.HasExited) { throw "Die Anwendung wurde beendet: Exit-Code $($process.ExitCode)" }
-    $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
+    $windows = @(Get-OwnProcessWindows $process.Id)
     $dialogCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'SettingsViewDialog')
     $settingsWindow = $windows | ForEach-Object { $_.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition) } |
       Where-Object { $null -ne $_ -and -not $_.Current.IsOffscreen } | Select-Object -First 1
   } while ($null -eq $settingsWindow -and [DateTime]::UtcNow -lt $deadline)
   if ($null -eq $settingsWindow) {
+    Write-Host "Eigene sichtbare Fenster: $($windows.Count); Prozessdesktops: $([OwnProcessWindows]::Desktops($process.Id) -join ', ')"
     $textCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
     foreach ($window in $windows) {
+      Write-Host "Eigenes Fenster: $($window.Current.Name); Offscreen=$($window.Current.IsOffscreen)"
       $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCondition) | ForEach-Object { Write-Host "Eigene Startmeldung: $($_.Current.Name)" }
+    }
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+      # Ausschließlich den weiterhin lebenden eigenen Prozess untersuchen, bevor die Fehlerbereinigung ihn beendet.
+      . (Join-Path $PSScriptRoot 'Invoke-QuietConsole.ps1')
+      $diagnostics = Join-Path ([IO.Path]::GetFullPath($ArtifactsDirectory)) ('diagnostics/' + [Guid]::NewGuid().ToString('N'))
+      Invoke-QuietConsole dotnet tool install dotnet-stack --tool-path $diagnostics
+      if ($LASTEXITCODE -ne 0) { throw 'Die Stackdiagnose konnte nicht installiert werden; der Einstellungsdialog fehlt weiterhin.' }
+      Invoke-QuietConsole (Join-Path $diagnostics 'dotnet-stack.exe') report --process-id $process.Id
     }
     throw 'Die Anwendung hat den Einstellungsdialog nicht geöffnet.'
   }

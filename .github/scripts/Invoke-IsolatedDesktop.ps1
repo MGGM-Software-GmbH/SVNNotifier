@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory)] [string] $ScriptPath,
     [string[]] $ScriptArguments = @(),
     [string] $LogPath = '',
@@ -317,17 +317,19 @@ if ($ProbeNativeProcess) {
     Write-Host 'Nativer CI-Prozessstart erfolgreich; PowerShell wird gesondert geprüft.'
 }
 $bootstrapPath = $transcriptPath + '.bootstrap.ps1'
+$bootstrapCreated = $false
 try {
     # CreateProcessWithLogonW hat eine kürzere Befehlszeilengrenze. Die Datei enthält ausschließlich Testaufruf und Isolation, keine Zugangsdaten.
     if ($TestCredential) {
         if (Test-Path -LiteralPath $bootstrapPath) { throw 'Die temporäre Testdatei muss neu sein.' }
         [IO.File]::WriteAllText($bootstrapPath, $invocation, (New-Object Text.UTF8Encoding($true)))
+        $bootstrapCreated = $true
         $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $bootstrapPath)
     } else { $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded) }
     $result = [IsolatedDesktopTest]::Run($executable, $arguments, (Get-Location).Path, $TimeoutSeconds, $StandardUser.IsPresent, $loginUser, $loginPassword)
 } finally {
     $loginPassword = $null
-    if ($TestCredential -and (Test-Path -LiteralPath $bootstrapPath)) { Remove-Item -LiteralPath $bootstrapPath }
+    if ($bootstrapCreated -and (Test-Path -LiteralPath $bootstrapPath)) { Remove-Item -LiteralPath $bootstrapPath }
 }
 Write-Host "Testprotokoll: $transcriptPath"
 if ($result -ne 0) { throw "Isolierter Desktoptest fehlgeschlagen: Exit-Code $result" }
