@@ -74,8 +74,13 @@ namespace CHD.SVN_Notifier
 		public static string Status_WaitingForOperations => T("Waiting for SVN operations to finish...", "Warte auf das Ende laufender SVN-Vorgänge...");
 		public static string Svn_CoordinationError(string reason) => T("SVN coordination unavailable: ", "SVN-Koordination nicht möglich: ") + reason;
 		public static string Svn_InvalidInfo => T("Invalid SVN info response.", "Ungültige SVN-Info-Antwort.");
-		public static string Svn_Cancelled => T("SVN check cancelled or timed out.", "SVN-Prüfung abgebrochen oder Zeitlimit erreicht.");
-		public static string Svn_ProcessError(int? exitCode) => T("SVN operation failed. Exit code: ", "SVN-Vorgang fehlgeschlagen. Exit-Code: ") + exitCode;
+        public static string Svn_Cancelled => T("SVN check cancelled.", "SVN-Prüfung abgebrochen.");
+        public static string Svn_TimedOut(int seconds) => IsDe
+            ? $"SVN-Prüfung nach {seconds} Sekunden wegen Zeitüberschreitung abgebrochen."
+            : $"SVN check timed out after {seconds} seconds.";
+        public static string Svn_ProcessError(int? exitCode) => exitCode.HasValue
+            ? T("SVN operation failed. Exit code: ", "SVN-Vorgang fehlgeschlagen. Exit-Code: ") + exitCode
+            : T("SVN operation could not be started or completed.", "SVN-Vorgang konnte nicht gestartet oder ausgeführt werden.");
 		public static string Toast_AutoUpdateCompleted(string path) => IsDe ? $"✓ Aktualisiert: {path}" : $"✓ Updated: {path}";
 
 		// Context menu

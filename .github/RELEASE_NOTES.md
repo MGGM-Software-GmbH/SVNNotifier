@@ -1,29 +1,12 @@
-SVN Notifier 3.1.0.0
+SVN Notifier 3.1.0.1
 
-- WinUI-3-Oberfläche für Repository-Liste, Einstellungen, Eigenschaften, Protokolle, Info und Programmupdate.
-- Kompakte Repository-Zeilen mit dezenten Trennlinien und integrierter Menüleiste. Die Zeilen wachsen bei größerer Schrift mit; eine zusätzliche Listenüberschrift entfällt.
-- Fenster-, Taskleisten- und Tray-Symbol verwenden dieselben vorhandenen Statussymbole: Grau für unbekannt, Grün für synchronisiert, Gelb für eingehende Änderungen und Rot für Fehler. Die bisherige Priorität der Zustände bleibt erhalten.
-- Native Windows-App-Benachrichtigungen für eingehende Änderungen, erfolgreiche stille SVN-Updates und Fehler der automatischen Programmprüfung. Windows steuert die Banneranzeigedauer; vorhandene INI-Werte bleiben erhalten.
-- Benachrichtigungen lassen sich in den allgemeinen Einstellungen abschalten und sind standardmäßig eingeschaltet. SVN-Prüfung und Auto-Update bleiben unabhängig davon.
-- Gemeinsamer UI-freier Kern für Konfiguration, SVN-Koordination und Ablaufsteuerung. Deutsch, Englisch sowie Schriftfamilie und Schriftgröße bleiben konfigurierbar.
+- Das Fehlerprotokoll zeigt mehrzeilige Einträge mit Zeitstempel, Arbeitskopiepfad und Fehlerursache an.
+- Zeitüberschreitungen nennen das tatsächlich für den Auftrag verwendete Zeitlimit. Abbruch, Zeitüberschreitung und Prozessfehler besitzen unterschiedliche Meldungen und Diagnosegründe.
+- Start- und Ausführungsfehler ohne Exit-Code erhalten eine aussagekräftige Meldung.
+- Regressionstests prüfen mehrere Fehler auf Deutsch und Englisch, das Leeren und das gezielte Abschneiden nach der ersten Zeile. Prozessprüfungen decken Timeout, Abbruch, Prozessfehler und die anschließende Reservierungsfreigabe ab.
 
-Prüfstand und offene Integrationsnachweise stehen im [PRP-Umsetzungsstand](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.0/docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md).
+Das eingestellte SVN-Zeitlimit bleibt unverändert, standardmäßig 60 Sekunden; `0` bedeutet unbegrenzt. Schreibende SVN-Aufträge erhalten kein zusätzliches Zeitlimit. Gespeicherte Fehler werden weiterhin manuell geleert und nicht durch eine spätere erfolgreiche Prüfung entfernt.
 
-Die automatisierten Windows-Prüfungen bestehen für x64 und x86 einschließlich GUI, SVN-Kern, Programmupdater und tatsächlichem Übergang von WinForms 3.0.0.13. Manuelle Nachweise für sichtbare Windows-Banner, native Meldungsklicks, Tray-Bedienung, Drag-and-drop sowie DPI-/Kontrastwechsel stehen noch aus. Die gespeicherten Windows-Meldungen und der portable Ordnerwechsel sind separat geprüft.
+Die [Fehlerdiagnose](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.1/docs/Fehlerdiagnose.md) beschreibt das Verhalten. Der [Umsetzungsstand](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.1/docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md) enthält Prüfnachweise und die weiterhin offenen Integrationsnachweise für Windows-Banner, native Meldungsklicks, Tray, Drag-and-drop und Systemdarstellung.
 
-Der [Merge- und Releaseablauf](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.0/docs/prp/winui-native-benachrichtigungen/04-merge-und-release.md) nennt Voraussetzungen, Windows-Prüfungen, Versionsangaben und Tag-Auslösung. Voraussetzung für WinUI sind Windows 10 Version 1809 oder neuer und ein normaler Start ohne Administratorrechte. Nach einem portablen Ordnerwechsel einmal am neuen Ort starten; alte Meldungen dürfen ungültig werden. Die Vorwärtsaktualisierung von WinForms 3.0.0.13 ist für x64 und x86 mit EXE-Austausch, Neustart und erhaltener Konfiguration geprüft.
-
-Beibehaltene SVN-Koordination:
-
-- Verwaiste Notifier-Reservierungen werden beim Start und vor späteren SVN-Aufträgen automatisch freigegeben. Auch das alte Reservierungsformat wird berücksichtigt.
-- Aktive Instanzen und nach einem Absturz weiterlaufende SVN-Prozesse bleiben geschützt. Anschließend erfolgt die Freigabe bei einer späteren Prüfung. Rechnerkennung und Prozessstartzeiten unterscheiden neue Reservierungen auch bei wiederverwendeten Prozess-IDs.
-- Beim Beenden erfolgt die Freigabe nach dem tatsächlichen Prozessende auch über den Fehlerpfad des Nachrichtenloops. Die Prüfung und Freigabe verwenden dasselbe Windows-Dateihandle und vermeiden ein Rennen mit einem Dateiaustausch.
-- Regressionstests erzeugen echte Besitzerabbrüche und überlebende SVN-Testprozesse. Weitere Gegenproben prüfen alte Dateien, gleichzeitige Übernahmen, Prozessstartfenster und Freigabefehler.
-
-Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.0/docs/SVN-Koordination.md) beschreibt die Wiederherstellung und ihre Grenzen. Extern gestartete SVN-, TortoiseSVN- und Container-Aufrufe werden weiterhin nicht koordiniert. Es gibt keine automatischen SVN-Cleanups oder Änderungen an Arbeitskopiedatenbanken. Python wird nicht benötigt.
-
-Die automatische Beendigung eigener SVN-Vorgänge beim Programmupdate gilt ab 3.0.0.10. Beim Update von einer älteren Version müssen deren laufende Notifier-SVN-Vorgänge einmal vorher beendet werden. Alternativ die neue portable Ausgabe manuell installieren.
-
-Programmupdates und automatische SVN-Updates sind getrennte Funktionen. Versionen bis einschließlich 3.0.0.3 müssen einmal manuell durch diese Ausgabe ersetzt werden, um den Programmupdater zu erhalten.
-
-Das passende ZIP-Paket entpacken und `SVN_Notifier.exe` starten. Eine separate .NET-Installation ist nicht erforderlich. `svn.exe` und TortoiseSVN werden separat benötigt. Automatische Programmupdates benötigen Schreibzugriff auf den Programmordner. Die EXE-Dateien sind nicht digital signiert. `SHA256SUMS.txt` enthält die Prüfsummen der beiden ZIP-Pakete.
+Voraussetzungen: Windows 10 Version 1809 oder neuer, normaler Start ohne Administratorrechte sowie separat installiertes `svn.exe` und TortoiseSVN. Beide portablen ZIP-Pakete enthalten die .NET-Laufzeit. Für automatische Programmupdates ist Schreibzugriff auf den Programmordner erforderlich. Die EXE-Dateien sind nicht digital signiert; `SHA256SUMS.txt` enthält die Paketprüfsummen.

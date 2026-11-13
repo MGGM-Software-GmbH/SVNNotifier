@@ -2,9 +2,9 @@
 
 ## Auftrag und Voraussetzungen
 
-Die Umsetzung liegt auf `feature/winui-native-notifications`. Der veröffentlichte Ausgangsstand ist 3.0.0.13, die beauftragte Release-Version lautet 3.1.0.0. Der Benutzer hat Commit, Push, Merge auf den tatsächlichen Hauptbranch und Veröffentlichung ausdrücklich beauftragt. Der tatsächliche Hauptbranch ist `master`. Die folgenden Schritte beschreiben den Ablauf; ausgeführte Schritte und Prüfergebnisse werden im Umsetzungsstand erfasst. Die geprüfte Windows-Git-Zugriffsmethode steht im [PRP](PRP.md#geprüfter-git-push-aus-wsl), ohne Zugangsdaten.
+Die Korrektur liegt auf `feature/winui-native-notifications`. Der veröffentlichte Ausgangsstand ist 3.1.0.0, die beauftragte Release-Version lautet 3.1.0.1. Der Benutzer hat Korrektur, Prüfung und Veröffentlichung ausdrücklich beauftragt. Hauptbranch ist `master`. Die getrennte Release-Arbeitskopie enthält nur versionierte Projektbestände. Der geprüfte Windows-Git-Zugriff steht im [PRP](PRP.md#geprüfter-git-push-aus-wsl), ohne Zugangsdaten.
 
-Maßgeblich sind [Funktionsparität](01-funktionsparitaet.md), [Validierung](02-validierung.md) und [Nachweise](03-umsetzungsstand.md). Aktuelle Benutzerentscheidung: Nach erfolgreichen x64- und x86-Windows-Jobs Merge und Release 3.1.0.0 auslösen und den Tag-Workflow auf GitHub weiterlaufen lassen. Die zugehörigen Branchjobs sind erfolgreich. Offene Nachweise für Banner, Tray, Meldungsklick, Drag-and-drop, Datei-/Ordnerauswahl, DPI, Kontrast und einen geeigneten Rechner ohne separat installierte Laufzeiten bleiben im Umsetzungsstand ausdrücklich benannt. Windows-Historie und portabler Ordnerwechsel besitzen eigene Teilnachweise. Die Veröffentlichung ersetzt keine dieser offenen Prüfungen.
+Maßgeblich sind [Funktionsparität](01-funktionsparitaet.md), [Validierung](02-validierung.md), [Nachweise](03-umsetzungsstand.md) und [Fehlerdiagnose](../../Fehlerdiagnose.md). Nach erfolgreichen x64- und x86-Prüfungen die Korrektur auf `master` integrieren und Release 3.1.0.1 auslösen. Die tatsächlichen Ergebnisse werden im Umsetzungsstand erfasst. Bestehende offene Nachweise für Banner, Tray, Meldungsklick, Drag-and-drop, Datei-/Ordnerauswahl, DPI, Kontrast und einen Rechner ohne separat installierte Laufzeiten bleiben ausdrücklich benannt; die Veröffentlichung ersetzt diese Prüfungen nicht.
 
 ## Merge
 
@@ -42,14 +42,14 @@ Die Produktprüfungen laufen über `Invoke-CiStandardUser.ps1` und `Test-Windows
 
 ## Release
 
-1. Die beauftragte Version ist 3.1.0.0. `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` müssen identisch sein. Vor Veröffentlichung prüfen, dass der Tag frei und die Version höher als die letzte stabile Veröffentlichung ist.
+1. Die beauftragte Version ist 3.1.0.1. `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` müssen identisch sein. Vor Veröffentlichung prüfen, dass der Tag frei und die Version höher als die letzte stabile Veröffentlichung ist.
 2. README und `.github/RELEASE_NOTES.md` auf die gewählte Veröffentlichung ausrichten. Den Entwicklungsstatus erst nach den zugehörigen Nachweisen ersetzen. Windows 10 1809+, normalen Start ohne Administratorrechte, native Meldungen, den standardmäßig eingeschalteten Benachrichtigungsschalter und Windows-gesteuerte Banneranzeigedauer nennen. Portablen Ordnerwechsel und ungültige alte Meldungen erläutern.
 3. Genau den vorgesehenen Hauptbranch-Commit bauen und prüfen. Pakete, Architektur, EXE-Version und SHA-256 kontrollieren. ZIP-Dateien enthalten weiterhin EXE, README und Lizenz; keine Benutzer-INI-Dateien einpacken.
 4. Der Veröffentlichungsauftrag liegt vor. Nach den erforderlichen Prüfungen den Tag auf den nachgewiesenen Hauptbranch-Commit setzen und pushen, in einer geprüften Windows-Git-Arbeitskopie mit ausgechecktem Hauptbranch:
 
 ```powershell
-git tag v3.1.0.0
-git push mggm refs/tags/v3.1.0.0
+git tag v3.1.0.1
+git push mggm refs/tags/v3.1.0.1
 ```
 
 Vor diesen Befehlen prüfen, dass `HEAD` genau der freigegebene Hauptbranch-Commit ist und der Tag nicht existiert. Vorhandene Tags nicht verschieben. Tag und zugehörigen Workflow nach dem Push auf GitHub kontrollieren.
@@ -60,11 +60,11 @@ Der aktuelle Workflow reagiert auf `v*`-Tags und prüft zusätzlich, dass der Ta
 
 Benutzerentscheidung: Falls GitHub Actions trotz Ursachenprüfung und Korrekturen nicht nutzbar ist, kann die Veröffentlichung mit lokal gebauten und geprüften Paketen erfolgen. GitHub Actions bleibt der vorgesehene Weg. Der lokale Veröffentlichungsweg ist vorgemerkt und noch nicht ausgeführt.
 
-1. Den vorgesehenen integrierten `master`-Commit mit allen vier Versionsfeldern auf 3.1.0.0 unter Windows für x64 und x86 bauen. Die vorhandenen Build- und Prüfscripte verwenden und neue Artefaktordner anlegen.
+1. Den vorgesehenen integrierten `master`-Commit mit allen vier Versionsfeldern auf 3.1.0.1 unter Windows für x64 und x86 bauen. Die vorhandenen Build- und Prüfscripte verwenden und neue Artefaktordner anlegen.
 2. Die erforderlichen Paketstart-, Startmodus-, GUI-, SVN-, Updater- und WinForms-Übergangsprüfungen lokal ausführen. Offene Shell-, Sicht- und Systemprüfungen bleiben erforderlich. Einen Fehler der Anwendung oder einen fehlenden Funktionsnachweis nicht durch den Wechsel des Buildorts umgehen. Unsichtbare Tests und das Beenden eigener Testinstanzen beibehalten; sichtbare Desktopläufe benötigen eine konkrete Freigabe.
 3. Die geprüften ZIP-Pakete für beide Architekturen samt README, Lizenz und gemeinsamer `SHA256SUMS.txt` bereitstellen. EXE-Version, Architektur, Paketinhalt und SHA-256 prüfen. Die bisherigen Paketnamen und das vom Programmupdater erwartete Prüfsummenformat erhalten; keine Benutzerkonfiguration oder Zugangsdaten veröffentlichen.
 4. Vor dem Tag-Push die konkurrierende automatische Actions-Veröffentlichung gezielt ausschließen und die gewählte Workflow-Anpassung dokumentieren. Der bestehende `v*`-Auslöser darf nicht parallel dieselbe Release-Version veröffentlichen.
-5. Den freien Tag `v3.1.0.0` auf genau den geprüften Hauptbranch-Commit setzen und pushen. Über die GitHub-Oberfläche oder einen dafür autorisierten Zugriff einen Release-Entwurf erstellen, beide ZIP-Dateien und `SHA256SUMS.txt` hochladen und nach Paketprüfung als stabiles neuestes Release veröffentlichen. Keine vorhandenen Tags verschieben oder Release-Dateien ungeprüft ersetzen.
+5. Den freien Tag `v3.1.0.1` auf genau den geprüften Hauptbranch-Commit setzen und pushen. Über die GitHub-Oberfläche oder einen dafür autorisierten Zugriff einen Release-Entwurf erstellen, beide ZIP-Dateien und `SHA256SUMS.txt` hochladen und nach Paketprüfung als stabiles neuestes Release veröffentlichen. Keine vorhandenen Tags verschieben oder Release-Dateien ungeprüft ersetzen.
 6. Release-Version, Tag-Zuordnung, Download-Dateien und Prüfsummen nach Veröffentlichung prüfen und die tatsächlichen Nachweise im Umsetzungsstand erfassen. Der vorhandene Programmupdater verwendet weiterhin das stabile GitHub-Release mit unveränderten Paketnamen und Prüfsummenregeln.
 
 ## Update von WinForms und Rückkehr

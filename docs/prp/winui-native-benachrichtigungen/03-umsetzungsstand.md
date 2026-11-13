@@ -1,5 +1,11 @@
 # Umsetzungsstand und Nachweise
 
+## Korrekturprüfung 3.1.0.1
+
+Beauftragt sind die Korrektur des abgeschnittenen Fehlerprotokolls, eindeutige Timeout-Diagnosen, Prüfung und Veröffentlichung als 3.1.0.1. Der neue mehrzeilige GUI-Test reproduziert den Defekt am Produktcode. Mit vorab aktiviertem Mehrzeilenmodus zeigt der Dialog die Pfade und Ursachen auf Deutsch und Englisch; die gezielte Abschneidegegenprobe wird erkannt. Die Screenshots des unsichtbaren Prüflaufs wurden angesehen. Erweiterte x64-/x86-Prüfungen laufen; deren Ergebnisse und der Veröffentlichungsnachweis werden hier ergänzt.
+
+Die [Fehlerdiagnose](../../Fehlerdiagnose.md) beschreibt den aktuellen Vertrag. Das konfigurierte Zeitlimit und das manuelle Leeren gespeicherter Fehler bleiben erhalten. Bestehende offene Windows-Shellnachweise werden durch diese Korrektur nicht ersetzt.
+
 ## Auftrag und Arbeitsplan
 
 Die Implementierung liegt auf `feature/winui-native-notifications`. Der Benutzer hat Commit, Push, Merge auf `master` und Veröffentlichung als 3.1.0.0 ausdrücklich beauftragt. Benutzeränderungen außerhalb des Umbaus bleiben erhalten. Ausgeführte Schritte und offene Prüffehler werden getrennt dokumentiert.

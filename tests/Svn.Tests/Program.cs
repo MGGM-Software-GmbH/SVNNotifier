@@ -77,6 +77,7 @@ internal static class Program
                     await File.WriteAllTextAsync(Path.Combine(target, "status.pid"), Environment.ProcessId.ToString());
                     await Task.Delay(60000);
                 }
+                if (args[0] == "status" && File.Exists(Path.Combine(target, "fail-status"))) return 7;
             }
             if (args[0].StartsWith("/command:"))
             {
@@ -333,6 +334,8 @@ internal static class Program
         Assert((await first).Success, "Verzögerter Prozess beendet sich erfolgreich");
         var noisy = await runner.TryStart(root, "status", executable, new[] { "--child", "0", "7", "noisy" }, true)!;
         Assert(noisy.ExitCode == 7 && noisy.Output.Length > 500000 && noisy.Error.Length > 500000, "Beide vollen Streams und Prozessfehler blockieren Freigabe nicht");
+        Assert(!noisy.Cancelled && !noisy.TimedOut && logs.Any(line => line.Contains("\"reason\":\"process-error\"")),
+            "Prozessfehler mit Exit-Code bleibt von Abbruch und Zeitüberschreitung getrennt");
         var failed = await runner.TryStart(root, "update", Path.Combine(root, "missing.exe"), Array.Empty<string>(), false)!;
         Assert(!failed.Success && failed.ExitCode is null, "Startfehler wird erkannt");
         using (var claim = WorkingCopyLease.TryAcquire(root, "status", out _, out _)) Assert(claim is not null, "Startfehler gibt Reservierung frei");
@@ -344,9 +347,19 @@ internal static class Program
         var cancelled = runner.TryStart(root, "status", executable, new[] { "--child", "10000", "0" }, true, cancellation: cancellation.Token)!;
         await WaitAsync(() => logs.Count(line => line.Contains("\"phase\":\"begin\"")) > begins);
         cancellation.Cancel();
-        Assert((await cancelled).Cancelled, "Abbruch wartet auf das Ende des Leseprozesses");
+        var cancelledResult = await cancelled;
+        Assert(cancelledResult.Cancelled && !cancelledResult.TimedOut && logs.Any(line => line.Contains("\"reason\":\"cancelled\"")),
+            "Abbruch wartet auf das Ende des Leseprozesses und wird nicht als Zeitüberschreitung gemeldet");
         var timed = await runner.TryStart(root, "status", executable, new[] { "--child", "10000", "0" }, true, 1)!;
-        Assert(timed.Cancelled, "Zeitlimit beendet blockierenden Leseprozess");
+        Assert(timed.Cancelled && timed.TimedOut && timed.TimeoutSeconds == 1 && logs.Any(line => line.Contains("\"reason\":\"timeout\"")),
+            "Zeitlimit beendet blockierenden Leseprozess mit eindeutiger Timeout-Diagnose");
+        using (var claim = WorkingCopyLease.TryAcquire(root, "status", out _, out _)) Assert(claim is not null,
+            "Zeitüberschreitung gibt die Reservierung nach dem Prozessende frei");
+        var withinLimit = await runner.TryStart(root, "status", executable, new[] { "--child", "0", "0" }, true, 5)!;
+        Assert(withinLimit.Success && !withinLimit.Cancelled && !withinLimit.TimedOut,
+            "Erfolgreiche Prüfung innerhalb des Zeitlimits bleibt ohne Fehler");
+        var unlimited = await runner.TryStart(root, "status", executable, new[] { "--child", "250", "0" }, true, 0)!;
+        Assert(unlimited.Success && !unlimited.TimedOut, "Zeitlimit null erhält die unbegrenzte Statusprüfung");
         begins = logs.Count(line => line.Contains("\"phase\":\"begin\""));
         var write = runner.TryStart(root, "update", executable, new[] { "--child", "700", "0", "--password=test-secret-sentinel" }, false)!;
         await WaitAsync(() => logs.Count(line => line.Contains("\"phase\":\"begin\"")) > begins);

@@ -11,7 +11,8 @@ public sealed class ErrorLogView : UserControl
     internal ErrorLogView(Dictionary<string, string> errors)
     {
         var panel = new StackPanel { Spacing = 12, MinWidth = 260 };
-        var text = new TextBox { Text = string.Concat(errors.Values), IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 180, MaxHeight = 400 };
+        // Der Mehrzeilenmodus muss vor dem Text aktiv sein, sonst schneidet WinUI am ersten Zeilenumbruch ab.
+        var text = new TextBox { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 180, MaxHeight = 400, Text = string.Concat(errors.Values) };
         ScrollViewer.SetVerticalScrollBarVisibility(text, ScrollBarVisibility.Auto);
         var clear = new Button { Content = Loc.ELF_Btn_Clear };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(clear, "ErrorLogClear");

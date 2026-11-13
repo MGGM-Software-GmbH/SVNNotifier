@@ -101,6 +101,16 @@ internal static class Program
         if (arguments.Contains("--dark")) main.RootElement.RequestedTheme = ElementTheme.Dark;
         main.Activate();
         await WaitAsync(() => main.RootElement.IsLoaded);
+        if (arguments.Contains("--diagnose-error-log"))
+        {
+            foreach (int language in new[] { 1, 0 })
+            {
+                Config.Language = language;
+                await CheckErrorLogAsync(main);
+            }
+            await main.ExitAsync();
+            return;
+        }
         await CheckWindowIconsAsync(main);
         if (arguments.Contains("--diagnose-status-icons")) { await main.ExitAsync(); return; }
         foreach (int language in new[] { 1, 0 })
@@ -237,16 +247,7 @@ internal static class Program
             Assert(folders[0].ActiveStatusUpdateInterval == 31, "Repository-Eigenschaften werden übernommen");
             await WithDialogAsync(main, Loc.PF_Title, properties, dialog => CaptureAsync(dialog, $"properties-{language}"));
             CheckRepositoryProperties(folders[0]);
-            var errorBuffer = new Dictionary<string, string> { ["fixture"] = "Testmeldung: Repository ist nicht erreichbar.\r\n" };
-            var errors = new ErrorLogView(errorBuffer);
-            await WithDialogAsync(main, Loc.ELF_Title, errors, async dialog =>
-            {
-                await CaptureAsync(dialog, $"errors-{language}");
-                Invoke(Find<Button>(errors, "ErrorLogClear"));
-                await RenderAsync();
-                Assert(Find<TextBox>(errors, "ErrorLogText").Text.Length == 0, "Fehlerprotokoll kann geleert werden");
-                Assert(errorBuffer.Count == 0, "Leeren entfernt auch den gemeinsamen Fehlerpuffer");
-            });
+            await CheckErrorLogAsync(main);
             var about = new AboutView();
             Assert(Descendants(about).OfType<HyperlinkButton>().Count() >= 4, "Alle Herkunfts- und Projektlinks bleiben vorhanden");
             await WithDialogAsync(main, Loc.AF_Title, about, dialog => CaptureAsync(dialog, $"about-{language}"));
@@ -840,6 +841,32 @@ internal static class Program
         });
         try { await RenderAsync(); await inspect(dialog!); CheckButtons(dialog!); }
         finally { dialog!.Hide(); await showing; }
+    }
+
+    /// <summary>Prüft Zeitstempel, Pfade und Ursachen mehrerer Fehler statt nur einer einzeiligen Testmeldung.</summary>
+    private static async Task CheckErrorLogAsync(MainWindow main)
+    {
+        var errorBuffer = new Dictionary<string, string>
+        {
+            ["first"] = "[13.11.2026 14:20:57]\r\nD:\\Testprojekte\\Änderungen:\r\n" + Loc.Svn_TimedOut(60) + "\r\n\r\n",
+            ["second"] = "[13.11.2026 14:21:58]\r\nD:\\Testprojekte\\Projekt 2:\r\n" + Loc.Svn_ProcessError(1) + "\r\n\r\n",
+            ["third"] = "[13.11.2026 14:22:59]\r\nD:\\Testprojekte\\Projekt 3:\r\n" + Loc.Svn_Cancelled + "\r\n\r\n"
+        };
+        string expected = string.Concat(errorBuffer.Values);
+        var errors = new ErrorLogView(errorBuffer);
+        await WithDialogAsync(main, Loc.ELF_Title, errors, async dialog =>
+        {
+            var text = Find<TextBox>(errors, "ErrorLogText");
+            if (arguments.Contains("--negative-error-log")) text.Text = expected.Split('\r')[0];
+            static string Normalize(string value) => value.Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd('\n');
+            Assert(Normalize(text.Text) == Normalize(expected), "Mehrzeiliges Fehlerprotokoll zeigt sämtliche Zeitstempel, Pfade und Ursachen");
+            Assert(text.AcceptsReturn && text.IsReadOnly, "Fehlerprotokoll bleibt mehrzeilig, auswählbar und schreibgeschützt");
+            await CaptureAsync(dialog, $"errors-{Config.Language}");
+            Invoke(Find<Button>(errors, "ErrorLogClear"));
+            await RenderAsync();
+            Assert(text.Text.Length == 0, "Fehlerprotokoll kann geleert werden");
+            Assert(errorBuffer.Count == 0, "Leeren entfernt auch den gemeinsamen Fehlerpuffer");
+        });
     }
 
     private static void CheckButtons(DependencyObject root)

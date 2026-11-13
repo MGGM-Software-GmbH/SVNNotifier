@@ -211,7 +211,8 @@ namespace CHD.SVN_Notifier
         private static void ReportFailure(SvnItem folder, SvnProcessResult result)
         {
             folder.DeferOperation();
-            ErrorAdded?.Invoke(folder.Path, result.Cancelled ? Loc.Svn_Cancelled : Loc.Svn_ProcessError(result.ExitCode));
+            ErrorAdded?.Invoke(folder.Path, result.TimedOut ? Loc.Svn_TimedOut(result.TimeoutSeconds) :
+                result.Cancelled ? Loc.Svn_Cancelled : Loc.Svn_ProcessError(result.ExitCode));
         }
 
         /// <summary>Stoppt neue Aufträge und wartet auf die Freigabe aller bereits angenommenen Vorgänge.</summary>

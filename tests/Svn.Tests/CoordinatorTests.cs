@@ -65,6 +65,29 @@ internal static class CoordinatorTests
             coordinator.Add(Path.Combine(root, "second"), PathType.Directory);
             Check(coordinator.Folders.Count == 2 && Config.ReadSvnFolders().Count == 2,
                 "Hinzufügen speichert dieselben Repository-Objekte über den bestehenden INI-Vertrag.");
+            string timeoutRoot = Path.Combine(output, "coordinator-timeout-wc");
+            Directory.CreateDirectory(Path.Combine(timeoutRoot, ".svn"));
+            File.WriteAllText(Path.Combine(timeoutRoot, ".svn", "wc.db"), "Isolierte synthetische Arbeitskopie.");
+            foreach (int language in new[] { 1, 0 })
+            {
+                Config.Language = language;
+                Config.SvnCommandTimeout = 1;
+                File.WriteAllText(Path.Combine(timeoutRoot, "hold-status"), "Isolierter Timeout.");
+                Check(SvnTools.GetSvnFolderStatus(new(timeoutRoot, PathType.Directory)) == SvnStatus.Error &&
+                    coordinator.Errors[timeoutRoot].Contains(timeoutRoot) && coordinator.Errors[timeoutRoot].Contains(Loc.Svn_TimedOut(1)),
+                    "Zeitüberschreitung erreicht das Fehlerprotokoll mit Arbeitskopie und Dauer: " + language);
+                File.Delete(Path.Combine(timeoutRoot, "hold-status"));
+                File.WriteAllText(Path.Combine(timeoutRoot, "fail-status"), "Isolierter Prozessfehler.");
+                Check(SvnTools.GetSvnFolderStatus(new(timeoutRoot, PathType.Directory)) == SvnStatus.Error &&
+                    coordinator.Errors[timeoutRoot].Contains(Loc.Svn_ProcessError(7)) && !coordinator.Errors[timeoutRoot].Contains(Loc.Svn_TimedOut(1)),
+                    "Prozessfehler ersetzt die Timeout-Meldung mit dem tatsächlichen Exit-Code: " + language);
+                File.Delete(Path.Combine(timeoutRoot, "fail-status"));
+                Config.SVNpath = Path.Combine(timeoutRoot, "missing.exe");
+                Check(SvnTools.GetSvnFolderStatus(new(timeoutRoot, PathType.Directory)) == SvnStatus.Error &&
+                    coordinator.Errors[timeoutRoot].Contains(Loc.Svn_ProcessError(null)) && !coordinator.Errors[timeoutRoot].Contains("Exit-Code:"),
+                    "Startfehler zeigt eine Ursache statt eines leeren Exit-Codes: " + language);
+                Config.SVNpath = executable;
+            }
             coordinator.Folders.Clear();
             string numberedRoot = Path.Combine(root, "Änderungen und Dokumentation");
             string directoryTen = Path.Combine(numberedRoot, "Projekt 10");

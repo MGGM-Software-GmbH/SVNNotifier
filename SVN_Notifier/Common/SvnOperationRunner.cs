@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace CHD.SVN_Notifier;
 
-internal sealed record SvnProcessResult(int? ExitCode, string Output, string Error, bool Cancelled)
+internal sealed record SvnProcessResult(int? ExitCode, string Output, string Error, bool Cancelled, bool TimedOut = false, int TimeoutSeconds = 0)
 {
     internal bool Success => ExitCode == 0 && !Cancelled;
 }
@@ -136,12 +136,15 @@ internal sealed class SvnOperationRunner
         Process? process = null;
         CancellationTokenRegistration updateRegistration = default;
         bool cancelled = false;
+        bool timedOut = false;
         int? exitCode = null;
         string outcome = "process-start-error";
         try
         {
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop.Token, cancellation, updateCancellation);
-            if (readOnly && timeoutSeconds > 0) linked.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+            // Das Zeitlimit besitzt eine eigene Quelle, damit ein Benutzerabbruch nicht als Timeout gemeldet wird.
+            using var timeoutCancellation = new CancellationTokenSource();
+            if (readOnly && timeoutSeconds > 0) timeoutCancellation.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop.Token, cancellation, updateCancellation, timeoutCancellation.Token);
             if (linked.IsCancellationRequested)
             {
                 outcome = "cancelled-before-start";
@@ -178,6 +181,8 @@ internal sealed class SvnOperationRunner
             catch (OperationCanceledException)
             {
                 cancelled = true;
+                timedOut = timeoutCancellation.IsCancellationRequested && !stop.IsCancellationRequested &&
+                    !cancellation.IsCancellationRequested && !updateCancellation.IsCancellationRequested;
                 try { process.Kill(entireProcessTree: true); }
                 catch (InvalidOperationException) { /* Der Prozess kann inzwischen beendet sein. */ }
                 catch (System.ComponentModel.Win32Exception) { /* Reservierung bleibt bis zum tatsächlichen Ende bestehen. */ }
@@ -185,14 +190,14 @@ internal sealed class SvnOperationRunner
             }
             exitCode = process.ExitCode;
             cancelled |= updateCancellation.IsCancellationRequested;
-            outcome = updateCancellation.IsCancellationRequested ? "application-update" : cancelled ? "cancelled-or-timeout" : exitCode == 0 ? "completed" : "process-error";
-            return new(exitCode, await output.ConfigureAwait(false), await error.ConfigureAwait(false), cancelled);
+            outcome = updateCancellation.IsCancellationRequested ? "application-update" : timedOut ? "timeout" : cancelled ? "cancelled" : exitCode == 0 ? "completed" : "process-error";
+            return new(exitCode, await output.ConfigureAwait(false), await error.ConfigureAwait(false), cancelled, timedOut, timedOut ? timeoutSeconds : 0);
         }
         catch (Exception exception)
         {
             // Keine Argumente oder SVN-Ausgaben in die Diagnose übernehmen: Diese können Zugangsdaten enthalten.
             outcome = "process-error:" + exception.GetType().Name;
-            return new(exitCode, "", "SVN-Prozessfehler: " + exception.GetType().Name, cancelled);
+            return new(exitCode, "", "SVN-Prozessfehler: " + exception.GetType().Name, cancelled, timedOut, timedOut ? timeoutSeconds : 0);
         }
         finally
         {
