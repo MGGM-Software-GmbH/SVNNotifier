@@ -848,7 +848,7 @@ internal static class Program
     {
         var errorBuffer = new Dictionary<string, string>
         {
-            ["first"] = "[13.11.2026 14:20:57]\r\nD:\\Testprojekte\\Änderungen:\r\n" + Loc.Svn_TimedOut(60) + "\r\n\r\n",
+            ["first"] = "[13.11.2026 14:20:57]\r\nD:\\Testprojekte\\Änderungen:\r\n" + Loc.Svn_TimedOut(arguments.Contains("--one-second-timeout") ? 1 : 60) + "\r\n\r\n",
             ["second"] = "[13.11.2026 14:21:58]\r\nD:\\Testprojekte\\Projekt 2:\r\n" + Loc.Svn_ProcessError(1) + "\r\n\r\n",
             ["third"] = "[13.11.2026 14:22:59]\r\nD:\\Testprojekte\\Projekt 3:\r\n" + Loc.Svn_Cancelled + "\r\n\r\n"
         };

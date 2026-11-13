@@ -2,7 +2,13 @@
 
 ## Korrekturprüfung 3.1.0.1
 
-Beauftragt sind die Korrektur des abgeschnittenen Fehlerprotokolls, eindeutige Timeout-Diagnosen, Prüfung und Veröffentlichung als 3.1.0.1. Der neue mehrzeilige GUI-Test reproduziert den Defekt am Produktcode. Mit vorab aktiviertem Mehrzeilenmodus zeigt der Dialog die Pfade und Ursachen auf Deutsch und Englisch; die gezielte Abschneidegegenprobe wird erkannt. Die Screenshots des unsichtbaren Prüflaufs wurden angesehen. Erweiterte x64-/x86-Prüfungen laufen; deren Ergebnisse und der Veröffentlichungsnachweis werden hier ergänzt.
+Beauftragt sind die Korrektur des abgeschnittenen Fehlerprotokolls, eindeutige Timeout-Diagnosen, Prüfung und Veröffentlichung als 3.1.0.1. Der neue mehrzeilige GUI-Test reproduziert den Defekt am Produktcode. Mit vorab aktiviertem Mehrzeilenmodus zeigt der Dialog die Pfade und Ursachen auf Deutsch und Englisch; die gezielte Abschneidegegenprobe wird erkannt. Die Screenshots für normale Schrift, 24 Punkt und Dunkelmodus wurden angesehen, zusätzlich die x86-Darstellung.
+
+Lokaler Nachweis: `artifacts/release-3101-full-8a59417824154bcda9659aa49f86ef31.log`, Exit-Code 0. Je Architektur bestanden 400 SVN-Prüfungen mit echtem SVN/TortoiseSVN auf isolierten Arbeitskopien, vier GUI-Varianten mit jeweils 519 Prüfungen, 64 Tastaturprüfungen, 20 erkannte GUI-Gegenproben, Startmodi und 35 Updater-Regressionstests. Der tatsächliche EXE-Austausch samt Neustart und beide Installer-Manipulationsgegenproben bestanden auf x64 und x86. Sämtliche Desktopprüfungen liefen ohne Umschalten auf den Benutzerdesktop.
+
+Der [Branchlauf 43435729387](https://github.com/MGGM-Software-GmbH/SVNNotifier/actions/runs/43435729387) auf `500f84f` besteht auf x64 und x86 einschließlich der gehosteten Produktprüfungen. Der zusätzliche gezielte GUI-Lauf `artifacts/release-3101-fixed-8506bbfd3c7342079f1cd21850b84760.log` prüft die Einzahl bei einem einsekündigen Zeitlimit in beiden Sprachen sowie die Abschneidegegenprobe, Exit-Code 0.
+
+Release-Ziel ist [3.1.0.1](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases/tag/v3.1.0.1). Der Tag-Workflow prüft den integrierten Hauptbranch-Commit und veröffentlicht erst nach erfolgreichen Produktprüfungen beider Architekturen. Die PR-Erstellung über den verbundenen GitHub-Connector wurde mit HTTP 403 abgelehnt; der dokumentierte Windows-Git-Zugriff hat den Branch-Push ausgeführt. Die Integration erfolgt über diesen Git-Zugriff ohne Übernahme lokaler Referenzbestände.
 
 Die [Fehlerdiagnose](../../Fehlerdiagnose.md) beschreibt den aktuellen Vertrag. Das konfigurierte Zeitlimit und das manuelle Leeren gespeicherter Fehler bleiben erhalten. Bestehende offene Windows-Shellnachweise werden durch diese Korrektur nicht ersetzt.
 
