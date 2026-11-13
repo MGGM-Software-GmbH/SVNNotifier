@@ -107,6 +107,10 @@ Das zur Windows-Architektur passende ZIP-Paket unter [Releases](https://github.c
 
 Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.1.0.0-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
 
+### Zurückgestellte Erweiterungen
+
+Zusätzliche native Linux-Ausgaben für x64 und ARM64 sind als Zukunftsaufgabe mit Priorität **`very low`** dokumentiert. Umfang, Voraussetzungen und offene Entscheidungen stehen in [Linux-Portierung](docs/Linux-Portierung.md). Eine Umsetzung ist nicht beauftragt.
+
 ### Windows-Build und Veröffentlichung
 
 Fehler vor dem Laden der Konfiguration werden unter `%TEMP%` als `SVNNotifier-startup-<Prozess-ID>-<Prozessstartticks>.log` protokolliert. Die Datei enthält Exceptiontyp, Fehlermeldung und Aufrufstapel. Nach geladener Konfiguration verwendet die Anwendung das zugehörige Protokoll neben der INI-Datei. INI-Inhalte und Befehlsargumente werden dafür nicht ausgegeben.
