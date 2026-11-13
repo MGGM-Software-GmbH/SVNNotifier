@@ -291,13 +291,23 @@ internal static class Program
         string svn = Config.SVNpath, tortoise = Config.TortoiseSVNpath;
         bool changeLog = Config.ChangeLogBeforeUpdate;
         var action = Config.ItemDoubleClickAction;
+        var pollTimer = Field<DispatcherTimer>(main, "pollTimer");
+        bool pollingEnabled = pollTimer.IsEnabled;
         string root = Path.Combine(output, "Doppelklick Arbeitskopie ä " + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, ".svn"));
         File.WriteAllText(Path.Combine(root, ".svn", "wc.db"), "Isolierte Testmarkierung.");
         File.WriteAllText(Path.Combine(root, "gui-svn-fixture"), "Isolierter GUI-Prozesstreiber.");
         string calls = Path.Combine(root, "gui-svn-calls.jsonl");
         var item = new SvnItem(root, PathType.Directory);
-        string[][] ReadCalls() => File.Exists(calls) ? File.ReadAllLines(calls).Where(line => line.Length > 0).Select(line => JsonSerializer.Deserialize<string[]>(line)!).ToArray() : Array.Empty<string[]>();
+        string[][] ReadCalls()
+        {
+            if (!File.Exists(calls)) return Array.Empty<string[]>();
+            // Der Treiber hängt vollständige JSON-Zeilen an. Eine laufende letzte Zeile ist noch kein Prozessnachweis.
+            using var stream = new FileStream(calls, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd().Split('\n').SkipLast(1).Where(line => !string.IsNullOrWhiteSpace(line))
+                .Select(line => JsonSerializer.Deserialize<string[]>(line)!).ToArray();
+        }
         async Task<string[][]> ExecuteAsync(Config.Action selectedAction, SvnStatus status, string expected)
         {
             File.WriteAllText(calls, "");
@@ -312,7 +322,10 @@ internal static class Program
                 PostMessage(focus, 0x101, new IntPtr(0x0d), new IntPtr(unchecked((int)0xc0000001)));
             }
             else await (Task)typeof(MainWindow).GetMethod("DoubleClickAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null)!;
-            await WaitAsync(() => File.Exists(calls) && new FileInfo(calls).Length > 0, "Eigener Doppelklick-Prozesstreiber hat einen Auftrag erhalten");
+            // Das Änderungsprotokoll benötigt mehrere info-Prozesse vor dem eigentlichen Dialogprozess.
+            // Zwischen diesen Teilprozessen kann die Reservierung bereits frei sein.
+            await WaitAsync(() => ReadCalls().Any(command => command[0] == expected),
+                "Doppelklick startet den erwarteten eigenen Prozess: " + selectedAction + "/" + status);
             await WaitAsync(() => !SvnTools.HasActiveOperations && !main.Coordinator.IsBusy, "Eigene Doppelklick-Prozesse und Reservierungen sind beendet");
             // Der Prozess endet vor der UI-Fortsetzung, die den Status zurücksetzt und die Nachprüfung einreiht.
             if (keyboard && selectedAction == Config.Action.updateAction)
@@ -323,6 +336,9 @@ internal static class Program
         }
         try
         {
+            // Die Testfälle setzen ihren Status selbst; automatische Prüfungen dürfen diese Vorgabe nicht überschreiben.
+            pollTimer.Stop();
+            await WaitAsync(() => !SvnTools.HasActiveOperations && !main.Coordinator.IsBusy, "Vorherige GUI-Prüfaufträge sind beendet");
             Config.SVNpath = Config.TortoiseSVNpath = Environment.ProcessPath!;
             Config.ChangeLogBeforeUpdate = false;
             main.Coordinator.Folders.Clear(); main.Coordinator.Folders.Add(item); main.Coordinator.Save();
@@ -349,6 +365,7 @@ internal static class Program
             Config.SVNpath = svn; Config.TortoiseSVNpath = tortoise; Config.ChangeLogBeforeUpdate = changeLog; Config.ItemDoubleClickAction = action;
             main.Coordinator.Folders.Clear(); foreach (var original in originals) main.Coordinator.Folders.Add(original);
             main.Coordinator.Save();
+            if (pollingEnabled) pollTimer.Start();
         }
     }
 
