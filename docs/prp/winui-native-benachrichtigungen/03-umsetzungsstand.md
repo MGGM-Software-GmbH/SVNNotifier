@@ -14,6 +14,8 @@ Der parallele [Hauptbranch-Lauf 43438070044](https://github.com/MGGM-Software-Gm
 
 Die gezielte lokale Wiederholung des unveränderten Tastaturtests bestand 20 Durchläufe und reproduzierte den sporadischen CI-Fehler nicht. Mit der korrigierten Synchronisation bestanden ebenfalls 20 x86-Durchläufe auf dem isolierten Desktop. Die Gegenprobe mit absichtlich falscher Befehlsroute wird weiterhin erkannt. Nachweis: `artifacts/release-3101-keyboard-fixed-5d8aaaaf936b4396a3067796f5ee62d5.log`. Diese zusätzliche Änderung betrifft ausschließlich die Prüfungen; der veröffentlichte Tag und die Produktdateien bleiben unverändert.
 
+Der korrigierte Commit `6540c756167518c60e02c71f93e1c271844241cd` besteht den [Hauptbranch-Lauf 43442062356](https://github.com/MGGM-Software-GmbH/SVNNotifier/actions/runs/43442062356) und den [Featurebranch-Lauf 43442062809](https://github.com/MGGM-Software-GmbH/SVNNotifier/actions/runs/43442062809) jeweils auf x64 und x86. Die Hauptbranch-Jobs `131941908746` und `131941909051` belegen je Architektur vier GUI-Varianten mit jeweils 521 Prüfungen, 65 Tastaturprüfungen, alle 20 erkannten GUI-Gegenproben, 332 SVN-Kernprüfungen sowie 35 Updater-Regressionstests einschließlich tatsächlichem Austausch und Neustart. Die abschließende lokale Prozessprüfung findet keine eigenen Testinstanzen. Dieser Nachweis wird als reine Dokumentationsänderung gesichert und verändert weder Produktcode noch Release-Tag.
+
 Die [Fehlerdiagnose](../../Fehlerdiagnose.md) beschreibt den aktuellen Vertrag. Das konfigurierte Zeitlimit und das manuelle Leeren gespeicherter Fehler bleiben erhalten. Bestehende offene Windows-Shellnachweise werden durch diese Korrektur nicht ersetzt.
 
 ## Auftrag und Arbeitsplan
