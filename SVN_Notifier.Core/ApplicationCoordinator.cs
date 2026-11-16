@@ -227,7 +227,7 @@ internal sealed class ApplicationCoordinator : IDisposable
                         await OnUiAsync(() =>
                         {
                             if (revision < 0 || cancellation.IsCancellationRequested || stopping || installation || Suspended || manualRequests > 0 ||
-                                forced.Any(candidate => candidate != item && candidate.RetryReady) || !Folders.Contains(item) || !item.AutoUpdate) return;
+                                forced.Count > 0 || !Folders.Contains(item) || !item.AutoUpdate) return;
                             item.updateRevision = revision;
                             if (SvnTools.BeginPreparedUpdateSilently(item))
                             {

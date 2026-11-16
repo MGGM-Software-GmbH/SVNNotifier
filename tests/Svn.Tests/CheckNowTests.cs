@@ -126,6 +126,36 @@ internal static class CheckNowTests
                 finally { await coordinator.PollAsync().WaitAsync(TimeSpan.FromSeconds(10)); }
             }
 
+            var pending = CreateItem(Path.Combine(output, "check-now-pending-manual"));
+            var update = CreateItem(Path.Combine(output, "check-now-pending-autoupdate"));
+            pending.Enabled = false;
+            update.AutoUpdate = true;
+            Config.SaveSvnFolders(new BindingList<SvnItem> { pending, update });
+            using (var coordinator = new ApplicationCoordinator(action => action()))
+            {
+                pending = coordinator.Folders.Single(item => item.Path == pending.Path);
+                update = coordinator.Folders.Single(item => item.Path == update.Path);
+                try
+                {
+                    using (var occupied = WorkingCopyLease.TryAcquire(pending.Path, "pending-manual", out _, out _))
+                    {
+                        Check(occupied is not null, "Gegenprobe reserviert das manuelle Ziel vor dem Auto-Update.");
+                        coordinator.CheckNow(pending);
+                        await coordinator.PollAsync();
+                        Check(!pending.RetryReady && update.Status == SvnStatus.NeedUpdate && !update._IsAutoUpdating,
+                            "Auch ein zurückgestellter manueller Auftrag verhindert den Start eines neuen Auto-Updates.");
+                    }
+                    typeof(SvnItem).GetField("retryAfterUtcTicks", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(pending, 0L);
+                    await coordinator.PollAsync();
+                    Check(StatusCalls(pending) == 1, "Zurückgestelltes manuelles Ziel wird vor weiteren Auto-Updates nachgeholt.");
+                }
+                finally
+                {
+                    update.AutoUpdate = false;
+                    await SvnTools.WaitForWorkingCopyAsync(update).WaitAsync(TimeSpan.FromSeconds(10));
+                }
+            }
+
             var paused = CreateItem(Path.Combine(output, "check-now-paused-automatic"));
             var manual = CreateItem(Path.Combine(output, "check-now-paused-manual"));
             manual.Enabled = false;
