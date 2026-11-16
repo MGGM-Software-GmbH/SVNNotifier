@@ -1,5 +1,15 @@
 # Umsetzungsstand und Nachweise
 
+## Manuelle SVN-Priorität 3.1.0.2
+
+Beauftragt sind der unmittelbare Vorrang von **Jetzt prüfen** und sämtlichen weiteren manuellen SVN-Aktionen sowie Prüfung und Veröffentlichung als 3.1.0.2. Laufende Leseprüfungen werden dafür unterbrochen, einschließlich der Revisionsabfrage zur Auto-Update-Vorbereitung bei unbegrenztem Zeitlimit. Manuelle Prüfaufträge bleiben bei belegter Koordination erhalten; neue Auto-Updates warten auch auf zurückgestellte manuelle Prüfaufträge. Laufende Schreibvorgänge und Dialoge derselben Arbeitskopie werden abgewartet. Die Bedienwege aus Kontextmenü, Symbolleiste, Doppelklick, Tray und Updateprotokoll verwenden dieselbe Priorisierung.
+
+Lokaler Nachweis mit normalen Benutzerrechten und ohne Umschalten des Benutzerdesktops: `artifacts/check-now-3102/release.log`, Exit-Code 0. Für x64 und x86 bestanden Solution- und Paketbuild, Startmodi, vier GUI-Varianten mit jeweils 527 Prüfungen, jeweils 65 Tastaturprüfungen, 20 erkannte GUI-Gegenproben sowie 35 Updater-Regressionstests einschließlich EXE-Austausch und Neustart. Der zusätzliche Nachweis `artifacts/check-now-3102/real-signaled.log`, Exit-Code 0, bestätigt auf beiden Architekturen jeweils 491 SVN-Prüfungen mit echtem SVN und TortoiseSVN auf isolierten Arbeitskopien. Quellstand der Korrektur und des synchronisierten Testtreibers ist `c28fb0f`.
+
+`artifacts/check-now-3102/counterexamples-confirmed.log`, Exit-Code 0, bestätigt 91 erfolgreiche gezielte Prioritätsprüfungen und fünf erkannte Defekte in isolierten Quellkopien: fehlende Unterbrechung durch **Jetzt prüfen**, fehlende Unterbrechung durch andere manuelle Aktionen, verlorene zurückgestellte Prüfaufträge, nicht unterbrechbare Auto-Update-Revisionsabfrage und Auto-Update-Start trotz vorgemerkter manueller Prüfung. Jede Gegenprobe liefert Exit-Code 1 mit der erwarteten Fehlerursache. Die Prüfungen belegen den Start des manuellen Ziels innerhalb von fünf Sekunden bei einer angehaltenen automatischen Leseprüfung ohne Zeitlimit. Prozessmarker werden geschlossen und separat als lesbar signalisiert, bevor die Tests die Prozess-ID lesen.
+
+Integration auf `master`, erfolgreiche GitHub-Prüfungen, Tag-Zuordnung und öffentlich heruntergeladene Release-Dateien werden nach den zugehörigen Läufen hier nachgewiesen. Die bestehenden offenen Windows-Shellnachweise bleiben unverändert benannt.
+
 ## Korrekturprüfung 3.1.0.1
 
 Beauftragt sind die Korrektur des abgeschnittenen Fehlerprotokolls, eindeutige Timeout-Diagnosen, Prüfung und Veröffentlichung als 3.1.0.1. Der neue mehrzeilige GUI-Test reproduziert den Defekt am Produktcode. Mit vorab aktiviertem Mehrzeilenmodus zeigt der Dialog die Pfade und Ursachen auf Deutsch und Englisch; die gezielte Abschneidegegenprobe wird erkannt. Die Screenshots für normale Schrift, 24 Punkt und Dunkelmodus wurden angesehen, zusätzlich die x86-Darstellung.
