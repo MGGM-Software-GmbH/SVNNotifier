@@ -335,7 +335,7 @@ public sealed partial class MainWindow : Window
     private async Task ShowPropertiesAsync()
     {
         if (Selected is not { } item) return;
-        var view = new RepositoryPropertiesView(item);
+        var view = new RepositoryPropertiesView(item, () => coordinator.EnsurePathCanChange(item));
         if (await windows.ShowAsync(Loc.PF_Title, view, Loc.PF_Btn_OK, Loc.PF_Btn_Cancel, (_, args) =>
         {
             try { view.Apply(); }
@@ -357,23 +357,27 @@ public sealed partial class MainWindow : Window
         if (items.Count > 0 && await windows.ShowAsync("SVN Notifier", new TextBlock { Text = Config.Language == 1 ? "Aktuelle Einstellungen durch die ausgewählte Konfiguration ersetzen?" : "Replace current settings with the selected configuration?", TextWrapping = TextWrapping.Wrap }, Loc.PF_Btn_OK) != ContentDialogResult.Primary) return;
         bool previouslySuspended = coordinator.Suspended;
         pollTimer.Stop(); coordinator.Suspended = true;
+        Menus.IsEnabled = Commands.IsEnabled = Repositories.IsEnabled = false;
         try
         {
-            // Erst die laufende Prüfung beenden, bevor der globale INI-Kontext ersetzt wird.
-            await coordinator.PollAsync();
-            Config.Import(file.Path);
-            coordinator.Folders.Clear(); foreach (var item in Config.ReadSvnFolders().OrderBy(item => item.Path, WindowsPathComparer.Instance)) coordinator.Folders.Add(item);
-            coordinator.Save(); BuildCommands(); ApplyFonts();
-            AppWindow.IsShownInSwitchers = Config.ShowInTaskbar;
-            if (!Config.IsSettingsOK())
+            // Erst alle angenommenen SVN-Aktionen beenden, bevor der globale INI-Kontext ersetzt wird.
+            await coordinator.ChangeConfigurationAsync(async () =>
             {
-                await ShowSettingsAsync();
-                if (!Config.IsSettingsOK()) await ExitAsync();
-            }
+                Config.Import(file.Path);
+                coordinator.Folders.Clear(); foreach (var item in Config.ReadSvnFolders().OrderBy(item => item.Path, WindowsPathComparer.Instance)) coordinator.Folders.Add(item);
+                coordinator.Save(); BuildCommands(); ApplyFonts();
+                AppWindow.IsShownInSwitchers = Config.ShowInTaskbar;
+                if (!Config.IsSettingsOK())
+                {
+                    await ShowSettingsAsync();
+                    if (!Config.IsSettingsOK()) await ExitAsync();
+                }
+            });
         }
         finally
         {
             coordinator.Suspended = previouslySuspended;
+            Menus.IsEnabled = Commands.IsEnabled = Repositories.IsEnabled = true;
             if (!exiting) pollTimer.Start();
         }
     }

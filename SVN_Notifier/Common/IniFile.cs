@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
 
 namespace CHD
 {
@@ -10,6 +13,62 @@ namespace CHD
 		// In-memory cache: section -> (key -> value)
 		private readonly Dictionary<string, Dictionary<string, string>> _data =
 			new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+		private readonly object sync = new();
+		private List<System.Action>? changes;
+
+		/// <summary>Übernimmt zusammengehörige Änderungen unter einer dateibezogenen Instanzsperre in einem atomaren Schreibvorgang.</summary>
+		public void Update(System.Action<IniFile> update)
+		{
+			lock (sync)
+			{
+				if (changes is not null) { update(this); return; }
+				var previous = _data.ToDictionary(pair => pair.Key, pair => new Dictionary<string, string>(pair.Value, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+				changes = new();
+				try
+				{
+					update(this);
+					if (changes.Count == 0) return;
+					var intended = _data.ToDictionary(pair => pair.Key, pair => new Dictionary<string, string>(pair.Value, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+					WithFileLock(FullFileName, () =>
+					{
+						_data.Clear();
+						if (File.Exists(FullFileName)) LoadFile();
+						foreach (var change in changes) change();
+						SaveFile();
+					});
+					// Der lokale Vergleichsstand bleibt erhalten; unveränderte Felder dürfen spätere fremde Werte nicht zurücksetzen.
+					_data.Clear();
+					foreach (var pair in intended) _data.Add(pair.Key, pair.Value);
+				}
+				catch
+				{
+					_data.Clear();
+					foreach (var pair in previous) _data.Add(pair.Key, pair.Value);
+					throw;
+				}
+				finally { changes = null; }
+			}
+		}
+
+		/// <summary>Koordiniert auch den vollständigen Konfigurationsaustausch mit anderen Notifier-Instanzen.</summary>
+		internal static void WithFileLock(string path, System.Action action)
+		{
+			string identity = Path.GetFullPath(path);
+			if (OperatingSystem.IsWindows()) identity = identity.ToUpperInvariant();
+			using var mutex = new Mutex(false, "SVNNotifier.Config." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))));
+			try { mutex.WaitOne(); }
+			catch (AbandonedMutexException) { /* Der vorherige Besitzer ist beendet; die Sperre gehört jetzt diesem Prozess. */ }
+			try { action(); }
+			finally { mutex.ReleaseMutex(); }
+		}
+
+		/// <summary>Merkt nur tatsächlich geänderte Werte vor, damit fremde Änderungen an anderen Schlüsseln erhalten bleiben.</summary>
+		private void Change(System.Action change)
+		{
+			if (changes is null) { Update(_ => Change(change)); return; }
+			changes.Add(change);
+			change();
+		}
 
 		public IniFile(string fileName, bool checkExistance)
 		{
@@ -18,7 +77,7 @@ namespace CHD
 			FileName = fileName;
 			FullFileName = new FileInfo(fileName).FullName;
 			if (File.Exists(FullFileName))
-				LoadFile();
+				WithFileLock(FullFileName, LoadFile);
 		}
 
 		public readonly string FileName;
@@ -101,13 +160,15 @@ namespace CHD
 				DeleteKey(section, key);
 				return;
 			}
-			if (!_data.TryGetValue(section, out var sec))
+			lock (sync)
 			{
-				sec = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-				_data[section] = sec;
+				if (_data.TryGetValue(section, out var current) && current.TryGetValue(key, out var existing) && existing == value) return;
+				Change(() =>
+				{
+					if (!_data.TryGetValue(section, out var target)) _data[section] = target = new(StringComparer.OrdinalIgnoreCase);
+					target[key] = value;
+				});
 			}
-			sec[key] = value;
-			SaveFile();
 		}
 
 		public void Write(string section, string key, int value) => Write(section, key, value.ToString());
@@ -148,17 +209,14 @@ namespace CHD
 
 		public void DeleteKey(string section, string key)
 		{
-			if (_data.TryGetValue(section, out var sec))
-				sec.Remove(key);
-			SaveFile();
+			lock (sync) Change(() => { if (_data.TryGetValue(section, out var sectionData)) sectionData.Remove(key); });
 		}
 
 		public void DeleteKey(string key) => DeleteKey(Section!, key);
 
 		public void DeleteSection(string section)
 		{
-			_data.Remove(section);
-			SaveFile();
+			lock (sync) Change(() => _data.Remove(section));
 		}
 
 		// ----------------------------------------------------------------
@@ -226,7 +284,18 @@ namespace CHD
 					lines.Add($"{kv.Key}={kv.Value}");
 				lines.Add("");
 			}
-			File.WriteAllLines(FullFileName, lines);
+			string temporary = FullFileName + "." + Guid.NewGuid().ToString("N") + ".tmp";
+			try
+			{
+				using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+				{
+					using (var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true))
+						foreach (string line in lines) writer.WriteLine(line);
+					stream.Flush(true);
+				}
+				File.Move(temporary, FullFileName, true);
+			}
+			finally { if (File.Exists(temporary)) File.Delete(temporary); }
 		}
 	}
 }

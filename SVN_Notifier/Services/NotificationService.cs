@@ -16,6 +16,7 @@ internal sealed class NotificationService : IDisposable
     private readonly CancellationTokenSource cancellation = new();
     private readonly HashSet<string> delivered = new(StringComparer.Ordinal);
     private readonly HashSet<string> removed = new(StringComparer.Ordinal);
+    private bool reconciling;
     private readonly Queue<string> pending = new();
     private readonly object gate = new();
     private DispatcherQueue? dispatcher;
@@ -31,7 +32,7 @@ internal sealed class NotificationService : IDisposable
     {
         if (!AppNotificationManager.IsSupported()) throw new PlatformNotSupportedException("Windows-App-Benachrichtigungen sind in diesem Prozess nicht verfügbar.");
         string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MGGM", "SVNNotifier", "Notifications", NotificationContextStore.Identity(Environment.ProcessPath!));
-        store = new NotificationContextStore(directory);
+        store = new NotificationContextStore(directory, Report);
         manager.NotificationInvoked += OnInvoked;
         try { manager.Register(); }
         catch { manager.NotificationInvoked -= OnInvoked; throw; }
@@ -182,6 +183,7 @@ internal sealed class NotificationService : IDisposable
         var context = store.Create(request, Environment.ProcessPath!, Config.iniFileName);
         var notification = new AppNotificationBuilder().AddArgument("context", context.Id).AddText(request.Title).AddText(request.Text).BuildNotification();
         notification.Tag = context.Id; notification.Group = NotificationContextStore.Identity(context.Configuration);
+        notification.Expiration = context.Created.AddDays(3);
         if (manager.Setting != AppNotificationSetting.Enabled)
             Config.WriteLog("Notifications", "Windows-Benachrichtigungen sind deaktiviert: " + manager.Setting);
         manager.Show(notification);
@@ -192,10 +194,14 @@ internal sealed class NotificationService : IDisposable
 
     internal async void Reconcile(IEnumerable<SvnItem> folders)
     {
+        if (reconciling) return;
+        reconciling = true;
         try
         {
             var snapshot = folders.ToArray();
-            foreach (var context in store.ReadConfiguration(Config.iniFileName))
+            var contexts = store.ReadConfiguration(Config.iniFileName).ToArray();
+            removed.IntersectWith(contexts.Select(context => context.Id));
+            foreach (var context in contexts)
             {
                 if (context.Kind != NotificationKind.IncomingChanges || removed.Contains(context.Id)) continue;
                 if (context.Paths.Any(path => snapshot.Any(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase) && item.Status is not (SvnStatus.UpToDate or SvnStatus.UpToDate_Modified)))) continue;
@@ -204,6 +210,7 @@ internal sealed class NotificationService : IDisposable
             }
         }
         catch (Exception exception) { Report(exception); }
+        finally { reconciling = false; }
     }
 
     private void Report(Exception exception)

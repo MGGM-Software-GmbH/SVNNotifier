@@ -821,6 +821,7 @@ internal static class Program
         Directory.CreateDirectory(Path.Combine(target, ".svn"));
         File.WriteAllText(Path.Combine(target, ".svn", "wc.db"), "Isolierte Testmarkierung.");
         string previousPath = folders[4].Path, previousTool = Config.TortoiseSVNpath;
+        var previousStatus = folders[4].Status;
         try
         {
             folders[4].Path = target; list.SelectedItem = folders[4]; Config.TortoiseSVNpath = Environment.ProcessPath!;
@@ -840,6 +841,8 @@ internal static class Program
             menu.Hide(); File.WriteAllText(Path.Combine(target, "cleanup-release"), "Dialog schließen.");
             await WaitAsync(() => !File.Exists(Path.Combine(target, ".svn", WorkingCopyLease.FileName)));
             folders[4].Path = previousPath; Config.TortoiseSVNpath = previousTool;
+            // Der Zielwechsel verwirft Statusdaten; die nachfolgenden GUI-Fälle benötigen wieder ihren ursprünglichen Fixturestatus.
+            folders[4].Status = previousStatus;
         }
         Assert(!File.Exists(Path.Combine(target, ".svn", WorkingCopyLease.FileName)), "Dialogende gibt die Arbeitskopie frei");
     }

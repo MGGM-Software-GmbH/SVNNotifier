@@ -20,6 +20,7 @@
 
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -153,67 +154,78 @@ namespace CHD.SVN_Notifier
 
 		public static void Init()
 		{
-			iniFile = new IniFile(iniFileName, false);
+			var source = new IniFile(iniFileName, false);
+			MigrateIfNecessary(source);
+			ApplySettings(source, ReadSettings(source));
+		}
 
-			MigrateIfNecessary();
-
+		/// <summary>Liest und validiert Einstellungen ohne Änderung des aktiven Konfigurationskontexts.</summary>
+		private static System.Collections.Generic.Dictionary<string, object> ReadSettings(IniFile source)
+		{
+			var values = new System.Collections.Generic.Dictionary<string, object>();
 			// Read settings
 
-			SVNpath = iniFile.ReadString("Settings", "SVN_path", defaultSVNpath);
-			TortoiseSVNpath = iniFile.ReadString("Settings", "TortoiseSVN_path", defaultTortoiseSVN_path);
+			values[nameof(SVNpath)] = source.ReadString("Settings", "SVN_path", defaultSVNpath);
+			values[nameof(TortoiseSVNpath)] = source.ReadString("Settings", "TortoiseSVN_path", defaultTortoiseSVN_path);
 
-			DefaultActiveStatusUpdateInterval = iniFile.ReadInteger("Settings", "DefaultActiveStatusUpdateInterval", 5);
-			DefaultIdleStatusUpdateInterval = iniFile.ReadInteger("Settings", "DefaultIdleStatusUpdateInterval", 60);
+			values[nameof(DefaultActiveStatusUpdateInterval)] = source.ReadInteger("Settings", "DefaultActiveStatusUpdateInterval", 5);
+			values[nameof(DefaultIdleStatusUpdateInterval)] = source.ReadInteger("Settings", "DefaultIdleStatusUpdateInterval", 60);
 
-			PauseAfterApplicationStartupInterval = iniFile.ReadInteger("Settings", "PauseAfterApplicationStartupInterval", 15);
-			DoPauseAfterApplicationStartup = iniFile.ReadBoolean("Settings", "DoPauseAfterApplicationStartup", true);
-			PauseAfterWindowsResumeInterval = iniFile.ReadInteger("Settings", "PauseAfterWindowsResumeInterval", 15);
-			DoPauseAfterWindowsResume = iniFile.ReadBoolean("Settings", "DoPauseAfterWindowsResume", true);
+			values[nameof(PauseAfterApplicationStartupInterval)] = source.ReadInteger("Settings", "PauseAfterApplicationStartupInterval", 15);
+			values[nameof(DoPauseAfterApplicationStartup)] = source.ReadBoolean("Settings", "DoPauseAfterApplicationStartup", true);
+			values[nameof(PauseAfterWindowsResumeInterval)] = source.ReadInteger("Settings", "PauseAfterWindowsResumeInterval", 15);
+			values[nameof(DoPauseAfterWindowsResume)] = source.ReadBoolean("Settings", "DoPauseAfterWindowsResume", true);
 
-			ItemDoubleClickAction = (Action)iniFile.ReadInteger("Settings", "ItemDoubleClickAction", 0);
-			ShowBalloonInterval = iniFile.ReadInteger("Settings", "ShowBalloonInterval", 10000);
-			HideOnStartup = iniFile.ReadBoolean("Settings", "HideOnStartup", false);
-			ShowInTaskbar = iniFile.ReadBoolean("Settings", "ShowInTaskbar", false);
-			CheckForNewVersion = iniFile.ReadBoolean("Settings", "CheckForNewVersion", true);
-			ShowNotifications = iniFile.ReadBoolean("Settings", "ShowNotifications", true);
-			UpdateAllSilently = iniFile.ReadBoolean("Settings", "UpdateAllSilently", true);
-			UpdateWindowAction = iniFile.ReadInteger("Settings", "UpdateWindowAction", 2);
+			values[nameof(ItemDoubleClickAction)] = (Action)source.ReadInteger("Settings", "ItemDoubleClickAction", 0);
+			values[nameof(ShowBalloonInterval)] = source.ReadInteger("Settings", "ShowBalloonInterval", 10000);
+			values[nameof(HideOnStartup)] = source.ReadBoolean("Settings", "HideOnStartup", false);
+			values[nameof(ShowInTaskbar)] = source.ReadBoolean("Settings", "ShowInTaskbar", false);
+			values[nameof(CheckForNewVersion)] = source.ReadBoolean("Settings", "CheckForNewVersion", true);
+			values[nameof(ShowNotifications)] = source.ReadBoolean("Settings", "ShowNotifications", true);
+			values[nameof(UpdateAllSilently)] = source.ReadBoolean("Settings", "UpdateAllSilently", true);
+			values[nameof(UpdateWindowAction)] = source.ReadInteger("Settings", "UpdateWindowAction", 2);
 
-			ChangeLogBeforeUpdate = IsTortoiseVersion_1_5_orHigher() && iniFile.ReadBoolean("Settings", "ChangeLogBeforeUpdate", false);
+			values[nameof(ChangeLogBeforeUpdate)] = IsTortoiseVersion_1_5_orHigher() && source.ReadBoolean("Settings", "ChangeLogBeforeUpdate", false);
 
-			Language = iniFile.ReadInteger("Settings", "Language", 0);
+			values[nameof(Language)] = source.ReadInteger("Settings", "Language", 0);
 
-			SvnCommandTimeout = iniFile.ReadInteger("Settings", "SvnCommandTimeout", 60);
-			FontFamily = iniFile.ReadString("Settings", "FontFamily", "Segoe UI");
-			var fontSizeStr = iniFile.ReadString("Settings", "FontSize", "8.5");
-			FontSize = float.TryParse(fontSizeStr, System.Globalization.NumberStyles.Float,
+			values[nameof(SvnCommandTimeout)] = source.ReadInteger("Settings", "SvnCommandTimeout", 60);
+			values[nameof(FontFamily)] = source.ReadString("Settings", "FontFamily", "Segoe UI");
+			var fontSizeStr = source.ReadString("Settings", "FontSize", "8.5");
+			values[nameof(FontSize)] = float.TryParse(fontSizeStr, System.Globalization.NumberStyles.Float,
 				System.Globalization.CultureInfo.InvariantCulture, out var fs) ? fs : 8.5f;
+			return values;
+		}
+
+		/// <summary>Übernimmt ausschließlich einen bereits validierten Konfigurationsstand.</summary>
+		private static void ApplySettings(IniFile source, System.Collections.Generic.Dictionary<string, object> values)
+		{
+			foreach (var pair in values) typeof(Config).GetField(pair.Key)!.SetValue(null, pair.Value);
+			iniFile = source;
+			loadedSettings = values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value);
 		}
 
 
-		/// <summary>Validiert einen Import samt Migration getrennt, bevor die aktive Datei ersetzt wird. Laufende SVN-Prüfungen müssen zuvor beendet sein.</summary>
+		/// <summary>Validiert den Import getrennt. Der Aufrufer muss neue SVN-Aufträge sperren und laufende Aktionen abwarten.</summary>
 		public static void Import(string source)
 		{
 			string target = Path.GetFullPath(iniFileName);
 			if (string.Equals(Path.GetFullPath(source), target, StringComparison.OrdinalIgnoreCase)) return;
 			string candidate = Path.Combine(Path.GetDirectoryName(target)!, ".svnnotifier-import-" + Guid.NewGuid().ToString("N") + ".ini");
-			var fields = typeof(Config).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-				.Where(field => !field.IsLiteral && !field.IsInitOnly).ToDictionary(field => field, field => field.GetValue(null));
 			try
 			{
 				File.Copy(source, candidate);
-				try
+				var imported = new IniFile(candidate, true);
+				MigrateIfNecessary(imported);
+				var values = ReadSettings(imported);
+				ReadSvnFolders(imported);
+				// Auch privater INI-Cache, Dateizuordnung und Fenstermaße gehören zum unveränderten aktiven Zustand.
+				IniFile.WithFileLock(target, () =>
 				{
-					Init(candidate);
-					ReadSvnFolders();
-				}
-				finally
-				{
-					// Auch privater INI-Cache, Dateizuordnung und Fenstermaße gehören zum unveränderten aktiven Zustand.
-					foreach (var field in fields) field.Key.SetValue(null, field.Value);
-				}
-				File.Move(candidate, target, true);
-				Init(target);
+					File.Move(candidate, target, true);
+					ApplySettings(new IniFile(target, true), values);
+				});
+				formWidth = formHeight = 0;
 			}
 			finally
 			{
@@ -230,38 +242,34 @@ namespace CHD.SVN_Notifier
 		}
 
 
+		/// <summary>Speichert nur fachlich geänderte Optionen, auch wenn deren Standardwerte zuvor nicht in der INI standen.</summary>
 		public static void SaveSettings()
 		{
-			iniFile.Write("Settings", "SVN_path", SVNpath);
-			iniFile.Write("Settings", "TortoiseSVN_path", TortoiseSVNpath);
-
-			iniFile.Write("Settings", "DefaultActiveStatusUpdateInterval", DefaultActiveStatusUpdateInterval);
-			iniFile.Write("Settings", "DefaultIdleStatusUpdateInterval", DefaultIdleStatusUpdateInterval);
-
-			iniFile.Write("Settings", "PauseAfterApplicationStartupInterval", PauseAfterApplicationStartupInterval);
-			iniFile.Write("Settings", "DoPauseAfterApplicationStartup", DoPauseAfterApplicationStartup);
-			iniFile.Write("Settings", "PauseAfterWindowsResumeInterval", PauseAfterWindowsResumeInterval);
-			iniFile.Write("Settings", "DoPauseAfterWindowsResume", DoPauseAfterWindowsResume);
-
-			iniFile.Write("Settings", "ItemDoubleClickAction", (int)ItemDoubleClickAction);
-			iniFile.Write("Settings", "ShowBalloonInterval", ShowBalloonInterval);
-			iniFile.Write("Settings", "HideOnStartup", HideOnStartup);
-			iniFile.Write("Settings", "ShowInTaskbar", ShowInTaskbar);
-			iniFile.Write("Settings", "CheckForNewVersion", CheckForNewVersion);
-			iniFile.Write("Settings", "ShowNotifications", ShowNotifications);
-			iniFile.Write("Settings", "ChangeLogBeforeUpdate", ChangeLogBeforeUpdate);
-			iniFile.Write("Settings", "UpdateAllSilently", UpdateAllSilently);
-			iniFile.Write("Settings", "UpdateWindowAction", UpdateWindowAction);
-			iniFile.Write("Settings", "SvnCommandTimeout", SvnCommandTimeout);
-			iniFile.Write("Settings", "Language", Language);
-			iniFile.Write("Settings", "FontFamily", FontFamily);
-			iniFile.Write("Settings", "FontSize", FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
+			if (loadedSettings is null) throw new InvalidOperationException("Die Konfiguration ist nicht initialisiert.");
+			var current = loadedSettings.Keys.ToDictionary(name => name, name => typeof(Config).GetField(name)!.GetValue(null));
+			iniFile.Update(file =>
+			{
+				foreach (var pair in current)
+				{
+					if (Equals(loadedSettings[pair.Key], pair.Value)) continue;
+					string key = pair.Key switch { nameof(SVNpath) => "SVN_path", nameof(TortoiseSVNpath) => "TortoiseSVN_path", _ => pair.Key };
+					object? value = pair.Value is Enum enumeration ? Convert.ToInt32(enumeration) : pair.Value;
+					file.Write("Settings", key, value is null ? null : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture));
+				}
+			});
+			loadedSettings = current;
 		}
 
 
-		public static void MigrateIfNecessary()
+		public static void MigrateIfNecessary() => MigrateIfNecessary(iniFile);
+
+		private static void MigrateIfNecessary(IniFile source)
+			=> source.Update(_ => MigrateCore(source));
+
+		/// <summary>Migriert zusammengehörige INI-Werte innerhalb einer gemeinsamen Schreibtransaktion.</summary>
+		private static void MigrateCore(IniFile source)
 		{
-			var iniVersion = iniFile.ReadString("Settings", "Version");
+			var iniVersion = source.ReadString("Settings", "Version");
 			if (iniVersion == IniFileVersion) return;
 
 			#region Migrate earlier ini-file versions to 1.5
@@ -270,7 +278,7 @@ namespace CHD.SVN_Notifier
 			{
 				for (int i = 1; ; i++)
 				{
-					string s = iniFile.ReadString("Folders", "Folder" + i);
+					string s = source.ReadString("Folders", "Folder" + i);
 					if (s.Length == 0) break;
 
 					string[] p = s.Split(',');
@@ -290,7 +298,7 @@ namespace CHD.SVN_Notifier
 					if (p.Length <= 4)
 						s += "," + (File.Exists(p[0]) ? (int)PathType.File : (int)PathType.Directory);
 
-					iniFile.Write("Folders", "Folder" + i, s);
+					source.Write("Folders", "Folder" + i, s);
 				}
 
 				iniVersion = "1.5";
@@ -304,11 +312,11 @@ namespace CHD.SVN_Notifier
 			{
 				for (int i = 1; ; i++)
 				{
-					string s = iniFile.ReadString("Folders", "Folder" + i);
+					string s = source.ReadString("Folders", "Folder" + i);
 					if (s.Length == 0) break;
 
 					s = s.Replace(',', '|');
-					iniFile.Write("Folders", "Folder" + i, s);
+					source.Write("Folders", "Folder" + i, s);
 				}
 
 				iniVersion = "1.7";
@@ -321,14 +329,14 @@ namespace CHD.SVN_Notifier
 			if (iniVersion == "1.7")
 			{
 				// Fix misspelling: "ShowBallonInterval" -> "ShowBalloonInterval"
-				var showBalloonInterval = iniFile.ReadInteger("Settings", "ShowBallonInterval", 10000);
-				iniFile.Write("Settings", "ShowBalloonInterval", showBalloonInterval);
-				iniFile.DeleteKey("Settings", "ShowBallonInterval");
+				var showBalloonInterval = source.ReadInteger("Settings", "ShowBallonInterval", 10000);
+				source.Write("Settings", "ShowBalloonInterval", showBalloonInterval);
+				source.DeleteKey("Settings", "ShowBallonInterval");
 
 				// Switch to SVN command line client included in TortoiseSVN installation (if such installed)
-				var tortoiseSvnPath = iniFile.ReadString("Settings", "TortoiseSVN_path");
+				var tortoiseSvnPath = source.ReadString("Settings", "TortoiseSVN_path");
 				if (tortoiseSvnPath.EndsWith("TortoiseProc.exe") && File.Exists(tortoiseSvnPath.Replace("TortoiseProc.exe", "svn.exe")))
-					iniFile.Write("Settings", "SVN_path", tortoiseSvnPath.Replace("TortoiseProc.exe", "svn.exe"));
+					source.Write("Settings", "SVN_path", tortoiseSvnPath.Replace("TortoiseProc.exe", "svn.exe"));
 
 				iniVersion = "1.8";
 			}
@@ -338,9 +346,9 @@ namespace CHD.SVN_Notifier
 			if (iniVersion == "1.8")
 			{
 				// Fix invalid configuration created by version 1.9.0
-				var showBalloonInterval = iniFile.ReadInteger("Settings", "ShowBalloonInterval", 10000);
+				var showBalloonInterval = source.ReadInteger("Settings", "ShowBalloonInterval", 10000);
 				if (showBalloonInterval == 0)
-					iniFile.Write("Settings", "ShowBalloonInterval", 10000);
+					source.Write("Settings", "ShowBalloonInterval", 10000);
 
 				iniVersion = "1.9";
 			}
@@ -348,7 +356,7 @@ namespace CHD.SVN_Notifier
 			if (iniVersion != IniFileVersion)
 				throw new ApplicationException("INI-file migration code is incomplete");
 
-			iniFile.Write("Settings", "Version", IniFileVersion);
+			source.Write("Settings", "Version", IniFileVersion);
 		}
 
 
@@ -372,12 +380,14 @@ namespace CHD.SVN_Notifier
 		}
 
 
-		public static BindingList<SvnItem> ReadSvnFolders()
+		public static BindingList<SvnItem> ReadSvnFolders() => ReadSvnFolders(iniFile);
+
+		private static BindingList<SvnItem> ReadSvnFolders(IniFile source)
 		{
 			var folders = new BindingList<SvnItem>();
 			for (int i = 1; ; i++)
 			{
-				string s = iniFile.ReadString("Folders", "Folder" + i);
+				string s = source.ReadString("Folders", "Folder" + i);
 				if (s.Length == 0)
 					break;
 				folders.Add(SvnItem.Deserialize(s));
@@ -388,16 +398,21 @@ namespace CHD.SVN_Notifier
 
 		public static void SaveSvnFolders(BindingList<SvnItem> folders)
 		{
-			iniFile.DeleteSection("Folders");
-
-			int i = 1;
-			foreach (SvnItem folder in folders)
+			// Unveränderte Listen dürfen beim Beenden keine Repository-Änderungen einer anderen Instanz zurücksetzen.
+			var requested = folders.Select(folder => folder.Serialize()).OrderBy(value => value, StringComparer.Ordinal);
+			if (ReadSvnFolders().Select(folder => folder.Serialize()).OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(requested)) return;
+			iniFile.Update(_ =>
 			{
-				iniFile.Write("Folders", "Folder" + i, folder.Serialize());
-				i++;
-			}
-		}
+				iniFile.DeleteSection("Folders");
 
+				int i = 1;
+				foreach (SvnItem folder in folders)
+				{
+					iniFile.Write("Folders", "Folder" + i, folder.Serialize());
+					i++;
+				}
+			});
+		}
 
 		public static void SaveMainFormSize(int width, int height)
 		{
@@ -405,8 +420,11 @@ namespace CHD.SVN_Notifier
 			{
 				formWidth = width;
 				formHeight = height;
-				iniFile.Write("Settings", "MainFormWidth", width);
-				iniFile.Write("Settings", "MainFormHeight", height);
+				iniFile.Update(file =>
+				{
+					file.Write("Settings", "MainFormWidth", width);
+					file.Write("Settings", "MainFormHeight", height);
+				});
 			}
 		}
 
@@ -449,6 +467,7 @@ namespace CHD.SVN_Notifier
 		private const string defaultTortoiseSVN_path = @"C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe";
 
 		private static IniFile iniFile;
+		private static Dictionary<string, object?>? loadedSettings;
 
 		private static int formWidth;
 		private static int formHeight;

@@ -58,7 +58,8 @@ internal sealed class SvnOperationRunner
 
     /// <summary>Reserviert synchron, bevor ein verzögerter Worker den Prozess starten darf.</summary>
     internal Task<SvnProcessResult>? TryStart(string path, string action, string executable, IEnumerable<string> arguments,
-        bool readOnly, int timeoutSeconds = 0, CancellationToken cancellation = default, bool captureOutput = true, bool tortoiseSyntax = false)
+        bool readOnly, int timeoutSeconds = 0, CancellationToken cancellation = default, bool captureOutput = true, bool tortoiseSyntax = false,
+        Action<string>? onRejected = null)
     {
         lock (gate)
         {
@@ -73,6 +74,7 @@ internal sealed class SvnOperationRunner
             {
                 Log(root, action, "skip", null, null, reason);
                 rejected?.Invoke(root, reason);
+                onRejected?.Invoke(reason);
                 return null;
             }
             try

@@ -41,6 +41,8 @@ Die hier beschriebenen Prüfungen sind Bestandteil der beauftragten Implementier
 - Alle vorhandenen INI-Migrationszweige mit isolierten Originalformat-Fixtures prüfen; neue Repository-Einträge und alte Einträge ohne Auto-Update bleiben ausgeschaltet, gespeicherte explizite Werte bleiben erhalten.
 - Import mit leerer/gefüllter Liste, Rückfrage bestätigen/abbrechen, ungültige Datei und schreibgeschütztes Ziel prüfen. Exportinhalt und erneuter Import müssen dieselben fachlichen Einstellungen/Einträge ergeben.
 - Portable INI im Arbeitsverzeichnis und AppData-Konfiguration getrennt testen. Neustart, Toastaktivierung und Update dürfen die Konfiguration nicht wechseln.
+- Import während einer laufenden manuellen Aktion und eines getrennten Schreibprozesses prüfen: beide müssen enden, bevor die Konfiguration übernommen wird. Neue manuelle Aufträge müssen währenddessen sichtbar abgewiesen werden. Ein Importfehler muss die Verarbeitung wieder freigeben.
+- Zwei INI-Instanzen und zwei gleichzeitige Schreiberprozesse dürfen Änderungen unabhängiger Schlüssel nicht verlieren. Eine abgebrochene Schreibtransaktion muss die bestehende Datei erhalten.
 - Schriftfamilie, 8,5/12/24 Punkt, Sprache und gegebenenfalls Neustarthinweise erhalten. Punktgröße darf nicht ungeprüft als WinUI-DIP-Wert behandelt werden.
 - S-06/K-01 gemäß Benutzerentscheidung prüfen: Zugang zu Windows-Benachrichtigungseinstellungen und Erhalt bestehender INI-Werte; keine wirkungslose Sekunden-Einstellung anbieten.
 
@@ -48,6 +50,7 @@ Die hier beschriebenen Prüfungen sind Bestandteil der beauftragten Implementier
 
 - Aktivierung, Standardintervalle/eigene Intervalle, Vererbung, abhängige Eingaben, OK und Abbrechen prüfen.
 - Betroffener Eintrag und seine Objektidentität müssen nach dem Speichern erhalten bleiben; Liste, Hintergrundprüfung und INI müssen dieselben Werte verwenden.
+- Pfadwechsel während einer angehaltenen Statusprüfung mit und ohne gezielten Abbruch prüfen. Alte Ergebnisse dürfen weder den neuen Status setzen noch ein Update des neuen Ziels auslösen. URL und Revisionsstände müssen zurückgesetzt werden; laufende Schreibvorgänge müssen den Pfadwechsel verhindern.
 - Veränderungen bei offenem Eigenschaftenfenster und ein später entfernter Eintrag dürfen keine fremden Einträge ändern.
 
 ## T-05: Protokolle und Info

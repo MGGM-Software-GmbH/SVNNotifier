@@ -70,6 +70,20 @@ namespace CHD.SVN_Notifier
                     .Select(process => process.Completion!));
         }
 
+        /// <summary>Hält Pfadänderungen vom Ziel eines bereits gestarteten Schreibvorgangs oder Dialogs fern.</summary>
+        internal static bool HasRunningWrite(SvnItem folder)
+        {
+            lock (svnFolderProcesses.SyncRoot)
+                return svnFolderProcesses.Cast<SvnFolderProcess>().Any(process => ReferenceEquals(process.folder, folder) && process.Completion is { IsCompleted: false });
+        }
+
+        /// <summary>Wartet vor einem Konfigurationswechsel auf sämtliche bereits gestarteten Schreibvorgänge und Dialoge.</summary>
+        internal static Task WaitForTrackedOperationsAsync()
+        {
+            lock (svnFolderProcesses.SyncRoot)
+                return Task.WhenAll(svnFolderProcesses.Cast<SvnFolderProcess>().Where(process => process.Completion is not null).Select(process => process.Completion!));
+        }
+
         /// <summary>Bereinigt beim Start nur nachweislich verwaiste Notifier-Reservierungen konfigurierter Arbeitskopien.</summary>
         internal static void RecoverReservations(IEnumerable<SvnItem> folders) => runner.RecoverReservations(folders.Select(folder => folder.Path));
 
@@ -194,9 +208,24 @@ namespace CHD.SVN_Notifier
         public static SvnStatus? GetSvnFolderStatus(SvnItem folder, CancellationToken cancellation = default)
         {
             if (cancellation.IsCancellationRequested) return null;
+            string target;
+            try { target = CommandLineTarget(folder.Path); }
+            catch (Exception exception) when (exception is ArgumentException or IOException or NotSupportedException or System.Security.SecurityException)
+            {
+                folder.DeferOperation();
+                ErrorAdded?.Invoke(folder.Path, Loc.Svn_CoordinationError("coordination-error:" + exception.GetType().Name));
+                return SvnStatus.Error;
+            }
+            string? rejection = null;
             var completion = runner.TryStart(folder.Path, "status", Config.SVNpath,
-                new[] { "status", "-u", "--non-interactive", "--xml", "--", CommandLineTarget(folder.Path) }, true, Config.SvnCommandTimeout, cancellation);
-            if (completion is null) { folder.DeferOperation(); return null; }
+                new[] { "status", "-u", "--non-interactive", "--xml", "--", target }, true, Config.SvnCommandTimeout, cancellation,
+                onRejected: reason => rejection = reason);
+            if (completion is null)
+            {
+                folder.DeferOperation();
+                // Belegung bleibt wiederholbar; ein dauerhaft ungültiges Ziel beendet dagegen den manuellen Prüfauftrag.
+                return rejection?.StartsWith("coordination-error:", StringComparison.Ordinal) == true ? SvnStatus.Error : null;
+            }
             var result = completion.GetAwaiter().GetResult();
             if (cancellation.IsCancellationRequested) return null;
             if (!result.Success) { ReportFailure(folder, result); return SvnStatus.Error; }

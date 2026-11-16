@@ -142,8 +142,8 @@ internal static class CheckNowTests
                         Check(occupied is not null, "Gegenprobe reserviert das manuelle Ziel vor dem Auto-Update.");
                         coordinator.CheckNow(pending);
                         await coordinator.PollAsync();
-                        Check(!pending.RetryReady && update.Status == SvnStatus.NeedUpdate && !update._IsAutoUpdating,
-                            "Auch ein zurückgestellter manueller Auftrag verhindert den Start eines neuen Auto-Updates.");
+                        Check(!pending.RetryReady && update._IsAutoUpdating,
+                            "Während der Wiederholfrist eines belegten manuellen Ziels darf eine unabhängige Arbeitskopie automatisch aktualisiert werden.");
                     }
                     typeof(SvnItem).GetField("retryAfterUtcTicks", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(pending, 0L);
                     await coordinator.PollAsync();

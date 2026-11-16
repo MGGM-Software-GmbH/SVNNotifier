@@ -36,7 +36,7 @@ namespace CHD.SVN_Notifier
 		public int ActiveStatusUpdateInterval;
 		public int IdleStatusUpdateInterval;
 		public PathType pathType;
-		public string RepositoryUrl;
+		public string? RepositoryUrl;
 
 		public SvnStatus Status
 		{
@@ -88,9 +88,28 @@ namespace CHD.SVN_Notifier
 		public string Path
 		{
 			get { return _Path; }
-			set { _Path = value; NotifyPropertyChanged("Status"); }
+			set
+			{
+				if (string.Equals(_Path, value, StringComparison.Ordinal)) return;
+				_Path = value;
+				PathGeneration++;
+				RepositoryUrl = null;
+				reviewedRevision = updateRevision = 0;
+				_IsAutoUpdating = false;
+				System.Threading.Interlocked.Exchange(ref retryAfterUtcTicks, 0);
+				Status = SvnStatus.Unknown;
+				_StatusTime = DateTime.MinValue;
+			}
 		}
 		string _Path;
+		internal long PathGeneration { get; private set; }
+
+		/// <summary>Übernimmt Prüfdaten nur nach Prüfung der Pfadgeneration durch den Coordinator.</summary>
+		internal void ApplyCheckState(SvnItem snapshot)
+		{
+			RepositoryUrl = snapshot.RepositoryUrl;
+			System.Threading.Interlocked.Exchange(ref retryAfterUtcTicks, System.Threading.Interlocked.Read(ref snapshot.retryAfterUtcTicks));
+		}
 
 
 		public SvnItem(string path, PathType type)

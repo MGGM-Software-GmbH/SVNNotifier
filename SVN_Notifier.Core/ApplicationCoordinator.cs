@@ -18,13 +18,14 @@ internal sealed class ApplicationCoordinator : IDisposable
     private Task polling = Task.CompletedTask;
     private bool stopping;
     private bool installation;
+    private bool configurationChanging;
     private DateTime pausedUntil;
 
     internal BindingList<SvnItem> Folders { get; }
     internal Dictionary<string, string> Errors { get; } = new();
     internal bool Active { get; set; }
     internal bool Suspended { get; set; }
-    internal bool IsBusy => !polling.IsCompleted || manualRequests > 0 || installation;
+    internal bool IsBusy => !polling.IsCompleted || manualRequests > 0 || installation || configurationChanging;
     internal event Action? Changed;
     internal event Action<NotificationRequest>? NotificationRequested;
     internal event Action<SvnFolderProcess>? UpdateLogRequested;
@@ -76,7 +77,8 @@ internal sealed class ApplicationCoordinator : IDisposable
 
     internal void Add(string path, PathType type)
     {
-        if (stopping || installation) throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
+        if (configurationChanging) throw new InvalidOperationException(Loc.Config_ImportBusy);
+        if (stopping || installation || configurationChanging) throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
         if (Folders.Any(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase))) return;
         var item = new SvnItem(path, type);
         int index = 0;
@@ -88,7 +90,8 @@ internal sealed class ApplicationCoordinator : IDisposable
     /// <summary>Zieht das ausgewählte Repository vor und unterbricht dafür ausschließlich Leseprüfungen.</summary>
     internal void CheckNow(SvnItem item)
     {
-        if (stopping || installation || !Folders.Contains(item)) return;
+        if (configurationChanging) throw new InvalidOperationException(Loc.Config_ImportBusy);
+        if (stopping || installation || configurationChanging || !Folders.Contains(item)) return;
         if (checking == item && checkCancellation is { IsCancellationRequested: false }) return;
         RequestCheck(item);
         forced.Remove(item);
@@ -113,6 +116,7 @@ internal sealed class ApplicationCoordinator : IDisposable
     /// <summary>Gibt manuellen SVN-Aktionen Vorrang vor Leseprüfungen und neuen Auto-Updates, ohne Schreibprozesse zu beenden.</summary>
     internal async Task RunManualAsync(Func<Task> action)
     {
+        if (configurationChanging) throw new InvalidOperationException(Loc.Config_ImportBusy);
         if (stopping || installation) return;
         Task previous = manualCompletion;
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -141,7 +145,7 @@ internal sealed class ApplicationCoordinator : IDisposable
 
     internal Task PollAsync()
     {
-        if (stopping || installation || Suspended || manualRequests > 0 || !polling.IsCompleted) return polling;
+        if (stopping || installation || configurationChanging || Suspended || manualRequests > 0 || !polling.IsCompleted) return polling;
         if (DateTime.Now < pausedUntil && forced.Count == 0) return Task.CompletedTask;
         var requested = Folders.Where(item => DateTime.Now >= pausedUntil && item.Enabled && item.NextCheckTime(Active) <= DateTime.Now).ToList();
         polling = PollCoreAsync(requested);
@@ -192,17 +196,21 @@ internal sealed class ApplicationCoordinator : IDisposable
                 });
                 if (item is null) break;
                 bool autoUpdate = false;
+                long generation = item.PathGeneration;
+                var snapshot = new SvnItem(item.Path, item.pathType) { Path = item.Path, RepositoryUrl = item.RepositoryUrl };
                 try
                 {
-                    SvnStatus? status = await Task.Run(() => SvnTools.GetSvnFolderStatus(item, cancellation!.Token));
+                    SvnStatus? status = await Task.Run(() => SvnTools.GetSvnFolderStatus(snapshot, cancellation!.Token));
                     await OnUiAsync(() =>
                     {
+                        if (generation != item.PathGeneration) { RequestCheck(item); return; }
                         if (cancellation!.IsCancellationRequested)
                         {
                             // Die unterbrochene automatische Prüfung folgt nach den manuellen Aufträgen.
                             if (!manual && !requested.Contains(item)) requested.Insert(0, item);
                             return;
                         }
+                        item.ApplyCheckState(snapshot);
                         if (!status.HasValue) return;
                         forced.Remove(item);
                         if (stopping || installation || !Folders.Contains(item) || began < item.StatusTime) return;
@@ -223,11 +231,12 @@ internal sealed class ApplicationCoordinator : IDisposable
                     if (autoUpdate && !cancellation!.IsCancellationRequested)
                     {
                         // Revisionsabfragen dürfen den UI-Thread und damit neue manuelle Aktionen nicht blockieren.
-                        int revision = await Task.Run(() => SvnTools.GetRepositoryCommitedRevision(item, cancellation.Token));
+                        int revision = await Task.Run(() => SvnTools.GetRepositoryCommitedRevision(snapshot, cancellation.Token));
                         await OnUiAsync(() =>
                         {
-                            if (revision < 0 || cancellation.IsCancellationRequested || stopping || installation || Suspended || manualRequests > 0 ||
-                                forced.Count > 0 || !Folders.Contains(item) || !item.AutoUpdate) return;
+                            if (generation == item.PathGeneration) item.ApplyCheckState(snapshot);
+                            if (revision < 0 || generation != item.PathGeneration || cancellation.IsCancellationRequested || stopping || installation || Suspended || manualRequests > 0 ||
+                                forced.Any(candidate => candidate.RetryReady) || !Folders.Contains(item) || !item.AutoUpdate) return;
                             item.updateRevision = revision;
                             if (SvnTools.BeginPreparedUpdateSilently(item))
                             {
@@ -260,6 +269,36 @@ internal sealed class ApplicationCoordinator : IDisposable
     }
 
     internal static bool NeedsUpdate(SvnItem item) => item.Status is SvnStatus.NeedUpdate or SvnStatus.NeedUpdate_Modified;
+
+    /// <summary>Verhindert den Wechsel eines Zielpfads während manueller Aktionen oder bereits gestarteter Schreibvorgänge.</summary>
+    internal void EnsurePathCanChange(SvnItem item)
+    {
+        if (configurationChanging) throw new InvalidOperationException(Loc.Config_ImportBusy);
+        if (manualRequests > 0 || SvnTools.HasRunningWrite(item))
+            throw new InvalidOperationException(Loc.Svn_PathChangeBusy);
+        if (checking == item) checkCancellation?.Cancel();
+    }
+
+    /// <summary>Sperrt neue Aufträge und wartet auf Prüfungen, manuelle Folgen und bereits gestartete Dialoge oder Updates.</summary>
+    internal async Task ChangeConfigurationAsync(Func<Task> change)
+    {
+        if (configurationChanging) throw new InvalidOperationException(Loc.Config_ImportBusy);
+        if (stopping || installation || configurationChanging) throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
+        bool previouslySuspended = Suspended;
+        configurationChanging = true;
+        Suspended = true;
+        checkCancellation?.Cancel();
+        try
+        {
+            await polling;
+            await manualCompletion;
+            await SvnTools.WaitForTrackedOperationsAsync();
+            if (stopping || installation) throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
+            foreach (var completed in SvnTools.TakeCompleted()) completed.folder._IsAutoUpdating = false;
+            await change();
+        }
+        finally { configurationChanging = false; Suspended = previouslySuspended; }
+    }
 
     internal Task UpdateAsync(SvnItem item, bool all = false) => RunManualAsync(item, () => UpdateCoreAsync(item, all));
 
@@ -307,7 +346,8 @@ internal sealed class ApplicationCoordinator : IDisposable
     /// <summary>Gibt die Verarbeitung bei fehlgeschlagenem Installationsstart wieder frei.</summary>
     internal async Task PrepareInstallationAsync(Func<Task> startInstaller)
     {
-        if (stopping || installation) throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
+        if (configurationChanging) throw new InvalidOperationException(Loc.Config_ImportBusy);
+        if (stopping || installation || configurationChanging) throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
         installation = true;
         try
         {

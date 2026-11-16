@@ -15,6 +15,12 @@ internal static class Program
     /// <summary>Prüft echte Prozesslebenszyklen mit eigenen synthetischen Arbeitskopien und optional einem lokalen SVN-Repository.</summary>
     private static async Task<int> Main(string[] args)
     {
+        if (args is ["--ini-writer", var iniPath, var section])
+        {
+            var ini = new CHD.IniFile(iniPath, true);
+            for (int index = 0; index < 30; index++) ini.Write(section, "Key" + index, index);
+            return 0;
+        }
         Console.OutputEncoding = new System.Text.UTF8Encoding(false);
         if (args[0] == "--child")
         {
@@ -116,6 +122,12 @@ internal static class Program
             Directory.CreateDirectory(Path.Combine(root, "second"));
             Config.Init(Path.Combine(output, "fixture.ini"));
             Config.SVNpath = Config.TortoiseSVNpath = executable;
+            if (args.Contains("--reliability-only"))
+            {
+                checks += await ReliabilityTests.RunAsync(output);
+                Console.WriteLine($"Zuverlässigkeitsprüfungen: {checks} erfolgreich.");
+                return 0;
+            }
             if (args.Contains("--priority-only"))
             {
                 Config.DoPauseAfterApplicationStartup = false;
@@ -125,6 +137,7 @@ internal static class Program
                 return 0;
             }
             CheckConfiguration(root);
+            checks += await ReliabilityTests.RunAsync(output);
             checks += await CoordinatorTests.RunAsync(output, executable);
             NotificationContextTests.Run(output, Assert);
             await CheckCoordinationAsync(root);

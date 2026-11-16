@@ -6,8 +6,10 @@ namespace CHD.SVN_Notifier;
 public sealed partial class RepositoryPropertiesView : UserControl
 {
     private readonly SvnItem item;
-    internal RepositoryPropertiesView(SvnItem item)
+    private readonly Action? beforePathChange;
+    internal RepositoryPropertiesView(SvnItem item, Action? beforePathChange = null)
     {
+        this.beforePathChange = beforePathChange;
         this.item = item; InitializeComponent();
         PathInput.Header = Loc.PF_Label_Path; PathInput.Text = item.origPath;
         EnabledInput.Content = Loc.PF_Chk_Enable; EnabledInput.IsChecked = item.Enabled;
@@ -26,11 +28,14 @@ public sealed partial class RepositoryPropertiesView : UserControl
         ActiveInput.IsEnabled = IdleInput.IsEnabled = EnabledInput.IsChecked == true && CustomInput.IsChecked == true;
     }
 
+    /// <summary>Validiert die Eingaben und schützt laufende Aufträge vor einem Wechsel ihres Zielpfads.</summary>
     internal void Apply()
     {
         if (string.IsNullOrWhiteSpace(PathInput.Text) || PathInput.Text.Contains('|')) throw new InvalidDataException(Loc.PF_Label_Path);
         if (!double.IsFinite(ActiveInput.Value) || !double.IsFinite(IdleInput.Value) || ActiveInput.Value != Math.Truncate(ActiveInput.Value) || IdleInput.Value != Math.Truncate(IdleInput.Value)) throw new InvalidDataException(Loc.PF_Chk_CustomInterval);
-        item.Path = new SvnItem(PathInput.Text, item.pathType).Path; item.origPath = PathInput.Text;
+        string path = new SvnItem(PathInput.Text, item.pathType).Path;
+        if (!string.Equals(item.Path, path, StringComparison.Ordinal)) beforePathChange?.Invoke();
+        item.Path = path; item.origPath = PathInput.Text;
         item.Enabled = EnabledInput.IsChecked == true; item.AutoUpdate = AutoUpdateInput.IsChecked == true;
         item.ActiveStatusUpdateInterval = CustomInput.IsChecked == true ? (int)ActiveInput.Value : -1;
         item.IdleStatusUpdateInterval = CustomInput.IsChecked == true ? (int)IdleInput.Value : -1;
