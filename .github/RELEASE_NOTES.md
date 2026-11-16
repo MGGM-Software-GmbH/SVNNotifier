@@ -1,12 +1,13 @@
-SVN Notifier 3.1.0.5
+SVN Notifier 3.1.0.6
 
-- Protokollierungsfehler nach dem Start eines SVN-Prozesses verhindern weder Timeout noch Benutzerabbruch oder Stoppen. Die Diagnose wird als Fehler gemeldet, die Reservierung erst nach dem tatsächlichen Prozessende freigegeben.
-- Einstellungen und Repository-Optionen werden vor Beginn des Shutdowns gespeichert. Scheitert das Speichern, bleiben die Anwendung bedienbar und ein erneuter Beenden-Versuch möglich. Ein gleichzeitig nicht beschreibbares Fehlerprotokoll verhindert die Fehleranzeige nicht; beide Schreibfehler werden benannt.
-- Start und Konfigurationsimport weisen ungültige Zeitintervalle zurück. Globale Intervalle müssen zwischen 0 und 359999 Sekunden liegen; Repository-Intervalle erlauben zusätzlich -1 für den jeweiligen Standardwert. Ein abgewiesener Import verändert die aktive Konfiguration nicht.
-- Fehlgeschlagene Commit-, Cleanup- und Protokollstarts zeigen einen Fehlerdialog mit Zielpfad und Prozessursache. Updatefehler verwenden weiterhin ihr ausführliches Aktualisierungsprotokoll.
+- Fehler von Commit-, Cleanup- und Protokollaufträgen gehen beim Konfigurationswechsel oder vor einem Programmupdate nicht verloren.
+- Eine belegte Konfigurationssperre wird nach höchstens zwei Sekunden als Fehler gemeldet. Die Anwendung behält ungespeicherte Optionen für einen erneuten Versuch. Auch der Repository-Schalter zeigt Sperrfehler über den vorhandenen Fehlerdialog an.
+- Das SVN-Zeitlimit wird beim Start und Import gegen dieselben Grenzen wie im Einstellungsdialog geprüft: 0 bis 86400 Sekunden, 0 ohne Zeitbegrenzung. Ungültige Importe erhalten die aktive Konfiguration.
+- Repository-Pfade unterstützen mehrere und wiederholte Umgebungsvariablen. Beim Speichern bleibt die ursprüngliche Angabe erhalten.
+- Das Abbrechen eines TortoiseSVN-Dialogs erzeugt keinen zusätzlichen Fehlerdialog mit lediglich dem Repository-Pfad. Startfehler und unerwartete Prozessabbrüche werden weiterhin mit einer Diagnose angezeigt.
 
 Die automatische Bereinigung temporärer Dateien und alter .NET-Entpackverzeichnisse läuft weiterhin beim Start und alle 15 Minuten und schützt laufende Instanzen.
 
-Gezielte Regressionstests prüfen Diagnosefehler während echter Prozessläufe, Intervallgrenzen, unveränderte Konfiguration bei ungültigen Importen, fehlende TortoiseSVN-Programme und das erneute Beenden eines echten WinUI-Fensters nach einem INI-Schreibfehler.
+Gezielte Regressionstests prüfen Fehler beim Konfigurationswechsel, Sperren zwischen Instanzen, Wiederholung nach Sperrfreigabe, ungültige und gültige SVN-Zeitlimits sowie das Speichern und Laden variabler Repository-Pfade. Die GUI-Prüfungen verwenden echte WinUI-Fenster und eigene Konfigurationen.
 
 Voraussetzungen: Windows 10 Version 1809 oder neuer, normaler Start ohne Administratorrechte sowie separat installiertes `svn.exe` und TortoiseSVN. Beide portablen ZIP-Pakete enthalten die .NET-Laufzeit. Für automatische Programmupdates ist Schreibzugriff auf den Programmordner erforderlich. Die EXE-Dateien sind nicht digital signiert; `SHA256SUMS.txt` enthält die Paketprüfsummen.

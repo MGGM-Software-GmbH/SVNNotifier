@@ -36,6 +36,7 @@ internal static class Program
         if (args.Any(argument => argument.StartsWith("/command:cleanup", StringComparison.OrdinalIgnoreCase)))
         {
             string path = args.Single(argument => argument.StartsWith("/path:", StringComparison.OrdinalIgnoreCase))[6..];
+            if (File.Exists(Path.Combine(path, "gui-dialog-cancel"))) return -1;
             File.WriteAllText(Path.Combine(path, "cleanup-started"), "Isolierter Cleanupdialog.");
             var deadline = DateTime.UtcNow.AddSeconds(15);
             while (!File.Exists(Path.Combine(path, "cleanup-release")) && DateTime.UtcNow < deadline) Thread.Sleep(20);
@@ -47,6 +48,7 @@ internal static class Program
                 ? args.Single(argument => argument.StartsWith("/path:", StringComparison.OrdinalIgnoreCase))[6..]
                 : args[^1][..^1];
             if (!File.Exists(Path.Combine(target, "gui-svn-fixture"))) return 12;
+            if (args[0].StartsWith("/command:", StringComparison.OrdinalIgnoreCase) && File.Exists(Path.Combine(target, "gui-dialog-cancel"))) return -1;
             File.AppendAllText(Path.Combine(target, "gui-svn-calls.jsonl"), JsonSerializer.Serialize(args) + Environment.NewLine);
             if (args[0] == "info") Console.WriteLine("<info><entry revision='2'><url>file:///gui-fixture</url></entry></info>");
             if (args[0] == "status") Console.WriteLine("<status><target><entry path='fixture'><wc-status item='normal' props='none'><commit revision='2'/></wc-status></entry><against revision='2'/></target></status>");
@@ -283,6 +285,7 @@ internal static class Program
             await CheckAllowedDoubleClicksAsync(main);
         }
         await CheckManualLaunchFailuresAsync(main);
+        await CheckConfigurationLockAsync(main);
         await CheckExitSaveFailureAsync();
         await CheckSessionClosingAsync();
         await main.ExitAsync();
@@ -669,12 +672,14 @@ internal static class Program
             var item = new SvnItem(root, PathType.Directory) { Enabled = false };
             main.Coordinator.Folders.Add(item);
             foreach (string action in new[] { "commit", "cleanup", "log" })
+            foreach (bool duringImport in new[] { false, true })
             {
                 if (action == "commit") Assert(SvnTools.Commit(item), "Fehlender Commit-Dialog wird als eigener Auftrag angenommen");
                 else if (action == "cleanup") Assert(SvnTools.Cleanup(item), "Fehlender Cleanup-Dialog wird als eigener Auftrag angenommen");
                 else SvnTools.OpenLogWindow(root);
                 await SvnTools.WaitForTrackedOperationsAsync();
-                await main.Coordinator.PollAsync();
+                if (duringImport) await main.Coordinator.ChangeConfigurationAsync(() => Task.CompletedTask);
+                else await main.Coordinator.PollAsync();
                 await WaitAsync(() =>
                 {
                     dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(main.RootElement.XamlRoot)
@@ -685,6 +690,20 @@ internal static class Program
                     action + ": Fehlerdialog zeigt Zielpfad und tatsächliche Prozessursache");
                 dialog.Hide(); dialog = null; await RenderAsync();
             }
+            Config.TortoiseSVNpath = Environment.ProcessPath!;
+            File.WriteAllText(Path.Combine(root, "gui-dialog-cancel"), "Isolierter abgebrochener Dialog.");
+            foreach (string action in new[] { "commit", "cleanup", "log" })
+            {
+                if (action == "commit") Assert(SvnTools.Commit(item), "Abbrechbarer Commit-Testauftrag startet");
+                else if (action == "cleanup") Assert(SvnTools.Cleanup(item), "Abbrechbarer Cleanup-Testauftrag startet");
+                else SvnTools.OpenLogWindow(root);
+                await SvnTools.WaitForTrackedOperationsAsync();
+                await main.Coordinator.PollAsync();
+                await RenderAsync();
+                Assert(!VisualTreeHelper.GetOpenPopupsForXamlRoot(main.RootElement.XamlRoot)
+                    .Where(popup => popup.Child is not null).SelectMany(popup => Descendants(popup.Child)).OfType<ContentDialog>().Any(),
+                    "Abgebrochener " + action + "-Dialog erzeugt keinen zusätzlichen Notifier-Fehlerdialog");
+            }
         }
         finally
         {
@@ -692,6 +711,67 @@ internal static class Program
             Config.SVNpath = svn; Config.TortoiseSVNpath = tortoise;
             main.Coordinator.Folders.Clear();
             foreach (var item in originals) main.Coordinator.Folders.Add(item);
+        }
+    }
+
+    /// <summary>Beenden und Repository-Schalter melden eine fremde Konfigurationssperre; erneutes Speichern bleibt möglich.</summary>
+    private static async Task CheckConfigurationLockAsync(MainWindow main)
+    {
+        bool original = Config.ShowNotifications;
+        Config.SaveSettings(); Config.ShowNotifications = !original;
+        using var ready = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Exception? holderError = null;
+        string path = Config.iniFileName;
+        var pendingRepository = new SvnItem(Path.Combine(output, "configuration-lock-repository"), PathType.Directory);
+        var holder = new Thread(() =>
+        {
+            try { IniFile.WithFileLock(path, () => { ready.Set(); release.Wait(TimeSpan.FromSeconds(30)); }); }
+            catch (Exception exception) { holderError = exception; ready.Set(); }
+        });
+        holder.Start();
+        ContentDialog? dialog = null;
+        try
+        {
+            Assert(ready.Wait(TimeSpan.FromSeconds(10)) && holderError is null, "Fremder Thread hält nur die eigene Konfigurationssperre");
+            foreach (bool toggle in new[] { false, true })
+            {
+                var timer = Stopwatch.StartNew();
+                Task? handled = null;
+                if (toggle)
+                {
+                    main.Coordinator.Folders.Add(pendingRepository);
+                    typeof(MainWindow).GetMethod("RepositoryToggle_Click", BindingFlags.Instance | BindingFlags.NonPublic)!
+                        .Invoke(main, new object[] { main, new RoutedEventArgs() });
+                }
+                else handled = (Task)typeof(MainWindow).GetMethod("RunAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(main, new object[] { (Func<Task>)main.ExitAsync })!;
+                await WaitAsync(() =>
+                {
+                    dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(main.RootElement.XamlRoot)
+                        .Where(popup => popup.Child is not null).SelectMany(popup => Descendants(popup.Child)).OfType<ContentDialog>().FirstOrDefault();
+                    return dialog?.IsLoaded == true;
+                }, "Konfigurationssperre erreicht den echten Fehlerdialog");
+                Assert(timer.Elapsed < TimeSpan.FromSeconds(6) && dialog!.Content is TextBlock text && text.Text.Contains(Loc.Config_LockTimeout),
+                    "Belegte Konfigurationssperre wird zeitlich begrenzt und verständlich angezeigt");
+                Assert(!Field<bool>(main, "exiting") && Config.ShowNotifications != original, "Beenden-Zustand bleibt frei und ungespeicherter Entwurf erhalten");
+                if (!toggle) await CaptureAsync(dialog!, "configuration-lock");
+                dialog!.Hide(); dialog = null;
+                if (handled is not null) await handled;
+                await RenderAsync();
+            }
+            bool manualRan = false;
+            await main.Coordinator.RunManualAsync(() => { manualRan = true; return Task.CompletedTask; });
+            Assert(manualRan, "Manuelle Aktionen bleiben nach Konfigurationssperrfehler ausführbar");
+        }
+        finally
+        {
+            dialog?.Hide(); release.Set();
+            Assert(holder.Join(TimeSpan.FromSeconds(5)), "Eigener Konfigurationssperrhalter ist beendet");
+            Config.SaveSettings();
+            Assert(new IniFile(path, true).ReadBoolean("Settings", "ShowNotifications", original) != original, "Speichern nach Sperrfreigabe übernimmt den erhaltenen Entwurf");
+            Config.ShowNotifications = original; Config.SaveSettings();
+            main.Coordinator.Folders.Remove(pendingRepository); main.Coordinator.Save();
         }
     }
 

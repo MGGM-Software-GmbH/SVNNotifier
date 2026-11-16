@@ -40,7 +40,7 @@ public sealed partial class SettingsView : UserControl
         var status = AddTab(Loc.SF_Tab_Status);
         Number(status, nameof(Config.DefaultActiveStatusUpdateInterval), Seconds(Loc.SF_Label_Active), 0, 359999);
         Number(status, nameof(Config.DefaultIdleStatusUpdateInterval), Seconds(Loc.SF_Label_Inactive), 0, 359999);
-        Number(status, nameof(Config.SvnCommandTimeout), Seconds(Loc.SF_Label_SvnTimeout), 0, 86400);
+        Number(status, nameof(Config.SvnCommandTimeout), Seconds(Loc.SF_Label_SvnTimeout), 0, Config.MaximumSvnCommandTimeout);
         var startup = Toggle(status, nameof(Config.DoPauseAfterApplicationStartup), Loc.SF_Chk_Startup);
         var startupTime = Number(status, nameof(Config.PauseAfterApplicationStartupInterval), Seconds(Loc.SF_Chk_Startup), 0, 359999);
         startupTime.IsEnabled = startup.IsChecked == true; startup.Click += (_, _) => startupTime.IsEnabled = startup.IsChecked == true;

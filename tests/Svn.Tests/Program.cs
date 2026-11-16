@@ -15,6 +15,15 @@ internal static class Program
     /// <summary>Prüft echte Prozesslebenszyklen mit eigenen synthetischen Arbeitskopien und optional einem lokalen SVN-Repository.</summary>
     private static async Task<int> Main(string[] args)
     {
+        if (args is ["--ini-holder", var lockedPath, var duration])
+        {
+            CHD.IniFile.WithFileLock(lockedPath, () =>
+            {
+                Console.WriteLine("READY"); Console.Out.Flush();
+                Thread.Sleep(int.Parse(duration));
+            });
+            return 0;
+        }
         if (args is ["--maintenance-lease", var leasePath])
         {
             using var lease = TemporaryFileMaintenance.OpenLease(leasePath);
@@ -144,6 +153,7 @@ internal static class Program
             if (args.Contains("--error-states-only"))
             {
                 checks += await ErrorStateTests.RunAsync(output, args.FirstOrDefault(argument => argument.StartsWith("--error-case="))?.Split('=')[1]);
+                checks += await WeaknessTests.RunAsync(output, args.FirstOrDefault(argument => argument.StartsWith("--error-case="))?.Split('=')[1]);
                 Console.WriteLine($"Fehlerzustandsprüfungen: {checks} erfolgreich.");
                 return 0;
             }
@@ -157,6 +167,7 @@ internal static class Program
             }
             CheckConfiguration(root);
             checks += await ErrorStateTests.RunAsync(output);
+            checks += await WeaknessTests.RunAsync(output);
             checks += await TemporaryFileTests.RunAsync(output);
             checks += await ReliabilityTests.RunAsync(output);
             checks += await CoordinatorTests.RunAsync(output, executable);
@@ -702,10 +713,12 @@ internal static class Program
             File.AppendAllText(Path.Combine(working, "first", "fixture.txt"), "\nlocal-dialog-test");
             Assert(SvnTools.Commit(item), "Echter TortoiseSVN-Commitdialog auf isolierter Arbeitskopie startet");
             await CloseOwnTortoiseDialogAsync("commit-dialog", working);
-            Assert(SvnTools.TakeCompleted().Length == 1, "Abbrechen des echten Commitdialogs gibt Reservierung frei");
+            var cancelledCommit = SvnTools.TakeCompleted().Single();
+            Console.WriteLine("Echter Commit-Abbruch: Exit-Code=" + cancelledCommit.Completion!.Result.ExitCode + ", Fehler=" + cancelledCommit.updateError);
+            Assert(!cancelledCommit.updateError, "Abbrechen des echten Commitdialogs gibt Reservierung ohne zusätzliche Fehlermeldung frei");
             Assert(SvnTools.Cleanup(item), "Echter Cleanup-Auswahldialog auf isolierter Arbeitskopie startet");
             await CloseOwnTortoiseDialogAsync("cleanup-dialog", working);
-            Assert(SvnTools.TakeCompleted().Length == 1, "Abbrechen des echten Cleanupdialogs gibt Reservierung frei");
+            Assert(!SvnTools.TakeCompleted().Single().updateError, "Abbrechen des echten Cleanupdialogs gibt Reservierung ohne zusätzliche Fehlermeldung frei");
             foreach (string action in new[] { "log", "commit-dialog", "cleanup-dialog" })
             {
                 if (action == "log") SvnTools.OpenLogWindow(item.Path);

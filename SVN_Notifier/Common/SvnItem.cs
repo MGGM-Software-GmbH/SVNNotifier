@@ -147,27 +147,16 @@ namespace CHD.SVN_Notifier
 		}
 
 
+		/// <summary>Löst jede Pfadvariable getrennt auf und erhält unbekannte Variablen sowie den gespeicherten Originalpfad.</summary>
 		private static string DeserializePath(string s)
 		{
-			Regex r = new Regex("%(.*)%", RegexOptions.None);
-			Match m = r.Match(s);
-			string v = m.Groups[1].ToString().Trim();
-			if (v != "")
+			return Regex.Replace(s, @"%([^%\\/]+)%", match =>
 			{
-				try
-				{
-					string path = Environment.GetEnvironmentVariable(v);
-					if (path != null)
-						s = s.Replace($"%{v}%", path);
-				}
-				catch
-				{
-					// TODO: ...
-					// ...variable is a null reference
-					// ...The caller does not have EnvironmentPermission with Read access.
-				}
-			}
-			return s;
+				string variable = match.Groups[1].Value.Trim();
+				if (variable.Length == 0) return match.Value;
+				// Fehlende Leserechte dürfen nicht unbemerkt einen anderen Repository-Pfad auswählen.
+				return Environment.GetEnvironmentVariable(variable) ?? match.Value;
+			});
 		}
 
 

@@ -4,7 +4,15 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.1.0.5** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+**SVN Notifier 3.1.0.6** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.1.0.6
+
+- Fehler beendeter SVN-Aufträge werden auch vor einem Konfigurationswechsel und Programmupdate angezeigt.
+- Eine belegte Konfigurationssperre wird höchstens zwei Sekunden abgewartet. Danach erscheint eine Fehlermeldung; ungespeicherte Optionen bleiben für einen erneuten Versuch erhalten.
+- Start und Import erlauben für das SVN-Zeitlimit ausschließlich ganze Zahlen zwischen 0 und 86400 Sekunden. Der Wert 0 bedeutet weiterhin keine Zeitbegrenzung.
+- Mehrere und wiederholte Umgebungsvariablen im Repository-Pfad werden getrennt aufgelöst. Die gespeicherte Pfadangabe behält ihre Variablen.
+- Abbrechen eines TortoiseSVN-Dialogs erzeugt keine zusätzliche Meldung mit leerem Inhalt. Startfehler und unerwartete Prozessabbrüche bleiben sichtbar.
 
 ### Neu in v3.1.0.5
 
@@ -170,11 +178,11 @@ Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages
 
 Die gewöhnlichen GUI-Prüfungen können über `Invoke-QuietWindows.vbs` und `Invoke-IsolatedDesktop.ps1` ohne sichtbare Konsole auf einem inaktiven Windows-Desktop laufen. `Test-Gui.ps1 -IncludeShellSettings` ergänzt die tatsächliche Anwendung der Taskleisteneinstellung und benötigt einen Desktop mit Windows-Shell. Native Banner, Benachrichtigungszentrale und Eingabewege benötigen zusätzlich eine ausdrücklich erlaubte, entsperrte Windows-Testsitzung. Voraussetzungen und Aufrufparameter stehen in [Validierung](docs/prp/winui-native-benachrichtigungen/02-validierung.md).
 
-Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach dem Merge auf `master` und erfolgreichen Prüfungen löst ein Tag im Format `v3.1.0.5` die Veröffentlichung aus:
+Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach dem Merge auf `master` und erfolgreichen Prüfungen löst ein Tag im Format `v3.1.0.6` die Veröffentlichung aus:
 
 ```powershell
-git tag v3.1.0.5
-git push mggm v3.1.0.5
+git tag v3.1.0.6
+git push mggm v3.1.0.6
 ```
 
 Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests, GUI-Prüfungen und den SVN-Koordinationsprüfungen unter Windows. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.

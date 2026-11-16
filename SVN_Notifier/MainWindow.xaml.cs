@@ -447,7 +447,9 @@ public sealed partial class MainWindow : Window
         Close();
     }
 
-    private void RepositoryToggle_Click(object sender, RoutedEventArgs args) => coordinator.Save();
+    /// <summary>Meldet auch belegte Konfigurationssperren, ohne die Anwendung beim Umschalten eines Eintrags zu beenden.</summary>
+    private async void RepositoryToggle_Click(object sender, RoutedEventArgs args) =>
+        await RunAsync(() => { coordinator.Save(); return Task.CompletedTask; });
     private void Repositories_SelectionChanged(object sender, SelectionChangedEventArgs args) => UpdateCommands();
     private async void Repositories_DoubleTapped(object sender, DoubleTappedRoutedEventArgs args)
     {

@@ -142,6 +142,7 @@ namespace CHD.SVN_Notifier
 		/// Timeout in seconds for SVN command execution (0 = unlimited)
 		/// </summary>
 		public static int SvnCommandTimeout;
+		internal const int MaximumSvnCommandTimeout = 86400;
 
 
 		public static void Init(string fileName)
@@ -189,7 +190,11 @@ namespace CHD.SVN_Notifier
 
 			values[nameof(Language)] = source.ReadInteger("Settings", "Language", 0);
 
-			values[nameof(SvnCommandTimeout)] = source.ReadInteger("Settings", "SvnCommandTimeout", 60);
+			string timeoutText = source.ReadString("Settings", "SvnCommandTimeout", "60");
+			if (!int.TryParse(timeoutText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int timeout)
+				|| timeout < 0 || timeout > MaximumSvnCommandTimeout)
+				throw new FormatException($"Ungültiges SVN-Zeitlimit: {timeoutText}. Zulässig sind 0 bis {MaximumSvnCommandTimeout} Sekunden.");
+			values[nameof(SvnCommandTimeout)] = timeout;
 			values[nameof(FontFamily)] = source.ReadString("Settings", "FontFamily", "Segoe UI");
 			var fontSizeStr = source.ReadString("Settings", "FontSize", "8.5");
 			values[nameof(FontSize)] = float.TryParse(fontSizeStr, System.Globalization.NumberStyles.Float,

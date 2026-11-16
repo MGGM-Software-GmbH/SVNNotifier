@@ -36,6 +36,7 @@ namespace CHD.SVN_Notifier
         public ArrayList processOutput = new ArrayList();
         public bool updateError;
         internal Task<SvnProcessResult>? Completion;
+        internal bool IsInteractive;
 
         public SvnFolderProcess(SvnItem f, Process p, bool isUpdateCommand)
         {
@@ -164,7 +165,7 @@ namespace CHD.SVN_Notifier
             var completion = runner.TryStart(folder.Path, action, commandLine ? Config.SVNpath : Config.TortoiseSVNpath, arguments, false, captureOutput: commandLine, tortoiseSyntax: !commandLine);
             if (completion is null) { folder.DeferOperation(); return false; }
             lock (svnFolderProcesses.SyncRoot)
-                svnFolderProcesses.Add(new SvnFolderProcess(folder, new Process(), update) { Completion = completion });
+                svnFolderProcesses.Add(new SvnFolderProcess(folder, new Process(), update) { Completion = completion, IsInteractive = !commandLine });
             return true;
         }
 
@@ -176,8 +177,12 @@ namespace CHD.SVN_Notifier
             process.processOutput.Clear();
             foreach (string line in (result.Output + "\n" + result.Error).Split('\n', StringSplitOptions.RemoveEmptyEntries))
                 process.processOutput.Add(line.TrimEnd('\r'));
-            process.updateError = !result.Success || !string.IsNullOrWhiteSpace(result.Error)
+            // TortoiseSVN liefert beim Abbrechen -1 und zeigt fachliche Fehler selbst an. Der Rückgabecode allein ist keine zusätzliche Diagnose.
+            bool handledByDialog = process.IsInteractive && result.ExitCode == -1 && !result.Cancelled && string.IsNullOrWhiteSpace(result.Error);
+            process.updateError = (!result.Success && !handledByDialog) || !string.IsNullOrWhiteSpace(result.Error)
                 || result.Output.Split('\n').Any(line => line.StartsWith("C ") || line.StartsWith("Skipped "));
+            if (process.updateError && process.processOutput.Count == 0)
+                process.processOutput.Add(result.Cancelled ? Loc.Svn_Cancelled : Loc.Svn_ProcessError(result.ExitCode));
             if (process.updateError) process.folder.DeferOperation();
         }
 

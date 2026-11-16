@@ -40,6 +40,7 @@ namespace CHD.SVN_Notifier
 		public static string AppUpdate_PortableRequired => T("Automatic installation requires the portable ZIP release. Download and extract it from GitHub Releases.", "Die automatische Installation benötigt die portable ZIP-Ausgabe. Bitte diese aus den GitHub Releases herunterladen und entpacken.");
 		public static string AppUpdate_RepositoryBusy => T("The application is already updating or shutting down.", "Ein Programmupdate oder das Beenden der Anwendung läuft bereits.");
 		public static string Config_ImportBusy => T("The configuration is being imported. Please wait until the import has finished.", "Die Konfiguration wird gerade importiert. Bitte das Ende des Imports abwarten.");
+		public static string Config_LockTimeout => T("Another instance is keeping the configuration locked. The operation was cancelled without saving. Please try again.", "Eine andere Instanz hält die Konfiguration gesperrt. Der Vorgang wurde ohne Speichern abgebrochen. Bitte erneut versuchen.");
 		public static string Svn_PathChangeBusy => T("The path cannot be changed while manual SVN actions or operations for this entry are running.", "Der Pfad kann während manueller SVN-Aktionen oder laufender Vorgänge dieses Eintrags nicht geändert werden.");
 		public static string AppUpdate_Current(string version) => T("Installed version: ", "Installierte Version: ") + version;
 		public static string AppUpdate_Available(string version) => T("Available version: ", "Verfügbare Version: ") + version;

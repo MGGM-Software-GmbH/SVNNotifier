@@ -1,5 +1,15 @@
 # Umsetzungsstand und Nachweise
 
+## Konfigurationssperren, Prozessrückgaben und variable Repository-Pfade
+
+`ApplicationCoordinator` verarbeitet beendete SVN-Aufträge über denselben Meldepfad beim normalen Polling, vor einem Konfigurationswechsel und vor der Installation eines Programmupdates. Fehler werden vor dem jeweiligen Wechsel an die Oberfläche übergeben. Ein Konfigurationswechsel erzeugt keine zusätzlichen Statusprüfungen für entfernte Repository-Einträge.
+
+`IniFile.WithFileLock` wartet höchstens zwei Sekunden auf die Konfigurationssperre einer anderen Instanz. Eine belegte Sperre meldet einen Schreibfehler, erhält Datei und ungespeicherte Optionen und erlaubt einen erneuten Versuch. Kurze Sperren und aufgegebene Mutex-Besitzer werden weiterhin unterstützt. Auch der Repository-Schalter behandelt Schreibfehler über den vorhandenen Fehlerdialog.
+
+Das SVN-Zeitlimit wird beim Start und Konfigurationsimport als ganze Zahl zwischen 0 und 86400 Sekunden geprüft. Fehlende Angaben verwenden 60 Sekunden; 0 bedeutet weiterhin keine Zeitbegrenzung. Ungültige Angaben werden vor der Übernahme zurückgewiesen. Mehrere und wiederholte Umgebungsvariablen im Repository-Pfad werden unabhängig aufgelöst, während die gespeicherte Pfadangabe ihre Variablen behält. Unbekannte Variablen bleiben erhalten.
+
+Interaktive TortoiseSVN-Dialoge liefern beim Abbrechen den Rückgabecode -1. Dieser Code allein erzeugt keine zusätzliche Notifier-Fehlermeldung, da TortoiseSVN seine fachlichen Fehler selbst anzeigt. Der tatsächliche Rückgabecode bleibt im Prozessprotokoll erhalten. Fehlgeschlagene Prozessstarts, Diagnosefehler und unerwartete Prozessrückgaben bleiben von dieser Behandlung ausgenommen und erhalten eine sichtbare Diagnose. Ein Programmupdate darf eigene Dialoge absichtlich beenden; dieser erwartete Abbruch erzeugt keine weitere Meldung, zusätzliche Diagnosefehler bleiben sichtbar.
+
 ## Temporäre Dateiwartung und erneute Fehlerprüfung
 
 Die Hintergrundwartung prüft beim Start und alle 15 Minuten verwaiste Update-Verzeichnisse, atomare INI-Schreibdateien, ältere Importreste, Startfehlerprotokolle, .NET-Entpackverzeichnisse und abgelaufene Benachrichtigungskontexte sämtlicher eigener Programmkennungen. Der aktuelle Entpackpfad bleibt erhalten. Aktive Downloads, Installer und aktuelle Cache-Benutzer halten Sperrdateien. Nicht markierte Verzeichnisse älterer Ausgaben bleiben bei weiteren laufenden Instanzen erhalten. Vor der ersten Löschung werden sämtliche Dateien eines Verzeichnisbaums exklusiv geöffnet. Verknüpfungen werden nicht verfolgt; unerwarteter Inhalt in Update-Verzeichnissen verhindert deren Bereinigung. Fremde generische Installer-Caches benötigen die eigene Assembly als Herkunftsnachweis.

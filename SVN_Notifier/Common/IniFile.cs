@@ -15,6 +15,7 @@ namespace CHD
 			new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 		private readonly object sync = new();
 		private List<System.Action>? changes;
+		internal const int LockTimeoutMilliseconds = 2000;
 
 		/// <summary>Übernimmt zusammengehörige Änderungen unter einer dateibezogenen Instanzsperre in einem atomaren Schreibvorgang.</summary>
 		public void Update(System.Action<IniFile> update)
@@ -50,13 +51,17 @@ namespace CHD
 			}
 		}
 
-		/// <summary>Koordiniert auch den vollständigen Konfigurationsaustausch mit anderen Notifier-Instanzen.</summary>
+		/// <summary>Koordiniert auch den vollständigen Konfigurationsaustausch mit anderen Instanzen und meldet eine dauerhaft belegte Sperre.</summary>
 		internal static void WithFileLock(string path, System.Action action)
 		{
 			string identity = Path.GetFullPath(path);
 			if (OperatingSystem.IsWindows()) identity = identity.ToUpperInvariant();
 			using var mutex = new Mutex(false, "SVNNotifier.Config." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))));
-			try { mutex.WaitOne(); }
+			try
+			{
+				if (!mutex.WaitOne(LockTimeoutMilliseconds))
+					throw new IOException(CHD.SVN_Notifier.Loc.Config_LockTimeout);
+			}
 			catch (AbandonedMutexException) { /* Der vorherige Besitzer ist beendet; die Sperre gehört jetzt diesem Prozess. */ }
 			try { action(); }
 			finally { mutex.ReleaseMutex(); }

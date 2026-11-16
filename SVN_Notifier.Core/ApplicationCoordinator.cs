@@ -161,19 +161,7 @@ internal sealed class ApplicationCoordinator : IDisposable
         try
         {
             // Check commit and update processes for finishing, auch bei entfernten oder deaktivierten Einträgen.
-            foreach (var completed in SvnTools.TakeCompleted())
-            {
-                if (stopping || installation) { completed.folder._IsAutoUpdating = false; continue; }
-                await OnUiAsync(() =>
-                {
-                    if (completed.updateError)
-                    {
-                        completed.folder._IsAutoUpdating = false;
-                        UpdateLogRequested?.Invoke(completed);
-                    }
-                    RequestCheck(completed.folder);
-                });
-            }
+            await DrainCompletedOperationsAsync(!installation);
             while (true)
             {
                 SvnItem? item = null;
@@ -294,13 +282,30 @@ internal sealed class ApplicationCoordinator : IDisposable
             await manualCompletion;
             await SvnTools.WaitForTrackedOperationsAsync();
             if (stopping || installation) throw new InvalidOperationException(Loc.AppUpdate_RepositoryBusy);
-            foreach (var completed in SvnTools.TakeCompleted()) completed.folder._IsAutoUpdating = false;
+            await DrainCompletedOperationsAsync(false);
             await change();
         }
         finally { configurationChanging = false; Suspended = previouslySuspended; }
     }
 
     internal Task UpdateAsync(SvnItem item, bool all = false) => RunManualAsync(item, () => UpdateCoreAsync(item, all));
+
+    /// <summary>Meldet beendete Aufträge auch vor Import und Programmupdate; deren Fehler dürfen beim Entleeren nicht verloren gehen.</summary>
+    private async Task DrainCompletedOperationsAsync(bool requestChecks)
+    {
+        foreach (var completed in SvnTools.TakeCompleted())
+        {
+            if (stopping) { completed.folder._IsAutoUpdating = false; continue; }
+            await OnUiAsync(() =>
+            {
+                if (completed.updateError || !requestChecks) completed.folder._IsAutoUpdating = false;
+                // Das Programmupdate beendet eigene Dialoge absichtlich. Deren Abbruch ist kein zusätzlicher Benutzerfehler.
+                bool cancelledForInstallation = installation && completed.Completion?.GetAwaiter().GetResult() is { Cancelled: true, Error: "" };
+                if (completed.updateError && !cancelledForInstallation) UpdateLogRequested?.Invoke(completed);
+                if (requestChecks) RequestCheck(completed.folder);
+            });
+        }
+    }
 
     /// <summary>Führt ein bereits priorisiertes manuelles Update mit der vorhandenen Protokollvoraussetzung aus.</summary>
     private async Task UpdateCoreAsync(SvnItem item, bool all)
@@ -354,7 +359,7 @@ internal sealed class ApplicationCoordinator : IDisposable
             await SvnTools.PauseForApplicationUpdateAsync();
             await polling;
             await manualCompletion;
-            foreach (var completed in SvnTools.TakeCompleted()) completed.folder._IsAutoUpdating = false;
+            await DrainCompletedOperationsAsync(false);
             Config.SaveSettings();
             Config.SaveSvnFolders(Folders);
             await startInstaller();
