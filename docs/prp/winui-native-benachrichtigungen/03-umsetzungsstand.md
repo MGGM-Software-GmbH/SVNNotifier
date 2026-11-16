@@ -8,7 +8,9 @@ Lokaler Nachweis mit normalen Benutzerrechten und ohne Umschalten des Benutzerde
 
 `artifacts/check-now-3102/counterexamples-confirmed.log`, Exit-Code 0, bestätigt 91 erfolgreiche gezielte Prioritätsprüfungen und fünf erkannte Defekte in isolierten Quellkopien: fehlende Unterbrechung durch **Jetzt prüfen**, fehlende Unterbrechung durch andere manuelle Aktionen, verlorene zurückgestellte Prüfaufträge, nicht unterbrechbare Auto-Update-Revisionsabfrage und Auto-Update-Start trotz vorgemerkter manueller Prüfung. Jede Gegenprobe liefert Exit-Code 1 mit der erwarteten Fehlerursache. Die Prüfungen belegen den Start des manuellen Ziels innerhalb von fünf Sekunden bei einer angehaltenen automatischen Leseprüfung ohne Zeitlimit. Prozessmarker werden geschlossen und separat als lesbar signalisiert, bevor die Tests die Prozess-ID lesen.
 
-Integration auf `master`, erfolgreiche GitHub-Prüfungen, Tag-Zuordnung und öffentlich heruntergeladene Release-Dateien werden nach den zugehörigen Läufen hier nachgewiesen. Die bestehenden offenen Windows-Shellnachweise bleiben unverändert benannt.
+[3.1.0.2](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases/tag/v3.1.0.2) ist als neuestes stabiles Release veröffentlicht. Der integrierte Commit `fa8215cf1e761003582231e9ca78b5a64bed6242` besteht den [Hauptbranch-Lauf 43831299639](https://github.com/MGGM-Software-GmbH/SVNNotifier/actions/runs/43831299639) auf x64 und x86. Der Tag `v3.1.0.2` zeigt auf genau diesen Commit. Der [Tag-Lauf 43833320668](https://github.com/MGGM-Software-GmbH/SVNNotifier/actions/runs/43833320668) besteht auf beiden Architekturen einschließlich der Veröffentlichung.
+
+Beide öffentlich heruntergeladenen ZIP-Pakete stimmen mit `SHA256SUMS.txt` überein. Enthalten sind jeweils `LICENSE`, `README.md` und `SVN_Notifier.exe`; EXE-Version `3.1.0.2` und PE-Architektur stimmen für x64 und x86. Nachweise sind `artifacts/check-now-3102/published-audit.log`, Exit-Code 0, und `artifacts/check-now-3102/published-audit.json`. Die bestehenden offenen Windows-Shellnachweise bleiben unverändert benannt.
 
 ## Korrekturprüfung 3.1.0.1
 
