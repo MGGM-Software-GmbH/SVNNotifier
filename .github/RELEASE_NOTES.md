@@ -3,7 +3,7 @@ SVN Notifier 3.1.0.5
 - Protokollierungsfehler nach dem Start eines SVN-Prozesses verhindern weder Timeout noch Benutzerabbruch oder Stoppen. Die Diagnose wird als Fehler gemeldet, die Reservierung erst nach dem tatsächlichen Prozessende freigegeben.
 - Einstellungen und Repository-Optionen werden vor Beginn des Shutdowns gespeichert. Scheitert das Speichern, bleiben die Anwendung bedienbar und ein erneuter Beenden-Versuch möglich.
 - Start und Konfigurationsimport weisen ungültige Zeitintervalle zurück. Globale Intervalle müssen zwischen 0 und 359999 Sekunden liegen; Repository-Intervalle erlauben zusätzlich -1 für den jeweiligen Standardwert. Ein abgewiesener Import verändert die aktive Konfiguration nicht.
-- Fehlgeschlagene Commit-, Cleanup- und Protokolldialoge erhalten dieselbe Fehleranzeige wie fehlgeschlagene Updates.
+- Fehlgeschlagene Commit-, Cleanup- und Protokollstarts zeigen einen Fehlerdialog mit Zielpfad und Prozessursache. Updatefehler verwenden weiterhin ihr ausführliches Aktualisierungsprotokoll.
 
 Die automatische Bereinigung temporärer Dateien und alter .NET-Entpackverzeichnisse läuft weiterhin beim Start und alle 15 Minuten und schützt laufende Instanzen.
 

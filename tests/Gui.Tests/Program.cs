@@ -102,6 +102,7 @@ internal static class Program
         if (arguments.Contains("--dark")) main.RootElement.RequestedTheme = ElementTheme.Dark;
         main.Activate();
         await WaitAsync(() => main.RootElement.IsLoaded);
+        if (arguments.Contains("--manual-error-only")) { await CheckManualLaunchFailuresAsync(main); await main.ExitAsync(); return; }
         if (arguments.Contains("--diagnose-error-log"))
         {
             foreach (int language in new[] { 1, 0 })
@@ -281,6 +282,7 @@ internal static class Program
             await CheckRepositoryDialogsAsync(main, language);
             await CheckAllowedDoubleClicksAsync(main);
         }
+        await CheckManualLaunchFailuresAsync(main);
         await CheckExitSaveFailureAsync();
         await CheckSessionClosingAsync();
         await main.ExitAsync();
@@ -646,6 +648,50 @@ internal static class Program
             Entered.TrySetResult();
             if (blocked) await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable) { Content = new StringContent("Isolierte HTTP-Fehlerfixture.") };
+        }
+    }
+
+    /// <summary>Prüft den tatsächlichen Fehlerdialog für gescheiterte manuelle Starts einschließlich der angezeigten Prozessursache.</summary>
+    private static async Task CheckManualLaunchFailuresAsync(MainWindow main)
+    {
+        string svn = Config.SVNpath, tortoise = Config.TortoiseSVNpath;
+        var originals = main.Coordinator.Folders.ToArray();
+        string root = Path.Combine(output, "manual-errors-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".svn"));
+        File.WriteAllText(Path.Combine(root, ".svn", "wc.db"), "Isolierte Testmarkierung.");
+        File.WriteAllText(Path.Combine(root, "gui-svn-fixture"), "Isolierter Prozesstreiber.");
+        ContentDialog? dialog = null;
+        try
+        {
+            Config.SVNpath = Environment.ProcessPath!;
+            Config.TortoiseSVNpath = Path.Combine(root, "missing-tortoise.exe");
+            main.Coordinator.Folders.Clear();
+            var item = new SvnItem(root, PathType.Directory) { Enabled = false };
+            main.Coordinator.Folders.Add(item);
+            foreach (string action in new[] { "commit", "cleanup", "log" })
+            {
+                if (action == "commit") Assert(SvnTools.Commit(item), "Fehlender Commit-Dialog wird als eigener Auftrag angenommen");
+                else if (action == "cleanup") Assert(SvnTools.Cleanup(item), "Fehlender Cleanup-Dialog wird als eigener Auftrag angenommen");
+                else SvnTools.OpenLogWindow(root);
+                await SvnTools.WaitForTrackedOperationsAsync();
+                await main.Coordinator.PollAsync();
+                await WaitAsync(() =>
+                {
+                    dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(main.RootElement.XamlRoot)
+                        .Where(popup => popup.Child is not null).SelectMany(popup => Descendants(popup.Child)).OfType<ContentDialog>().FirstOrDefault();
+                    return dialog?.IsLoaded == true;
+                }, action + ": Tatsächlicher Fehlerdialog wird geöffnet");
+                Assert(dialog!.Content is TextBlock text && text.Text.Contains("SVN-Prozessfehler") && text.Text.Contains(root),
+                    action + ": Fehlerdialog zeigt Zielpfad und tatsächliche Prozessursache");
+                dialog.Hide(); dialog = null; await RenderAsync();
+            }
+        }
+        finally
+        {
+            dialog?.Hide();
+            Config.SVNpath = svn; Config.TortoiseSVNpath = tortoise;
+            main.Coordinator.Folders.Clear();
+            foreach (var item in originals) main.Coordinator.Folders.Add(item);
         }
     }
 

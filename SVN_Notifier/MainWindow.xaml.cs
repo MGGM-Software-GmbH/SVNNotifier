@@ -47,7 +47,9 @@ public sealed partial class MainWindow : Window
         });
         coordinator.Changed += RefreshRepositories;
         coordinator.StatusChanged += text => Status.Text = text;
-        coordinator.UpdateLogRequested += process => _ = RunAsync(() => windows.ShowAsync(Loc.ULF_Title, new UpdateLogView(process, action => coordinator.RunManualAsync(process.folder, action)), close: Loc.ULF_Btn_OK));
+        coordinator.UpdateLogRequested += process => _ = RunAsync(() => process.isUpdateCommand
+            ? windows.ShowAsync(Loc.ULF_Title, new UpdateLogView(process, action => coordinator.RunManualAsync(process.folder, action)), close: Loc.ULF_Btn_OK)
+            : windows.ErrorAsync(process.folder.Path + Environment.NewLine + string.Join(Environment.NewLine, process.processOutput.Cast<string>())));
         Repositories.ItemsSource = items;
         BuildCommands();
         ApplyFonts();
