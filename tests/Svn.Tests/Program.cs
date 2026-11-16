@@ -76,7 +76,9 @@ internal static class Program
                     File.AppendAllText(Path.Combine(target, "command-calls"), args[0] + Environment.NewLine);
                 if (args[0] is "status" or "info" or "update" && File.Exists(Path.Combine(target, "hold-" + args[0])))
                 {
-                    await File.WriteAllTextAsync(Path.Combine(target, args[0] + ".pid"), Environment.ProcessId.ToString());
+                    string marker = Path.Combine(target, args[0] + ".pid");
+                    await File.WriteAllTextAsync(marker + ".writing", Environment.ProcessId.ToString());
+                    File.Move(marker + ".writing", marker, overwrite: true);
                     for (int delay = 0; delay < 3000 && File.Exists(Path.Combine(target, "hold-" + args[0])); delay++)
                         await Task.Delay(20);
                 }
