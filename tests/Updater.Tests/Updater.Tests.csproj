@@ -12,6 +12,7 @@
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../SVN_Notifier.Core/SVN_Notifier.Core.csproj" />
     <Compile Include="../../SVN_Notifier/Common/ApplicationUpdater.cs" Link="ApplicationUpdater.cs" />
     <Compile Include="../../SVN_Notifier/Common/ApplicationUpdateInstaller.cs" Link="ApplicationUpdateInstaller.cs" />
   </ItemGroup>

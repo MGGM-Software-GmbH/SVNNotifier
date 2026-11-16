@@ -106,6 +106,7 @@ internal static class Program
             var release = (await updater.CheckAsync(older, runtime, CancellationToken.None))!;
             var prepared = await updater.PrepareAsync(release, runtime, target, null, CancellationToken.None);
             Check(File.ReadAllBytes(Path.Combine(prepared.DirectoryPath, "payload.exe")).SequenceEqual(payload), "Gültiges Paket extrahiert");
+            prepared.Dispose();
             ApplicationUpdater.DeleteStage(prepared.DirectoryPath, target);
             Check(!Directory.Exists(prepared.DirectoryPath), "Eigenes Staging entfernt");
             await RejectPackageAsync(new FixtureHandler(version, runtime, archive) { WrongChecksum = true }, older, runtime, target, "Falsche Prüfsumme abgelehnt");

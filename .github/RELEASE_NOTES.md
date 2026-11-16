@@ -1,15 +1,14 @@
-SVN Notifier 3.1.0.3
+SVN Notifier 3.1.0.4
 
-- Repository-Pfadwechsel verwerfen Ergebnisse laufender Prüfungen sowie alte Status-, URL- und Revisionsdaten. Ein Auto-Update des neuen Pfads setzt dessen eigene Prüfung voraus. Laufende manuelle Aktionen, Schreibvorgänge und Dialoge verhindern den Pfadwechsel.
-- Manuelle Aktionen behalten Vorrang. Während der Wiederholfrist einer belegten Arbeitskopie dürfen unabhängige automatische Aufträge laufen. Fehlende Arbeitskopien und Koordinationsfehler beenden den manuellen Prüfauftrag mit Fehleranzeige.
-- Der Konfigurationsimport sperrt neue SVN-Aufträge und wartet auf angenommene manuelle Aktionen sowie laufende eigene Prüfungen, Updates und Dialoge. Die neue Konfiguration wird getrennt validiert und erst anschließend übernommen.
-- INI-Änderungen werden zwischen Notifier-Instanzen koordiniert und atomar gespeichert. Änderungen unabhängiger Schlüssel bleiben erhalten; Repository-Listen und zusammengehörige Einstellungen werden gemeinsam geschrieben.
-- Beschädigte Benachrichtigungskontexte werden mit Diagnose isoliert, ohne gültige Meldungen zu blockieren. Kontextdateien einschließlich isolierter Defekte werden nach sieben Tagen entfernt. Windows-Meldungen laufen nach drei Tagen ab; ihre Klickziele bleiben darüber hinaus erhalten.
+- Automatische Bereinigung beim Start und alle 15 Minuten: verwaiste Programmupdate-Verzeichnisse, atomare INI-Schreibdateien, ältere Importreste, alte Startfehlerprotokolle und abgelaufene Benachrichtigungskontexte.
+- Alte .NET-Entpackverzeichnisse der portablen Anwendung werden ebenfalls aufgeräumt. Das aktuelle Verzeichnis und aktive Dateien bleiben geschützt. Alle Dateien werden vor der ersten Löschung auf exklusive Verfügbarkeit geprüft; Verknüpfungen und unerwartete Inhalte in Update-Verzeichnissen verhindern deren Bereinigung.
+- Downloads und Installer reservieren ihre Übergabedateien über eine gemeinsame Sperrdatei. Ein Prozessabsturz gibt diese Sperre frei. Mehrere aktuelle Notifier-Instanzen schützen ihre verwendeten Entpackverzeichnisse ebenfalls über Sperrdateien.
+- Nicht markierte Verzeichnisse älterer Ausgaben bleiben erhalten, solange eine weitere Notifier- oder Installer-Instanz läuft. Installer-Caches benötigen einen Herkunftsnachweis des Notifiers. Dauerhafte INI-Dateien, Fehlerprotokolle neben der INI und Benutzer-Repositories werden nicht bereinigt.
 
-Regressionstests prüfen Pfadwechsel mit angehaltenen Prozessen, manuelle Importsperren, konkurrierende INI-Schreiber und beschädigte sowie abgelaufene Benachrichtigungskontexte. Alle SVN-Tests verwenden eigene Arbeitskopien und Konfigurationen.
+Startfehlerprotokolle und Benachrichtigungskontexte bleiben sieben Tage erhalten; Startprotokolle noch laufender Prozesse werden weiter geschützt. Ältere Importreste ohne Zielzuordnung werden nach einem Tag berücksichtigt. Fehler beim Bereinigen werden protokolliert und verhindern nicht die Wartung anderer Bereiche.
 
-Die [SVN-Koordination](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.3/docs/SVN-Koordination.md) beschreibt Priorität und Reservierungen. Bestehende Fehlerprotokolle bleiben erhalten. Laufende Schreibvorgänge und TortoiseSVN-Dialoge werden für manuelle Aktionen oder einen Konfigurationsimport nicht beendet.
+Regressionstests prüfen aktive und abgestürzte Prozesse, geladene native Bibliotheken, fremde Dateien, Verzeichnisverknüpfungen, mehrere Instanzen und verwaiste Schreibdateien. Absichtlich defekte Varianten prüfen die Schutzregeln und die tatsächliche Bereinigung.
 
-Die offenen Integrationsnachweise für Windows-Banner, native Meldungsklicks, Tray, Drag-and-drop und Systemdarstellung stehen im [Umsetzungsstand](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.3/docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md).
+Weitere Befunde der erneuten allgemeinen Fehlerprüfung sind im [Umsetzungsstand](https://github.com/MGGM-Software-GmbH/SVNNotifier/blob/v3.1.0.4/docs/prp/winui-native-benachrichtigungen/03-umsetzungsstand.md) dokumentiert. Dieses Release setzt die beauftragte temporäre Dateibereinigung um.
 
 Voraussetzungen: Windows 10 Version 1809 oder neuer, normaler Start ohne Administratorrechte sowie separat installiertes `svn.exe` und TortoiseSVN. Beide portablen ZIP-Pakete enthalten die .NET-Laufzeit. Für automatische Programmupdates ist Schreibzugriff auf den Programmordner erforderlich. Die EXE-Dateien sind nicht digital signiert; `SHA256SUMS.txt` enthält die Paketprüfsummen.

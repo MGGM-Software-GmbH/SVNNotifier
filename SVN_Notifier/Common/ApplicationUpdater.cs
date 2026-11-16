@@ -8,14 +8,18 @@ using System.Text.RegularExpressions;
 namespace CHD.SVN_Notifier;
 
 internal sealed record ApplicationRelease(Version Version, Uri PageUrl, Uri PackageUrl, Uri ChecksumUrl, long PackageSize);
-internal sealed record PreparedApplicationUpdate(string DirectoryPath, string ExecutableHash, Version Version);
+internal sealed record PreparedApplicationUpdate(string DirectoryPath, string ExecutableHash, Version Version) : IDisposable
+{
+    internal IDisposable? Reservation { get; init; }
+    public void Dispose() => Reservation?.Dispose();
+}
 
 /// <summary>Prüft stabile GitHub-Releases und bereitet ausschließlich das passende Anwendungspaket vor.</summary>
 internal sealed class ApplicationUpdater
 {
     internal const string Repository = "MGGM-Software-GmbH/SVNNotifier";
     internal const string ExecutableName = "SVN_Notifier.exe";
-    internal const string StagePrefix = ".svnnotifier-update-";
+    internal const string StagePrefix = TemporaryFileMaintenance.StagePrefix;
     private const long MaximumPackageSize = 256L * 1024 * 1024;
     private readonly HttpClient client;
 
@@ -105,8 +109,7 @@ internal sealed class ApplicationUpdater
             .Where(match => match.Success && match.Groups[2].Value == packageName).ToArray();
         if (matches.Length != 1)
             throw new InvalidDataException("A unique package checksum is required.");
-        var directory = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(targetPath))!, StagePrefix + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
+        var (directory, reservation) = TemporaryFileMaintenance.CreateStage(targetPath);
         try
         {
             var archivePath = Path.Combine(directory, "package.zip");
@@ -156,10 +159,11 @@ internal sealed class ApplicationUpdater
                     throw new InvalidDataException("The extracted executable is incomplete.");
             }
             ValidateExecutable(Path.Combine(directory, "payload.exe"), release.Version, runtime);
-            return new PreparedApplicationUpdate(directory, await HashAsync(Path.Combine(directory, "payload.exe"), cancellationToken), release.Version);
+            return new PreparedApplicationUpdate(directory, await HashAsync(Path.Combine(directory, "payload.exe"), cancellationToken), release.Version) { Reservation = reservation };
         }
         catch
         {
+            reservation.Dispose();
             DeleteStage(directory, targetPath);
             throw;
         }
@@ -193,20 +197,6 @@ internal sealed class ApplicationUpdater
     /// <summary>Entfernt nur eigene Stagingdateien direkt neben der betroffenen Anwendung.</summary>
     internal static void DeleteStage(string directory, string targetPath)
     {
-        directory = Path.GetFullPath(directory);
-        var name = Path.GetFileName(directory);
-        if (Path.GetDirectoryName(directory) != Path.GetDirectoryName(Path.GetFullPath(targetPath)) ||
-            !name.StartsWith(StagePrefix, StringComparison.Ordinal) || !Guid.TryParseExact(name[StagePrefix.Length..], "N", out _) ||
-            (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
-            throw new InvalidDataException("Invalid application update directory.");
-        var allowedNames = new[] { "package.zip", "payload.exe", "installer.exe", "previous.exe", "update.json", "installer-error.txt" };
-        var files = Directory.GetFiles(directory);
-        if (Directory.GetDirectories(directory).Length != 0 || files.Any(file =>
-            !allowedNames.Contains(Path.GetFileName(file), StringComparer.Ordinal) ||
-            (File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0))
-            throw new InvalidDataException("Unexpected content in the application update directory.");
-        foreach (var file in files)
-            File.Delete(file);
-        Directory.Delete(directory);
+        TemporaryFileMaintenance.DeleteStage(directory, targetPath);
     }
 }

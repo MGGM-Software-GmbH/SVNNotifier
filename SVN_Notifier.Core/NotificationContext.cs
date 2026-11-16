@@ -84,12 +84,14 @@ internal sealed class NotificationContextStore
     }
 
     /// <summary>Bewahrt Klickziele länger als die maximal dreitägige Windows-Meldung und entfernt ältere eigene Dateien.</summary>
-    private void RemoveExpired()
+    internal void RemoveExpired()
     {
         var cutoff = DateTime.UtcNow.Subtract(Retention);
         foreach (string file in Directory.EnumerateFiles(directory))
         {
-            if (!(file.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".json.tmp", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".invalid", StringComparison.OrdinalIgnoreCase))) continue;
+            string name = Path.GetFileName(file);
+            if (name.Length < 32 || !Guid.TryParseExact(name[..32], "N", out _) ||
+                !(name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".json.tmp", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".invalid", StringComparison.OrdinalIgnoreCase))) continue;
             try { if (File.GetLastWriteTimeUtc(file) < cutoff) File.Delete(file); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { report(exception); }
         }

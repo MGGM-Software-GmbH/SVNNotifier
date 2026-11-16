@@ -42,6 +42,7 @@ public sealed class ApplicationUpdateView : UserControl
             catch (Exception exception) { state.Text = Loc.AppUpdate_Error(exception.Message); }
             finally
             {
+                prepared?.Dispose();
                 if (prepared is not null && !handedOver) ApplicationUpdater.DeleteStage(prepared.DirectoryPath, Environment.ProcessPath!);
                 installing = false; cancellation.Dispose(); cancellation = null;
                 install.IsEnabled = cancel.IsEnabled = true; cancel.Visibility = progress.Visibility = Visibility.Collapsed;

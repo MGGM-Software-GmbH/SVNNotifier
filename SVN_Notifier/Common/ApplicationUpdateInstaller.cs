@@ -114,6 +114,7 @@ internal static class ApplicationUpdateInstaller
             !Version.TryParse(plan.Version, out var version) || version <= ApplicationUpdater.CurrentVersion ||
             plan.Runtime != ApplicationUpdater.RuntimeIdentifier)
             throw new InvalidDataException("Invalid application update plan.");
+        using var reservation = TemporaryFileMaintenance.OpenLease(Path.Combine(directory, TemporaryFileMaintenance.StageLock));
         var payload = Path.Combine(directory, "payload.exe");
         ApplicationUpdater.ValidateExecutable(payload, version, plan.Runtime);
         if (ApplicationUpdater.HashAsync(payload, CancellationToken.None).GetAwaiter().GetResult() != plan.PayloadHash)
@@ -156,6 +157,6 @@ internal static class ApplicationUpdateInstaller
         {
             // Der Hilfsprozess kann vor dem Start der neuen Anwendung bereits beendet sein.
         }
-        ApplicationUpdater.DeleteStage(directory, Environment.ProcessPath!);
+        if (Directory.Exists(directory)) ApplicationUpdater.DeleteStage(directory, Environment.ProcessPath!);
     }
 }

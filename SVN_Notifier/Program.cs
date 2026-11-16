@@ -15,6 +15,18 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        var maintenanceMessages = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        void ReportMaintenance(string message)
+        {
+            if (string.IsNullOrEmpty(Config.logFileName)) { maintenanceMessages.Enqueue(message); return; }
+            try { Config.WriteLog("TemporaryFiles", message); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { Trace.TraceError(exception.ToString()); }
+        }
+        using var maintenance = new TemporaryFileMaintenance(Environment.ProcessPath!, Path.GetTempPath(),
+            Environment.GetEnvironmentVariable("DOTNET_BUNDLE_EXTRACT_BASE_DIR") is { Length: > 0 } extractionRoot ? extractionRoot : Path.Combine(Path.GetTempPath(), ".net"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MGGM", "SVNNotifier", "Notifications"),
+            AppContext.BaseDirectory, ReportMaintenance);
+        maintenance.Start();
         if (args.Length == 2 && args[0] == "--apply-update")
         {
             ApplicationUpdatePlan? plan = null;
@@ -49,6 +61,8 @@ internal static class Program
             const string name = "SVN_Notifier.ini";
             string config = Notifications.InitialConfiguration ?? (File.Exists(name) ? Path.GetFullPath(name) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), name));
             Config.Init(config);
+            maintenance.Configure(config);
+            while (maintenanceMessages.TryDequeue(out string? message)) ReportMaintenance(message);
             if (args.Length == 4 && args[0] == "--update-cleanup" && int.TryParse(args[2], out int helper) && long.TryParse(args[3], out long began))
                 _ = CleanupAsync(args[1], helper, began);
             StartXaml(args);
