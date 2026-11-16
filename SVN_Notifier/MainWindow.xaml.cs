@@ -47,7 +47,7 @@ public sealed partial class MainWindow : Window
         });
         coordinator.Changed += RefreshRepositories;
         coordinator.StatusChanged += text => Status.Text = text;
-        coordinator.UpdateLogRequested += process => _ = RunAsync(() => windows.ShowAsync(Loc.ULF_Title, new UpdateLogView(process), close: Loc.ULF_Btn_OK));
+        coordinator.UpdateLogRequested += process => _ = RunAsync(() => windows.ShowAsync(Loc.ULF_Title, new UpdateLogView(process, action => coordinator.RunManualAsync(process.folder, action)), close: Loc.ULF_Btn_OK));
         Repositories.ItemsSource = items;
         BuildCommands();
         ApplyFonts();
@@ -292,10 +292,10 @@ public sealed partial class MainWindow : Window
         {
             case "Update": await coordinator.UpdateAsync(item); break;
             case "CheckNow": coordinator.CheckNow(item); break;
-            case "Commit": await Task.Run(() => SvnTools.Commit(item)); break;
-            case "Cleanup": await Task.Run(() => SvnTools.Cleanup(item)); break;
-            case "ChangeLog": await Task.Run(() => SvnTools.OpenChangeLogWindow(item, true)); break;
-            case "Log": await Task.Run(() => SvnTools.OpenLogWindow(item.Path)); break;
+            case "Commit": await coordinator.RunManualAsync(item, () => Task.Run(() => SvnTools.Commit(item))); break;
+            case "Cleanup": await coordinator.RunManualAsync(item, () => Task.Run(() => SvnTools.Cleanup(item))); break;
+            case "ChangeLog": await coordinator.RunManualAsync(item, () => Task.Run(() => SvnTools.OpenChangeLogWindow(item, true))); break;
+            case "Log": await coordinator.RunManualAsync(item, () => Task.Run(() => SvnTools.OpenLogWindow(item.Path))); break;
             case "Properties": await ShowPropertiesAsync(); break;
             case "Open": Process.Start(new ProcessStartInfo(File.Exists(item.Path) ? Path.GetDirectoryName(item.Path)! : item.Path) { UseShellExecute = true }); break;
         }

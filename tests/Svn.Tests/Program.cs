@@ -72,10 +72,13 @@ internal static class Program
                 if (separator != args.Length - 2 || !args[^1].EndsWith('@')) return 10;
                 string target = args[^1][..^1];
                 if (!Path.IsPathFullyQualified(target) || !(Directory.Exists(target) || File.Exists(target))) return 11;
-                if (args[0] == "status" && File.Exists(Path.Combine(target, "hold-status")))
+                if (File.Exists(Path.Combine(target, "record-commands")))
+                    File.AppendAllText(Path.Combine(target, "command-calls"), args[0] + Environment.NewLine);
+                if (args[0] is "status" or "info" or "update" && File.Exists(Path.Combine(target, "hold-" + args[0])))
                 {
-                    await File.WriteAllTextAsync(Path.Combine(target, "status.pid"), Environment.ProcessId.ToString());
-                    await Task.Delay(60000);
+                    await File.WriteAllTextAsync(Path.Combine(target, args[0] + ".pid"), Environment.ProcessId.ToString());
+                    for (int delay = 0; delay < 3000 && File.Exists(Path.Combine(target, "hold-" + args[0])); delay++)
+                        await Task.Delay(20);
                 }
                 if (args[0] == "status" && File.Exists(Path.Combine(target, "fail-status"))) return 7;
             }
@@ -85,6 +88,8 @@ internal static class Program
                 // TortoiseSVN wertet die rohe Befehlszeile aus, nicht die vom .NET-Argumentparser aufbereitete Liste.
                 var path = System.Text.RegularExpressions.Regex.Match(Marshal.PtrToStringUni(GetCommandLineW())!, "(?:^| )/path:(?:\"(?<path>[^\"]*)\"|(?<path>[^ ]*))");
                 if (!path.Success || !Directory.Exists(path.Groups["path"].Value)) return 9;
+                if (File.Exists(Path.Combine(path.Groups["path"].Value, "record-commands")))
+                    File.AppendAllText(Path.Combine(path.Groups["path"].Value, "command-calls"), args[0] + Environment.NewLine);
             }
             if (args[0] == "update" && File.Exists(Path.Combine(args[^1][..^1], "notification-autoupdate-fixture")))
                 File.WriteAllText(Path.Combine(args[^1][..^1], "notification-update-completed"), "Isoliertes erfolgreiches Testupdate.");
@@ -108,6 +113,14 @@ internal static class Program
             Directory.CreateDirectory(Path.Combine(root, "second"));
             Config.Init(Path.Combine(output, "fixture.ini"));
             Config.SVNpath = Config.TortoiseSVNpath = executable;
+            if (args.Contains("--priority-only"))
+            {
+                Config.DoPauseAfterApplicationStartup = false;
+                checks += await CheckNowTests.RunAsync(output);
+                checks += await ManualActionTests.RunAsync(output);
+                Console.WriteLine($"Manuelle Prioritätsprüfungen: {checks} erfolgreich.");
+                return 0;
+            }
             CheckConfiguration(root);
             checks += await CoordinatorTests.RunAsync(output, executable);
             NotificationContextTests.Run(output, Assert);

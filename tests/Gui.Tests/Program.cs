@@ -260,7 +260,7 @@ internal static class Program
             update.processOutput.Add("G    C:\\Projekte\\Kundenportal\\Zusammenführung ß.txt");
             update.processOutput.Add("svn: E170013: Isolierte Netzwerkfehlermeldung.");
             update.processOutput.Add("Updated to revision 123.");
-            var log = new UpdateLogView(update);
+            var log = new UpdateLogView(update, action => action());
             Assert(Descendants(log).OfType<TextBlock>().Any(text => text.Text.Contains("123")), "Updateprotokoll erhält Dateiaktionen und Ergebnis");
             foreach (string action in language == 1 ? new[] { "Aktualisiert", "Hinzugefügt", "Gelöscht", "Konflikt", "Zusammengeführt" } : new[] { "Updated", "Added", "Deleted", "Conflicted", "Merged" })
                 Assert(Descendants(log).OfType<TextBlock>().Any(text => text.Text.Contains(action + ": 1")), "Updateprotokoll erhält den Aktionszähler: " + action);

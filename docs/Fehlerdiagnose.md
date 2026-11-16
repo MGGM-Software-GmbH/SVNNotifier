@@ -11,6 +11,8 @@ Das Fehlerprotokoll zeigt für jede betroffene Arbeitskopie den zuletzt erfasste
 
 Das konfigurierte `SvnCommandTimeout` gilt weiterhin für lesende Prüfungen, standardmäßig 60 Sekunden. Der Wert `0` deaktiviert das Zeitlimit. Schreibende SVN-Aufträge erhalten dadurch kein zusätzliches Zeitlimit. Bei einer Zeitüberschreitung wird der eigene Prozessbaum beendet; die Reservierung wird erst nach dem tatsächlichen Prozessende freigegeben.
 
+Manuelle SVN-Aktionen dürfen laufende automatische Leseprüfungen unabhängig vom Zeitlimit unterbrechen. Dieser gezielte Abbruch erzeugt keinen Repository-Fehler und keine Wiederholsperre; die Prozessdiagnose nennt weiterhin `cancelled`. Neue manuelle Aufträge werden vor der automatischen Verarbeitung ausgeführt. Bereits laufende Schreibvorgänge und TortoiseSVN-Dialoge werden dafür nicht beendet.
+
 Die Fehleranzeige übernimmt keine ungefilterte SVN-Ausgabe. Diagnosezeilen enthalten weiterhin keine Befehlsargumente oder Zugangsdaten. Ein Timeout belegt nicht die Ursache einer langsamen SVN-Antwort; dafür müssen die konkret betroffene Verbindung und Arbeitskopie gesondert geprüft werden.
 
 ## Prüfungen

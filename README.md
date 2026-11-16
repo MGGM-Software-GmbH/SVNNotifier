@@ -4,7 +4,14 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.1.0.1** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+**SVN Notifier 3.1.0.2** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.1.0.2
+
+- Manuelle SVN-Aktionen haben Vorrang vor automatischen Prüfungen und neuen Auto-Updates. Dies gilt für **Jetzt prüfen**, **Update**, **Commit**, **Cleanup**, Protokoll und **Alle aktualisieren**, auch über Symbolleiste, Doppelklick und Tray.
+- Eine laufende automatische Status- oder Revisionsprüfung wird dafür abgebrochen, auch bei ausgeschaltetem SVN-Zeitlimit. Die automatische Verarbeitung wird anschließend fortgesetzt. Die Vorbereitung eines Auto-Updates blockiert die Oberfläche nicht.
+- Wiederholte Klicks erzeugen keine doppelten Prüfungen. Wegen einer belegten Arbeitskopie zurückgestellte manuelle Prüfungen bleiben vorgemerkt, auch bei ausgeschalteter regulärer Prüfung.
+- Laufende Schreibvorgänge und TortoiseSVN-Dialoge werden dafür nicht beendet. Weitere manuelle Aktionen derselben Arbeitskopie warten auf eigene laufende Vorgänge. Die gemeinsame Arbeitskopiereservierung und die 15-sekündige Wiederholsperre für Prüfungen bleiben erhalten.
 
 ### Neu in v3.1.0.1
 
@@ -111,7 +118,7 @@ Versionen bis einschließlich 3.0.0.3 enthalten diesen Programmupdater noch nich
 
 Das zur Windows-Architektur passende ZIP-Paket unter [Releases](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases) herunterladen, entpacken und `SVN_Notifier.exe` starten. Subversion-Kommandozeilenclient (`svn.exe`) und TortoiseSVN werden weiterhin separat benötigt und in den Einstellungen ausgewählt. Die erzeugten EXE-Dateien sind nicht digital signiert.
 
-Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.1.0.1-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
+Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.1.0.2-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
 
 ### Zurückgestellte Erweiterungen
 
@@ -141,11 +148,11 @@ Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages
 
 Die gewöhnlichen GUI-Prüfungen können über `Invoke-QuietWindows.vbs` und `Invoke-IsolatedDesktop.ps1` ohne sichtbare Konsole auf einem inaktiven Windows-Desktop laufen. `Test-Gui.ps1 -IncludeShellSettings` ergänzt die tatsächliche Anwendung der Taskleisteneinstellung und benötigt einen Desktop mit Windows-Shell. Native Banner, Benachrichtigungszentrale und Eingabewege benötigen zusätzlich eine ausdrücklich erlaubte, entsperrte Windows-Testsitzung. Voraussetzungen und Aufrufparameter stehen in [Validierung](docs/prp/winui-native-benachrichtigungen/02-validierung.md).
 
-Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach dem Merge auf `master` und erfolgreichen Prüfungen löst ein Tag im Format `v3.1.0.1` die Veröffentlichung aus:
+Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach dem Merge auf `master` und erfolgreichen Prüfungen löst ein Tag im Format `v3.1.0.2` die Veröffentlichung aus:
 
 ```powershell
-git tag v3.1.0.1
-git push mggm v3.1.0.1
+git tag v3.1.0.2
+git push mggm v3.1.0.2
 ```
 
 Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests, GUI-Prüfungen und den SVN-Koordinationsprüfungen unter Windows. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.

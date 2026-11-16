@@ -10,7 +10,7 @@ public sealed class UpdateLogView : UserControl
     private static extern bool PlaySound(string file, IntPtr module, uint flags);
 
     /// <summary>Zeigt die gesicherte SVN-Ausgabe und bewahrt den Protokollzugang sowie den vorhandenen Hinweiston.</summary>
-    internal UpdateLogView(SvnFolderProcess process)
+    internal UpdateLogView(SvnFolderProcess process, Func<Func<Task>, Task> runManual)
     {
         if (!process.isUpdateCommand) throw new ArgumentException("Kein Aktualisierungsprotokoll.", nameof(process));
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("ms-appx:///ViewResources.xaml") });
@@ -48,7 +48,7 @@ public sealed class UpdateLogView : UserControl
         var showLog = new Button { Content = Loc.ULF_Btn_ShowLog, Visibility = counts.Count > 0 ? Visibility.Visible : Visibility.Collapsed };
         showLog.Click += async (_, _) =>
         {
-            try { await Task.Run(() => SvnTools.OpenChangeLogWindow(process.folder, false)); }
+            try { await runManual(() => Task.Run(() => SvnTools.OpenChangeLogWindow(process.folder, false))); }
             catch (Exception exception) { warning.Text = exception.Message; warning.Visibility = Visibility.Visible; }
         };
         panel.Children.Add(showLog); Content = panel;

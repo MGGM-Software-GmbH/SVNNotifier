@@ -59,19 +59,32 @@ namespace CHD.SVN_Notifier
         public static readonly ArrayList svnFolderProcesses = ArrayList.Synchronized(new ArrayList());
         internal static bool HasActiveOperations => runner.HasActiveOperations;
 
+        /// <summary>Wartet auf eigene Schreibvorgänge und Dialoge derselben Arbeitskopie, ohne sie für einen manuellen Auftrag zu beenden.</summary>
+        internal static Task WaitForWorkingCopyAsync(SvnItem folder)
+        {
+            var roots = WorkingCopyLease.FindRoots(folder.Path);
+            lock (svnFolderProcesses.SyncRoot)
+                return Task.WhenAll(svnFolderProcesses.Cast<SvnFolderProcess>()
+                    .Where(process => process.Completion is { IsCompleted: false } &&
+                        WorkingCopyLease.FindRoots(process.folder.Path).Intersect(roots, StringComparer.OrdinalIgnoreCase).Any())
+                    .Select(process => process.Completion!));
+        }
+
         /// <summary>Bereinigt beim Start nur nachweislich verwaiste Notifier-Reservierungen konfigurierter Arbeitskopien.</summary>
         internal static void RecoverReservations(IEnumerable<SvnItem> folders) => runner.RecoverReservations(folders.Select(folder => folder.Path));
 
         // TODO: Optimize speed; join GetRepositoryHeadRevision and GetRepositoryCommitedRevision functions into one:
         // void int GetRepositoryRevisions (string path, out int headRevision, out int committedRevision)
-        private static int GetRepositoryRevision(SvnItem folder, string revision)
+        private static int GetRepositoryRevision(SvnItem folder, string revision, CancellationToken cancellation = default)
         {
+            if (cancellation.IsCancellationRequested) return -1;
             var arguments = new[] { "info", "--non-interactive", "--xml" };
             if (!string.IsNullOrEmpty(revision)) arguments = arguments.Concat(new[] { "-r", revision }).ToArray();
             arguments = arguments.Concat(new[] { "--", CommandLineTarget(folder.Path) }).ToArray();
-            var completion = runner.TryStart(folder.Path, "info", Config.SVNpath, arguments, true, Config.SvnCommandTimeout);
+            var completion = runner.TryStart(folder.Path, "info", Config.SVNpath, arguments, true, Config.SvnCommandTimeout, cancellation);
             if (completion is null) { folder.DeferOperation(); return -1; }
             var result = completion.GetAwaiter().GetResult();
+            if (cancellation.IsCancellationRequested) return -1;
             if (!result.Success) { ReportFailure(folder, result); return -1; }
             try
             {
@@ -83,7 +96,7 @@ namespace CHD.SVN_Notifier
         }
 
         public static int GetRepositoryHeadRevision(SvnItem folder) => GetRepositoryRevision(folder, "HEAD");
-        public static int GetRepositoryCommitedRevision(SvnItem folder) => GetRepositoryRevision(folder, "COMMITTED");
+        public static int GetRepositoryCommitedRevision(SvnItem folder, CancellationToken cancellation = default) => GetRepositoryRevision(folder, "COMMITTED", cancellation);
 
         public static void OpenChangeLogWindow(SvnItem folder, bool updateRevisions)
         {
@@ -122,6 +135,12 @@ namespace CHD.SVN_Notifier
             int committed = GetRepositoryCommitedRevision(folder);
             if (committed < 0) return false;
             folder.updateRevision = committed;
+            return BeginPreparedUpdateSilently(folder);
+        }
+
+        /// <summary>Startet das stille Update nach der getrennten, unterbrechbaren Revisionsprüfung.</summary>
+        internal static bool BeginPreparedUpdateSilently(SvnItem folder)
+        {
             return StartTracked(folder, "update", new[] { "update", "--non-interactive", "--", CommandLineTarget(folder.Path) }, true, true);
         }
 
@@ -171,15 +190,18 @@ namespace CHD.SVN_Notifier
         public static bool Cleanup(SvnItem folder) =>
             StartTracked(folder, "cleanup-dialog", new[] { "/command:cleanup", "/path:" + folder.Path }, false, false);
 
-        /// <summary>Ein belegter Koordinationspfad ändert weder den Status noch vorhandene Benachrichtigungen.</summary>
-        public static SvnStatus? GetSvnFolderStatus(SvnItem folder)
+        /// <summary>Ein belegter Koordinationspfad oder eine vorgezogene manuelle Prüfung erhält den bisherigen Status.</summary>
+        public static SvnStatus? GetSvnFolderStatus(SvnItem folder, CancellationToken cancellation = default)
         {
+            if (cancellation.IsCancellationRequested) return null;
             var completion = runner.TryStart(folder.Path, "status", Config.SVNpath,
-                new[] { "status", "-u", "--non-interactive", "--xml", "--", CommandLineTarget(folder.Path) }, true, Config.SvnCommandTimeout);
+                new[] { "status", "-u", "--non-interactive", "--xml", "--", CommandLineTarget(folder.Path) }, true, Config.SvnCommandTimeout, cancellation);
             if (completion is null) { folder.DeferOperation(); return null; }
             var result = completion.GetAwaiter().GetResult();
+            if (cancellation.IsCancellationRequested) return null;
             if (!result.Success) { ReportFailure(folder, result); return SvnStatus.Error; }
-            if (folder.RepositoryUrl is null) GetRepositoryRevision(folder, ""); // Fill folder.RepositoryUrl
+            if (folder.RepositoryUrl is null) GetRepositoryRevision(folder, "", cancellation); // Fill folder.RepositoryUrl
+            if (cancellation.IsCancellationRequested) return null;
             try
             {
                 // Because SVN may return non-valid XML in some cases?

@@ -22,6 +22,8 @@ internal static class CoordinatorTests
             Config.Init(Path.Combine(output, "coordinator.ini"));
             Config.SVNpath = Config.TortoiseSVNpath = executable;
             Config.DoPauseAfterApplicationStartup = false;
+            checks += await CheckNowTests.RunAsync(output);
+            checks += await ManualActionTests.RunAsync(output);
             Config.SaveSvnFolders(new BindingList<SvnItem> { new(root, PathType.Directory) });
             using var coordinator = new ApplicationCoordinator(action => action());
             var item = coordinator.Folders.Single();
