@@ -62,8 +62,16 @@ internal static class TemporaryFileTests
             }
             finally { if (!child.HasExited) child.Kill(); await child.WaitForExitAsync(); }
         }
-        maintenance.Sweep();
-        Check(!Directory.Exists(crossProcess), "Prozessabsturz gibt die automatische Bereinigung frei");
+        // Ein noch nicht löschbarer Rest bleibt bis zum nächsten Wartungslauf geschützt.
+        // Der Nachweis verlangt die tatsächliche Entfernung innerhalb einer festen Frist.
+        var cleanupDeadline = DateTime.UtcNow.AddSeconds(5);
+        do
+        {
+            maintenance.Sweep();
+            if (!Directory.Exists(crossProcess)) break;
+            await Task.Delay(25);
+        } while (DateTime.UtcNow < cleanupDeadline);
+        Check(!Directory.Exists(crossProcess), "Prozessabsturz gibt die automatische Bereinigung frei. Diagnosen: " + string.Join("; ", diagnostics));
 
         string current = Path.Combine(bundles, "SVN_Notifier", "CURRENT12345");
         string stale = Path.Combine(bundles, "SVN_Notifier", "STALE1234567");
