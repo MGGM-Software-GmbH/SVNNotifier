@@ -216,7 +216,7 @@ internal static class CheckNowTests
     private static async Task WaitForFileAsync(string path)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        while (!File.Exists(path) || new FileInfo(path).Length == 0) await Task.Delay(20, timeout.Token);
+        while (!File.Exists(path + ".ready")) await Task.Delay(20, timeout.Token);
     }
 
     /// <summary>Prüft das Prozessende vor einer erneuten Reservierung derselben Arbeitskopie.</summary>

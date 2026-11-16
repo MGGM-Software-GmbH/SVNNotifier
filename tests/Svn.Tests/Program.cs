@@ -79,6 +79,7 @@ internal static class Program
                     string marker = Path.Combine(target, args[0] + ".pid");
                     await File.WriteAllTextAsync(marker + ".writing", Environment.ProcessId.ToString());
                     File.Move(marker + ".writing", marker, overwrite: true);
+                    File.WriteAllText(marker + ".ready", "");
                     for (int delay = 0; delay < 3000 && File.Exists(Path.Combine(target, "hold-" + args[0])); delay++)
                         await Task.Delay(20);
                 }
