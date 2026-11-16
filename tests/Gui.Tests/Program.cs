@@ -699,6 +699,7 @@ internal static class Program
     private static async Task CheckExitSaveFailureAsync()
     {
         bool originalNotifications = Config.ShowNotifications;
+        string originalLog = Config.logFileName;
         Config.SaveSettings();
         var window = new MainWindow(false);
         bool closed = false;
@@ -713,6 +714,28 @@ internal static class Program
                 try { await window.ExitAsync(); }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { failed = true; }
                 Assert(failed && !closed && !Field<bool>(window, "exiting"), "INI-Schreibfehler lässt das echte Fenster ohne gesetzten Beenden-Zustand geöffnet");
+                Config.logFileName = output;
+                Task handled = (Task)typeof(MainWindow).GetMethod("RunAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(window, new object[] { (Func<Task>)window.ExitAsync })!;
+                ContentDialog? dialog = null;
+                try
+                {
+                    await WaitAsync(() =>
+                    {
+                        dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(window.RootElement.XamlRoot)
+                            .Where(popup => popup.Child is not null).SelectMany(popup => Descendants(popup.Child)).OfType<ContentDialog>().FirstOrDefault();
+                        return dialog?.IsLoaded == true || handled.IsFaulted;
+                    }, "Fehlerbehandlung erreicht bei gesperrter INI und gesperrtem Fehlerprotokoll einen beobachtbaren Zustand");
+                    if (handled.IsFaulted) await handled;
+                    Assert(dialog?.Content is TextBlock text && (text.Text.Contains("Fehlerprotokoll") || text.Text.Contains("error log")),
+                        "Fehlerdialog bleibt auch bei gleichzeitigem Protokollfehler erreichbar und benennt beide Schreibfehler");
+                }
+                finally
+                {
+                    dialog?.Hide();
+                    Config.logFileName = originalLog;
+                }
+                await handled;
                 bool manualRan = false;
                 await window.Coordinator.RunManualAsync(() => { manualRan = true; return Task.CompletedTask; });
                 Assert(manualRan, "Manuelle Aufträge bleiben nach fehlgeschlagenem Speichern ausführbar");
@@ -722,6 +745,7 @@ internal static class Program
         }
         finally
         {
+            Config.logFileName = originalLog;
             if (!closed) await window.ExitAsync();
             Config.ShowNotifications = originalNotifications;
             Config.SaveSettings();

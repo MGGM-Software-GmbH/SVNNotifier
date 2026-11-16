@@ -121,8 +121,15 @@ public sealed partial class MainWindow : Window
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            Config.WriteLog("Application", exception.ToString());
-            if (!exiting) await windows.ErrorAsync(exception.Message);
+            string message = exception.Message;
+            try { Config.WriteLog("Application", exception.ToString()); }
+            catch (Exception logException) when (logException is IOException or UnauthorizedAccessException)
+            {
+                message += Environment.NewLine + (Config.Language == 1
+                    ? "Zusätzlich konnte das Fehlerprotokoll nicht geschrieben werden: "
+                    : "The error log could not be written: ") + logException.Message;
+            }
+            if (!exiting) await windows.ErrorAsync(message);
         }
     }
 

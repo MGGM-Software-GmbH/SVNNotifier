@@ -9,7 +9,7 @@ Small and portable application which notifies you about other people's commits t
 ### Neu in v3.1.0.5
 
 - Ein Diagnosefehler während eines SVN-Auftrags wird gemeldet; Timeout und Abbruch bleiben wirksam. Die Arbeitskopie bleibt bis zum tatsächlichen Prozessende reserviert.
-- Scheitert das Speichern beim Beenden, bleiben Bedienung und ein erneuter Beenden-Versuch möglich.
+- Scheitert das Speichern beim Beenden, bleiben Bedienung und ein erneuter Beenden-Versuch möglich. Auch ein gleichzeitig nicht beschreibbares Fehlerprotokoll verhindert die Fehleranzeige nicht.
 - Start und Import prüfen globale Zeitintervalle gegen die Dialoggrenzen von 0 bis 359999 Sekunden. Repository-Intervalle erlauben zusätzlich -1 für den jeweiligen Standardwert. Ungültige Importe verändern die aktive Konfiguration nicht.
 - Auch Fehler beim Öffnen von Commit-, Cleanup- und Protokolldialogen werden angezeigt.
 
