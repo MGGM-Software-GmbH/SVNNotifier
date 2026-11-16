@@ -664,7 +664,8 @@ internal static class Program
             using (var locked = new FileStream(Config.iniFileName, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 bool failed = false;
-                try { await window.ExitAsync(); } catch (IOException) { failed = true; }
+                try { await window.ExitAsync(); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { failed = true; }
                 Assert(failed && !closed && !Field<bool>(window, "exiting"), "INI-Schreibfehler lässt das echte Fenster ohne gesetzten Beenden-Zustand geöffnet");
                 bool manualRan = false;
                 await window.Coordinator.RunManualAsync(() => { manualRan = true; return Task.CompletedTask; });
