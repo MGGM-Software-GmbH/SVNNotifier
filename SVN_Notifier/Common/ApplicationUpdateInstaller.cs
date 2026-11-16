@@ -141,7 +141,7 @@ internal static class ApplicationUpdateInstaller
         using var restarted = Process.Start(start) ?? throw new InvalidOperationException("The updated application could not be restarted.");
     }
 
-    /// <summary>Entfernt nach dem Neustart die eigene Installationskopie, sobald deren Prozess beendet ist.</summary>
+    /// <summary>Entfernt nach dem Neustart die eigene Installationskopie und wartet begrenzt auf kurzzeitig nachlaufende Dateisperren.</summary>
     internal static async Task CleanupAsync(string directory, int helperId, long helperStartTicks)
     {
         try
@@ -157,6 +157,21 @@ internal static class ApplicationUpdateInstaller
         {
             // Der Hilfsprozess kann vor dem Start der neuen Anwendung bereits beendet sein.
         }
-        if (Directory.Exists(directory)) ApplicationUpdater.DeleteStage(directory, Environment.ProcessPath!);
+        var retry = Stopwatch.StartNew();
+        while (Directory.Exists(directory))
+        {
+            try
+            {
+                ApplicationUpdater.DeleteStage(directory, Environment.ProcessPath!);
+                return;
+            }
+            catch (Exception exception) when ((exception is IOException or UnauthorizedAccessException)
+                && retry.Elapsed < TimeSpan.FromSeconds(30))
+            {
+                // Auch nach dem Prozessende können Windows oder ein Virenscanner Dateien noch kurz geöffnet halten.
+                // Die geprüfte Löschroutine behält bei jeder Wiederholung sämtliche Sperr- und Herkunftsprüfungen bei.
+                await Task.Delay(250);
+            }
+        }
     }
 }

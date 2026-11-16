@@ -84,7 +84,14 @@ foreach ($scenario in @('valid', 'tampered', 'invalid')) {
                 if ($stages.Count -eq 0) { break }
                 Start-Sleep -Milliseconds 250
             } while ([DateTime]::UtcNow -lt $deadline)
-            if ($stages.Count -ne 0) { throw 'Die Installationsdateien wurden nach dem Neustart nicht entfernt.' }
+            if ($stages.Count -ne 0) {
+                foreach ($stage in $stages) {
+                    Get-ChildItem -LiteralPath $stage.FullName -Force | Select-Object Name, Length, Attributes | Format-Table | Out-Host
+                }
+                $cleanupLog = [IO.Path]::ChangeExtension($configPath, '.log')
+                if (Test-Path -LiteralPath $cleanupLog) { Get-Content -LiteralPath $cleanupLog -Tail 40 | Out-Host }
+                throw 'Die Installationsdateien wurden nach dem Neustart nicht entfernt.'
+            }
             Write-Host "Installer-Test erfolgreich: $RuntimeIdentifier, Austausch und Neustart"
         } else {
             $errorPath = Join-Path $testPath 'installer-error.txt'

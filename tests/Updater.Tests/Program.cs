@@ -14,6 +14,12 @@ internal static class Program
     {
         try
         {
+            if (args is ["--cleanup-only"])
+            {
+                await CheckCleanupAsync();
+                Console.WriteLine($"Bereinigungsprüfungen: {passed} erfolgreich.");
+                return 0;
+            }
             if (args.Length == 2 && args[0] == "--apply-update")
             {
                 ApplicationUpdateInstaller.Apply(args[1]);
@@ -50,9 +56,10 @@ internal static class Program
         }
     }
 
-    /// <summary>Prüft Versionsentscheidungen, Paketintegrität und die Begrenzung aller Schreibziele.</summary>
+    /// <summary>Prüft Bereinigung, Versionsentscheidungen, Paketintegrität und die Begrenzung aller Schreibziele.</summary>
     private static async Task RunAsync(string runtime, string archivePath)
     {
+        await CheckCleanupAsync();
         var archive = await File.ReadAllBytesAsync(archivePath);
         using var zip = ZipFile.OpenRead(archivePath);
         await using var executable = zip.GetEntry(ApplicationUpdater.ExecutableName)!.Open();
@@ -150,6 +157,62 @@ internal static class Program
         {
             File.Delete(target);
             Directory.Delete(root);
+        }
+    }
+
+    /// <summary>Prüft kurzzeitige und dauerhafte Dateisperren sowie die unveränderte Ablehnung unbekannter Update-Inhalte.</summary>
+    private static async Task CheckCleanupAsync()
+    {
+        string target = Environment.ProcessPath!;
+        var stage = TemporaryFileMaintenance.CreateStage(target);
+        stage.Lease.Dispose();
+        string previous = Path.Combine(stage.Directory, "previous.exe");
+        try
+        {
+            File.WriteAllText(previous, "Isolierte Installationsdatei.");
+            var locked = new FileStream(previous, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            Task release = Task.Run(async () => { await Task.Delay(500); locked.Dispose(); });
+            Exception? failure = null;
+            try { await ApplicationUpdateInstaller.CleanupAsync(stage.Directory, int.MaxValue, 0); }
+            catch (IOException exception) { failure = exception; }
+            finally { await release; locked.Dispose(); }
+            Check(failure is null && !Directory.Exists(stage.Directory), "Kurzzeitig gesperrte Installationsdateien werden nach Freigabe selbstständig entfernt: " + failure?.GetType().Name);
+        }
+        finally { if (Directory.Exists(stage.Directory)) ApplicationUpdater.DeleteStage(stage.Directory, target); }
+
+        stage = TemporaryFileMaintenance.CreateStage(target); stage.Lease.Dispose();
+        previous = Path.Combine(stage.Directory, "previous.exe");
+        try
+        {
+            File.WriteAllText(previous, "Geschützte Installationsdatei.");
+            using (var locked = new FileStream(previous, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                bool rejected = false;
+                var timer = Stopwatch.StartNew();
+                try { await ApplicationUpdateInstaller.CleanupAsync(stage.Directory, int.MaxValue, 0); }
+                catch (IOException) { rejected = true; }
+                Check(rejected && timer.Elapsed < TimeSpan.FromSeconds(45) && File.Exists(previous), "Dauerhafte Dateisperre wird begrenzt als Fehler gemeldet; geschützte Dateien bleiben erhalten");
+            }
+            await ApplicationUpdateInstaller.CleanupAsync(stage.Directory, int.MaxValue, 0);
+            Check(!Directory.Exists(stage.Directory), "Nach Freigabe einer dauerhaften Sperre ist die Bereinigung erneut möglich");
+        }
+        finally { if (Directory.Exists(stage.Directory)) ApplicationUpdater.DeleteStage(stage.Directory, target); }
+
+        stage = TemporaryFileMaintenance.CreateStage(target); stage.Lease.Dispose();
+        string unexpected = Path.Combine(stage.Directory, "unexpected.txt");
+        try
+        {
+            File.WriteAllText(unexpected, "Unbekannter Inhalt bleibt erhalten.");
+            bool rejected = false;
+            var timer = Stopwatch.StartNew();
+            try { await ApplicationUpdateInstaller.CleanupAsync(stage.Directory, int.MaxValue, 0); }
+            catch (InvalidDataException) { rejected = true; }
+            Check(rejected && timer.Elapsed < TimeSpan.FromSeconds(2) && File.Exists(unexpected), "Unbekannter Update-Inhalt wird unmittelbar abgewiesen und nicht gelöscht");
+        }
+        finally
+        {
+            File.Delete(unexpected);
+            if (Directory.Exists(stage.Directory)) ApplicationUpdater.DeleteStage(stage.Directory, target);
         }
     }
 

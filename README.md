@@ -13,6 +13,7 @@ Small and portable application which notifies you about other people's commits t
 - Start und Import erlauben für das SVN-Zeitlimit ausschließlich ganze Zahlen zwischen 0 und 86400 Sekunden. Der Wert 0 bedeutet weiterhin keine Zeitbegrenzung.
 - Mehrere und wiederholte Umgebungsvariablen im Repository-Pfad werden getrennt aufgelöst. Die gespeicherte Pfadangabe behält ihre Variablen.
 - Abbrechen eines TortoiseSVN-Dialogs erzeugt keine zusätzliche Meldung mit leerem Inhalt. Startfehler und unerwartete Prozessabbrüche bleiben sichtbar.
+- Die Update-Bereinigung wartet begrenzt auf kurzzeitige Dateisperren nach dem Installer-Ende. Dauerhafte Fehler werden weiterhin protokolliert; gesperrte Dateien und unbekannte Inhalte bleiben geschützt.
 
 ### Neu in v3.1.0.5
 
