@@ -428,10 +428,12 @@ public sealed partial class MainWindow : Window
     internal async Task ExitAsync()
     {
         if (exiting) return;
+        // Bei einem Schreibfehler bleiben Aufträge, Timer und ein erneuter Beenden-Versuch verfügbar.
+        // Die gespeicherten Einstellungen und Repository-Optionen ändern sich während des synchronen Speicherns nicht.
+        Config.SaveSettings(); coordinator.Save();
         exiting = true; pollTimer.Stop(); updateTimer.Stop(); cancellation.Cancel();
         Status.Text = Loc.Status_WaitingForOperations;
         await coordinator.StopAsync();
-        Config.SaveSettings(); coordinator.Save();
         tray?.Dispose();
         Close();
     }

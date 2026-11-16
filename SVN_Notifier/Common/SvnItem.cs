@@ -141,6 +141,8 @@ namespace CHD.SVN_Notifier
 				Enabled = !Boolean.Parse(p[3]),
 				AutoUpdate = (p.Length > 5) ? !Boolean.Parse(p[5]) : false
 			};
+			Config.ValidateInterval(f.ActiveStatusUpdateInterval, nameof(ActiveStatusUpdateInterval), true);
+			Config.ValidateInterval(f.IdleStatusUpdateInterval, nameof(IdleStatusUpdateInterval), true);
 			return f;
 		}
 
@@ -177,9 +179,8 @@ namespace CHD.SVN_Notifier
 
 		public int GetInterval(bool formIsActive)
 		{
-			return ActiveStatusUpdateInterval < 0
-					   ? (formIsActive ? Config.DefaultActiveStatusUpdateInterval : Config.DefaultIdleStatusUpdateInterval)
-					   : (formIsActive ? ActiveStatusUpdateInterval : IdleStatusUpdateInterval);
+			int interval = formIsActive ? ActiveStatusUpdateInterval : IdleStatusUpdateInterval;
+			return interval < 0 ? (formIsActive ? Config.DefaultActiveStatusUpdateInterval : Config.DefaultIdleStatusUpdateInterval) : interval;
 		}
 
 		private long retryAfterUtcTicks;

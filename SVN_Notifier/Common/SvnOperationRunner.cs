@@ -141,6 +141,14 @@ internal sealed class SvnOperationRunner
         bool timedOut = false;
         int? exitCode = null;
         string outcome = "process-start-error";
+        Exception? diagnosticFailure = null;
+        SvnProcessResult result = new(null, "", "", false);
+        // Ein Protokollfehler wird im Auftragsergebnis gemeldet, ohne dessen Abbruchüberwachung zu verlassen.
+        void LogExecution(string phase, int? processId, string reason)
+        {
+            try { Log(lease.Root, action, phase, processId, exitCode, reason); }
+            catch (Exception exception) { diagnosticFailure ??= exception; }
+        }
         try
         {
             // Das Zeitlimit besitzt eine eigene Quelle, damit ein Benutzerabbruch nicht als Timeout gemeldet wird.
@@ -175,7 +183,7 @@ internal sealed class SvnOperationRunner
             var output = captureOutput ? process.StandardOutput.ReadToEndAsync() : Task.FromResult("");
             var error = captureOutput ? process.StandardError.ReadToEndAsync() : Task.FromResult("");
             lease.MarkStarted(process);
-            Log(lease.Root, action, "begin", process.Id, null, "");
+            LogExecution("begin", process.Id, "");
             try
             {
                 await process.WaitForExitAsync(readOnly ? linked.Token : updateCancellation).ConfigureAwait(false);
@@ -193,13 +201,13 @@ internal sealed class SvnOperationRunner
             exitCode = process.ExitCode;
             cancelled |= updateCancellation.IsCancellationRequested;
             outcome = updateCancellation.IsCancellationRequested ? "application-update" : timedOut ? "timeout" : cancelled ? "cancelled" : exitCode == 0 ? "completed" : "process-error";
-            return new(exitCode, await output.ConfigureAwait(false), await error.ConfigureAwait(false), cancelled, timedOut, timedOut ? timeoutSeconds : 0);
+            result = new(exitCode, await output.ConfigureAwait(false), await error.ConfigureAwait(false), cancelled, timedOut, timedOut ? timeoutSeconds : 0);
         }
         catch (Exception exception)
         {
             // Keine Argumente oder SVN-Ausgaben in die Diagnose übernehmen: Diese können Zugangsdaten enthalten.
             outcome = "process-error:" + exception.GetType().Name;
-            return new(exitCode, "", "SVN-Prozessfehler: " + exception.GetType().Name, cancelled, timedOut, timedOut ? timeoutSeconds : 0);
+            result = new(null, "", "SVN-Prozessfehler: " + exception.GetType().Name, cancelled, timedOut, timedOut ? timeoutSeconds : 0);
         }
         finally
         {
@@ -209,15 +217,20 @@ internal sealed class SvnOperationRunner
                 await process.WaitForExitAsync().ConfigureAwait(false);
                 exitCode = process.ExitCode;
             }
-            try { Log(lease.Root, action, "end", process?.Id, exitCode, outcome); }
+            try { LogExecution("end", process?.Id, outcome); }
             finally
             {
                 updateRegistration.Dispose();
                 process?.Dispose();
                 lease.Dispose();
-                if (lease.ReleaseFailed) Log(lease.Root, action, "release-error", null, exitCode, "claim-retained");
+                if (lease.ReleaseFailed) LogExecution("release-error", null, "claim-retained");
             }
         }
+        return diagnosticFailure is null ? result : result with
+        {
+            ExitCode = null,
+            Error = result.Error + (result.Error.Length > 0 ? "\n" : "") + "SVN-Diagnosefehler: " + diagnosticFailure.GetType().Name
+        };
     }
 
     /// <summary>Der TortoiseSVN-Parser erwartet /path:"Wert" statt eines als Ganzes zitierten Arguments.</summary>

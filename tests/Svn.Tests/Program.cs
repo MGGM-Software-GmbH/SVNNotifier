@@ -141,6 +141,12 @@ internal static class Program
                 Console.WriteLine($"Zuverlässigkeitsprüfungen: {checks} erfolgreich.");
                 return 0;
             }
+            if (args.Contains("--error-states-only"))
+            {
+                checks += await ErrorStateTests.RunAsync(output, args.FirstOrDefault(argument => argument.StartsWith("--error-case="))?.Split('=')[1]);
+                Console.WriteLine($"Fehlerzustandsprüfungen: {checks} erfolgreich.");
+                return 0;
+            }
             if (args.Contains("--priority-only"))
             {
                 Config.DoPauseAfterApplicationStartup = false;
@@ -150,6 +156,7 @@ internal static class Program
                 return 0;
             }
             CheckConfiguration(root);
+            checks += await ErrorStateTests.RunAsync(output);
             checks += await TemporaryFileTests.RunAsync(output);
             checks += await ReliabilityTests.RunAsync(output);
             checks += await CoordinatorTests.RunAsync(output, executable);

@@ -194,7 +194,17 @@ namespace CHD.SVN_Notifier
 			var fontSizeStr = source.ReadString("Settings", "FontSize", "8.5");
 			values[nameof(FontSize)] = float.TryParse(fontSizeStr, System.Globalization.NumberStyles.Float,
 				System.Globalization.CultureInfo.InvariantCulture, out var fs) ? fs : 8.5f;
+			foreach (string name in new[] { nameof(DefaultActiveStatusUpdateInterval), nameof(DefaultIdleStatusUpdateInterval),
+				nameof(PauseAfterApplicationStartupInterval), nameof(PauseAfterWindowsResumeInterval) })
+				ValidateInterval((int)values[name], name);
 			return values;
+		}
+
+		/// <summary>Übernimmt für Import und Programmstart dieselben Intervallgrenzen wie die Eingabedialoge.</summary>
+		internal static void ValidateInterval(int value, string name, bool allowDefault = false)
+		{
+			if (value < (allowDefault ? -1 : 0) || value > 359999)
+				throw new FormatException($"Ungültiges Prüfintervall {name}: {value}. Zulässig sind {(allowDefault ? -1 : 0)} bis 359999 Sekunden.");
 		}
 
 		/// <summary>Übernimmt ausschließlich einen bereits validierten Konfigurationsstand.</summary>

@@ -166,7 +166,7 @@ internal sealed class ApplicationCoordinator : IDisposable
                 if (stopping || installation) { completed.folder._IsAutoUpdating = false; continue; }
                 await OnUiAsync(() =>
                 {
-                    if (completed.isUpdateCommand && completed.updateError)
+                    if (completed.updateError)
                     {
                         completed.folder._IsAutoUpdating = false;
                         UpdateLogRequested?.Invoke(completed);

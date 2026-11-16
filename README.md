@@ -4,7 +4,14 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.1.0.4** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+**SVN Notifier 3.1.0.5** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.1.0.5
+
+- Ein Diagnosefehler während eines SVN-Auftrags wird gemeldet; Timeout und Abbruch bleiben wirksam. Die Arbeitskopie bleibt bis zum tatsächlichen Prozessende reserviert.
+- Scheitert das Speichern beim Beenden, bleiben Bedienung und ein erneuter Beenden-Versuch möglich.
+- Start und Import prüfen globale Zeitintervalle gegen die Dialoggrenzen von 0 bis 359999 Sekunden. Repository-Intervalle erlauben zusätzlich -1 für den jeweiligen Standardwert. Ungültige Importe verändern die aktive Konfiguration nicht.
+- Auch Fehler beim Öffnen von Commit-, Cleanup- und Protokolldialogen werden angezeigt.
 
 ### Neu in v3.1.0.4
 
@@ -133,7 +140,7 @@ Versionen bis einschließlich 3.0.0.3 enthalten diesen Programmupdater noch nich
 
 Das zur Windows-Architektur passende ZIP-Paket unter [Releases](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases) herunterladen, entpacken und `SVN_Notifier.exe` starten. Subversion-Kommandozeilenclient (`svn.exe`) und TortoiseSVN werden weiterhin separat benötigt und in den Einstellungen ausgewählt. Die erzeugten EXE-Dateien sind nicht digital signiert.
 
-Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.1.0.4-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
+Die Prüfsumme des Downloads kann in PowerShell mit `Get-FileHash .\SVNNotifier-3.1.0.5-win-x64.zip -Algorithm SHA256` ermittelt und mit `SHA256SUMS.txt` im Release verglichen werden.
 
 ### Zurückgestellte Erweiterungen
 
@@ -163,11 +170,11 @@ Die ZIP-Pakete und einzelnen Prüfsummendateien liegen unter `artifacts/packages
 
 Die gewöhnlichen GUI-Prüfungen können über `Invoke-QuietWindows.vbs` und `Invoke-IsolatedDesktop.ps1` ohne sichtbare Konsole auf einem inaktiven Windows-Desktop laufen. `Test-Gui.ps1 -IncludeShellSettings` ergänzt die tatsächliche Anwendung der Taskleisteneinstellung und benötigt einen Desktop mit Windows-Shell. Native Banner, Benachrichtigungszentrale und Eingabewege benötigen zusätzlich eine ausdrücklich erlaubte, entsperrte Windows-Testsitzung. Voraussetzungen und Aufrufparameter stehen in [Validierung](docs/prp/winui-native-benachrichtigungen/02-validierung.md).
 
-Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach dem Merge auf `master` und erfolgreichen Prüfungen löst ein Tag im Format `v3.1.0.4` die Veröffentlichung aus:
+Für ein Release müssen `Version`, `AssemblyVersion`, `FileVersion` und `InformationalVersion` in `SVN_Notifier/SVN_Notifier.csproj` übereinstimmen. Die Release-Hinweise stehen in `.github/RELEASE_NOTES.md`. Nach dem Merge auf `master` und erfolgreichen Prüfungen löst ein Tag im Format `v3.1.0.5` die Veröffentlichung aus:
 
 ```powershell
-git tag v3.1.0.4
-git push mggm v3.1.0.4
+git tag v3.1.0.5
+git push mggm v3.1.0.5
 ```
 
 Der Release-Job läuft erst nach beiden erfolgreichen Windows-Builds, Startprüfungen, Updater-Tests, GUI-Prüfungen und den SVN-Koordinationsprüfungen unter Windows. Die GUI-Prüfungen öffnen die echten Dialoge auf Deutsch und Englisch mit 8,5, 12 und 24 Punkt. Sie prüfen Befehle, Repository-Schalter, Speichern und Verwerfen von Einstellungen, die Erreichbarkeit bei wenig Platz sowie Button- und Fensterhöhen. Gegenproben erkennen entfernte Befehle, nicht übernommene Optionen und übergroße Buttons. Alle Tests verwenden eigene Konfigurationsdateien und verändern keine Benutzer-Repositories.

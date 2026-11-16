@@ -97,6 +97,7 @@ internal static class Program
     private static async Task RunAsync()
     {
         Assert(ApplicationUpdateInstaller.IsPortable, "Die gebündelte WinUI-Anwendungsassembly bleibt automatisch aktualisierbar");
+        if (arguments.Contains("--exit-only")) { await CheckExitSaveFailureAsync(); return; }
         var main = new MainWindow(false);
         if (arguments.Contains("--dark")) main.RootElement.RequestedTheme = ElementTheme.Dark;
         main.Activate();
@@ -280,6 +281,7 @@ internal static class Program
             await CheckRepositoryDialogsAsync(main, language);
             await CheckAllowedDoubleClicksAsync(main);
         }
+        await CheckExitSaveFailureAsync();
         await CheckSessionClosingAsync();
         await main.ExitAsync();
     }
@@ -644,6 +646,38 @@ internal static class Program
             Entered.TrySetResult();
             if (blocked) await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable) { Content = new StringContent("Isolierte HTTP-Fehlerfixture.") };
+        }
+    }
+
+    /// <summary>Ein gesperrtes eigenes INI-Ziel verhindert den Shutdown; nach Freigabe bleibt Beenden möglich.</summary>
+    private static async Task CheckExitSaveFailureAsync()
+    {
+        bool originalNotifications = Config.ShowNotifications;
+        Config.SaveSettings();
+        var window = new MainWindow(false);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
+        try
+        {
+            window.Activate(); await RenderAsync();
+            Config.ShowNotifications = !originalNotifications;
+            using (var locked = new FileStream(Config.iniFileName, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                bool failed = false;
+                try { await window.ExitAsync(); } catch (IOException) { failed = true; }
+                Assert(failed && !closed && !Field<bool>(window, "exiting"), "INI-Schreibfehler lässt das echte Fenster ohne gesetzten Beenden-Zustand geöffnet");
+                bool manualRan = false;
+                await window.Coordinator.RunManualAsync(() => { manualRan = true; return Task.CompletedTask; });
+                Assert(manualRan, "Manuelle Aufträge bleiben nach fehlgeschlagenem Speichern ausführbar");
+            }
+            await window.ExitAsync();
+            Assert(closed, "Erneutes Beenden nach Freigabe der INI schließt das echte Fenster");
+        }
+        finally
+        {
+            if (!closed) await window.ExitAsync();
+            Config.ShowNotifications = originalNotifications;
+            Config.SaveSettings();
         }
     }
 
