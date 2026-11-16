@@ -145,6 +145,16 @@ try {
     [PackagedRuntimePath]::CloseOwnDialog($invalidActivation.Id, [IntPtr](Find-Control $invalidActivation 'Name' 'OK').Current.NativeWindowHandle)
     if (-not $invalidActivation.WaitForExit(10000) -or $invalidActivation.ExitCode -ne 1) { throw 'Ungültige Aktivierung liefert nicht den erwarteten Fehlercode.' }
     Write-Host 'OK: Früher Startfehler enthält Ursache und Stack im eigenen eindeutigen Protokoll'
+    $brokenConfiguration = Join-Path $invocation 'SVN_Notifier.ini'
+    $abandonedIni = $brokenConfiguration + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+    '[Settings]', 'Version=1.9', 'CheckForNewVersion=invalid' | Set-Content -LiteralPath $brokenConfiguration -Encoding UTF8
+    'Eigene abgebrochene INI-Schreibdatei' | Set-Content -LiteralPath $abandonedIni -Encoding UTF8
+    $failedConfiguration = Start-Mode ''
+    Wait-Control { $null -ne (Find-Control $failedConfiguration 'Name' 'OK') } 'Ungültige Konfiguration erreicht den eigenen Startfehlerdialog'
+    if (Test-Path -LiteralPath $abandonedIni) { throw 'Temporäre INI-Datei bleibt bei fehlerhafter Konfiguration zurück.' }
+    [PackagedRuntimePath]::CloseOwnDialog($failedConfiguration.Id, [IntPtr](Find-Control $failedConfiguration 'Name' 'OK').Current.NativeWindowHandle)
+    if (-not $failedConfiguration.WaitForExit(10000) -or $failedConfiguration.ExitCode -ne 1) { throw 'Ungültige Konfiguration liefert nicht den erwarteten Fehlercode.' }
+    Write-Host 'OK: Startbereinigung entfernt eigene temporäre INI-Dateien auch bei anschließendem Konfigurationsfehler'
     Write-Host "Startmodi erfolgreich: $RuntimeIdentifier, normaler Kindstart und Hilfsmodus ohne XAML-Initialisierung."
 } finally {
     foreach ($process in $processes) {

@@ -60,8 +60,8 @@ internal static class Program
             if (Notifications.Redirected) return 0;
             const string name = "SVN_Notifier.ini";
             string config = Notifications.InitialConfiguration ?? (File.Exists(name) ? Path.GetFullPath(name) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), name));
-            Config.Init(config);
             maintenance.Configure(config);
+            Config.Init(config);
             while (maintenanceMessages.TryDequeue(out string? message)) ReportMaintenance(message);
             if (args.Length == 4 && args[0] == "--update-cleanup" && int.TryParse(args[2], out int helper) && long.TryParse(args[3], out long began))
                 _ = CleanupAsync(args[1], helper, began);
