@@ -1,5 +1,11 @@
 # Umsetzungsstand und Nachweise
 
+## Gesamtstatus aktivierter Repositories
+
+`StatusIcons.Update` berücksichtigt ausschließlich aktivierte Repositories. Fenster, Taskleiste und Tray verwenden dasselbe Gesamtsymbol. Deaktivierte Einträge behalten ihren gespeicherten Prüfstatus; beim erneuten Aktivieren wird dieser wieder berücksichtigt. Ohne aktivierte Einträge bleibt das Symbol grau.
+
+Die lokalen Nachweise liegen unter `artifacts/statusicons-3107/`. `before.log`, Exit-Code 1, reproduziert mit der bisherigen Berechnung den Fehler bei einem aktiven aktuellen Repository und einem deaktivierten Eintrag mit Updatebedarf. `fixed-win-x64.log` und `fixed-win-x86.log`, jeweils Exit-Code 0, bestätigen mit der regulären Korrektur jeweils 58 Prüfungen an echten WinUI-Fenstern. Geprüft sind 25 Statuskombinationen einschließlich ausschließlich deaktivierter Einträge sowie Deaktivieren und erneutes Aktivieren bei unverändertem Prüfstatus. Die Aufnahmen des tatsächlichen nativen Fenstersymbols für Grün mit deaktiviertem Updatebedarf und Grau bei ausschließlich deaktivierten Einträgen wurden angesehen. Die Prüfung vergleicht zusätzlich die gemeinsam verwendete Tray-Ressource; sie ersetzt keine Sichtprüfung im Windows-Benachrichtigungsbereich.
+
 ## Konfigurationssperren, Prozessrückgaben und variable Repository-Pfade
 
 `ApplicationCoordinator` verarbeitet beendete SVN-Aufträge über denselben Meldepfad beim normalen Polling, vor einem Konfigurationswechsel und vor der Installation eines Programmupdates. Fehler werden vor dem jeweiligen Wechsel an die Oberfläche übergeben. Ein Konfigurationswechsel erzeugt keine zusätzlichen Statusprüfungen für entfernte Repository-Einträge.
@@ -173,7 +179,7 @@ Der Benutzer erlaubte anschließend eine Wiederholung und kündigte an, Maus und
 - WinUI 3, Windows App SDK 2.6.5, portable Einzel-EXE für x64/x86 und Produktversionsangaben 3.1.0.0. Die Veröffentlichung ist beauftragt; ihr tatsächlicher Stand wird gesondert nachgewiesen.
 - Vorhandene SVN-, INI-, Reservierungs- und Updaterlogik wird gemeinsam verwendet. Die Ablaufsteuerung und Benachrichtigungskontexte sind vom Fenster getrennt.
 - Listenbereich ohne zusätzliche Überschrift, mit integrierter Menü- und Symbolleiste, gleichgewichteten Aktionen, kompakten Spalten und semantischen Statuskennzeichnungen. Repository-Zeilen haben 32 DIPs Mindesthöhe und wachsen bei größerer Schrift mit. Trennlinien liegen innerhalb der Zeilen. Die Checkboxen behalten mindestens 28 DIPs Höhe. „Ordner hinzufügen“ erhält denselben neutralen Stil wie die übrigen Aktionen. Einstellungen sind fachlich gruppiert; Sprache und Schrift bleiben konfigurierbar.
-- Fenster-, Taskleisten- und Tray-Symbol teilen die vorhandenen Ressourcen. Die Priorität entspricht `MainForm.UpdateTray`: Fehler vor eingehenden Änderungen, dann unbekannt, danach synchronisiert; lokale Bearbeitung allein bleibt grün. Auch deaktivierte Einträge werden wie zuvor in der Symbolpriorität berücksichtigt. Leere Listen zeigen Grau.
+- Fenster-, Taskleisten- und Tray-Symbol teilen die vorhandenen Ressourcen. Aktivierte Repositories bestimmen die Priorität: Fehler vor eingehenden Änderungen, dann unbekannt, danach synchronisiert; lokale Bearbeitung allein bleibt grün. Deaktivierte Einträge beeinflussen das Gesamtsymbol nicht. Leere Listen und ausschließlich deaktivierte Einträge zeigen Grau.
 - Sieben Ansichten werden auf Deutsch und Englisch mit 8,5/12/24 Punkt sowie im Dunkelmodus ausgeführt. Tatsächliche Screenshots wurden angesehen, einschließlich Updateprotokoll im Dunkelmodus und mit 24 Punkt. Dies ersetzt keinen Windows-DPI-Wechsel.
 - Die Portabilität wird anhand des .NET-Bundlemarkers geprüft. Die vollständige Extraktion für WinUI ist mit einem nicht leeren Assemblypfad vereinbar und darf den Programmupdate nicht sperren.
 - Fenstermaße werden auf den verfügbaren Arbeitsbereich begrenzt. Eine bestätigte Sitzungsbeendigung schließt das eigene Fenster; eine abgebrochene Beendigung gibt die Prüfung wieder frei. Beim Schließen wird das Tray-Symbol freigegeben.
