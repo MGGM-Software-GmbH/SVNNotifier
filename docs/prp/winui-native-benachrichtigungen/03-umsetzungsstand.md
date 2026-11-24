@@ -1,12 +1,20 @@
 # Umsetzungsstand und Nachweise
 
+## Veröffentlichung 3.1.0.8
+
+[SVN Notifier 3.1.0.8](https://github.com/MGGM-Software-GmbH/SVNNotifier/releases/tag/v3.1.0.8) ist seit dem 24.11.2026 um 16:01:40 UTC als stabiles neuestes Release veröffentlicht. Der Tag verweist auf den integrierten Hauptbranch-Commit `d7a8f079753bb8c0e5dfcb5eac6b36e8743b535d`. Der Benutzer hat beide Korrekturen und die Veröffentlichung beauftragt und die Checkbox-Vorschau vor dem Tag-Push bestätigt.
+
+Der [Hauptbranch-Lauf 45423379234](https://github.com/MGGM-Software-GmbH/SVNNotifier/actions/runs/45423379234) und der [Release-Lauf 45428073485](https://github.com/MGGM-Software-GmbH/SVNNotifier/actions/runs/45428073485) bestätigen jeweils erfolgreiche Windows-Produktprüfungen für x64 und x86. Der Release-Lauf bestätigt zusätzlich die Veröffentlichung. Die kompakten Nachweise liegen unter `artifacts/statusicons-3107/ci-3108-main-summary.json`, `ci-3108-release-summary.json` und `release-3108-public.json`.
+
+Beide ZIP-Dateien und `SHA256SUMS.txt` wurden ohne Anmeldung über die öffentlichen Download-Adressen heruntergeladen. `sha256sum --check` meldet für beide Pakete `OK`. Beide Archive enthalten ausschließlich `SVN_Notifier.exe`, `README.md` und `LICENSE`; die README nennt 3.1.0.8. `file` bestätigt PE32+ für x64 und PE32 für x86, die Windows-Dateiversionsprüfung bei beiden EXE-Dateien Datei- und Produktversion 3.1.0.8. Die geprüften Hashwerte bleiben in `release-3108-sha256.txt` erhalten. Lokale Paketkopien und extrahierte EXE-Dateien wurden anschließend entfernt; kompakte Nachweise und die einzelne Benutzervorschau bleiben erhalten.
+
 ## Darstellung der Repository-Schalter
 
 Die beiden Repository-Schalter verwenden eine auf die Liste begrenzte Checkbox-Vorlage mit statischem Haken. Aktivierte Schalter zeigen einen Haken, ausgeschaltete ein leeres Kästchen. Die Vorlage verwendet die vorhandenen Checkbox-Systemfarben für Normalzustand, Mauszeiger, Drücken und deaktivierte Bedienung. Die native Checkbox mit ihrer booleschen Bindung, Automation und Fokusdarstellung bleibt erhalten.
 
 Die Symbolgeometrie wird mit `RenderTargetBitmap` geprüft; dessen fehlende Übernahme der Opazität des erfassten Wurzelelements wird über die effektive Deckkraft bis zur Checkbox berücksichtigt. Die Aufnahme der Gesamtansicht ergänzt diese Messung. Eine reine Kontrolle von `IsChecked` oder `AnimatedIcon.State` beweist kein richtig gezeichnetes Symbol. Microsoft beschreibt einen ähnlichen Fehler animierter Checkboxen beim Scrollen virtualisierter Listen in [WinUI-Issue 11585](https://github.com/microsoft/microsoft-ui-xaml/issues/11585).
 
-Die Benutzervorschau liegt unter `artifacts/statusicons-3107/checkbox-preview.png`. Die gerenderten Ansichten in Standardschrift, mit 24 Punkt und im dunklen Theme wurden angesehen. Der Benutzer hat die in der Windows-Bildanzeige geöffnete Vorschau mit „Der Screenshot sieht gut aus“ bestätigt. Die Veröffentlichung von 3.1.0.8 mit beiden beauftragten Korrekturen erfolgt nach den Hauptbranch-Prüfungen. Der Release-Lauf zum bestehenden Tag `v3.1.0.7` wurde abgebrochen; für diesen Tag besteht keine Veröffentlichung.
+Die Benutzervorschau liegt unter `artifacts/statusicons-3107/checkbox-preview.png`. Die gerenderten Ansichten in Standardschrift, mit 24 Punkt und im dunklen Theme wurden angesehen. Der Benutzer hat die in der Windows-Bildanzeige geöffnete Vorschau mit „Der Screenshot sieht gut aus“ bestätigt. Beide beauftragten Korrekturen sind in 3.1.0.8 veröffentlicht. Der Release-Lauf zum bestehenden Tag `v3.1.0.7` wurde abgebrochen; für diesen Tag besteht keine Veröffentlichung.
 
 `product-win-x64.log` bestätigt für Standardschrift, 12 Punkt, 24 Punkt und dunkles Theme 1155, 1031, 875 und 1139 erfolgreiche Prüfungen sowie 637 Tastaturprüfungen. `product-win-x86.log` bestätigt entsprechend 1139, 1031, 875 und 1139 Prüfungen sowie 649 Tastaturprüfungen. Beide gepflegten GUI-Prüfläufe erkennen jeweils 21 Gegenproben. Bei der Checkbox-Gegenprobe bleibt der Schaltwert wahr, während das eingesetzte Minuszeichen nur eine Bildzeile belegt und als fehlerhaft erkannt wird. Die regulären Haken belegen sieben Bildzeilen. `product-results.json` hält die Ergebnisse kompakt fest. Beide lokalen Pakete enthalten laut Buildprüfung die Datei- und Produktversion 3.1.0.8; sie dienen als isolierte Eingaben der GUI-Updateprüfungen.
 
