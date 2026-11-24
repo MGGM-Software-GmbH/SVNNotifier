@@ -61,6 +61,7 @@ internal static class Program
         Config.SVNpath = Config.TortoiseSVNpath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
         Config.CheckForNewVersion = Config.DoPauseAfterApplicationStartup = false;
         Config.FontFamily = "Segoe UI";
+        if (args.Contains("--diagnose-checkboxes")) Config.Language = 1;
         Config.FontSize = args.Contains("--maximum-font") ? 24 : args.Contains("--large-font") ? 12 : 8.5f;
         Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY", AppContext.BaseDirectory);
         Environment.SetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY_PID", args.Contains("--negative-runtime-context") ? null : Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -105,6 +106,7 @@ internal static class Program
         main.Activate();
         await WaitAsync(() => main.RootElement.IsLoaded);
         if (arguments.Contains("--manual-error-only")) { await CheckManualLaunchFailuresAsync(main); await main.ExitAsync(); return; }
+        if (arguments.Contains("--diagnose-checkboxes")) { await PruefeRepositorySchalterAsync(main); await main.ExitAsync(); return; }
         if (arguments.Contains("--diagnose-error-log"))
         {
             foreach (int language in new[] { 1, 0 })
@@ -117,6 +119,7 @@ internal static class Program
         }
         await CheckWindowIconsAsync(main);
         if (arguments.Contains("--diagnose-status-icons")) { await main.ExitAsync(); return; }
+        await PruefeRepositorySchalterAsync(main);
         foreach (int language in new[] { 1, 0 })
         {
             Config.Language = language; Config.CheckForNewVersion = false;
@@ -137,23 +140,6 @@ internal static class Program
                     Console.WriteLine($"Repository KeyDown: key={key.Key}; handled={key.Handled}; source={key.OriginalSource?.GetType().Name}")), true);
                 await CheckAllowedDoubleClicksAsync(main, true);
                 await main.ExitAsync();
-                return;
-            }
-            if (arguments.Contains("--diagnose-checkboxes"))
-            {
-                // Trennt den tatsächlichen SDK-Zustand von der Aufnahme eines animierten Composition-Symbols.
-                await Task.Delay(1000);
-                foreach (var checkbox in Descendants(list).OfType<CheckBox>())
-                {
-                    var glyph = Descendants(checkbox).OfType<AnimatedIcon>().Single();
-                    if (arguments.Contains("--negative-checkbox-state")) AnimatedIcon.SetState(glyph, "NormalIndeterminate");
-                    string state = AnimatedIcon.GetState(glyph);
-                    Console.WriteLine($"Checkbox {AutomationProperties.GetAutomationId(checkbox)}: IsChecked={checkbox.IsChecked}; AnimatedIcon.State={state}");
-                    Assert(checkbox.IsChecked.HasValue && state == (checkbox.IsChecked.Value ? "NormalOn" : "NormalOff"),
-                        "Checkbox-Symbolzustand entspricht dem tatsächlichen booleschen Wert");
-                }
-                await CaptureAsync(main.RootElement, $"checkbox-states-{language}");
-                main.Close();
                 return;
             }
             if (arguments.Contains("--negative-font-size"))
@@ -938,6 +924,54 @@ internal static class Program
             Config.ShowBalloonInterval = duration;
             Config.SaveSettings();
         }
+    }
+
+    /// <summary>Prüft tatsächliche Haken und leere Kästchen auch nach dem Wiederverwenden virtualisierter Repository-Zeilen.</summary>
+    private static async Task PruefeRepositorySchalterAsync(MainWindow fenster)
+    {
+        var liste = Field<ListView>(fenster, "Repositories");
+        var eintraege = fenster.Coordinator.Folders;
+        eintraege.Clear();
+        for (int nummer = 0; nummer < 1000; nummer++)
+            eintraege.Add(new SvnItem(Path.Combine(output, "Repository " + nummer), PathType.Directory)
+            { Enabled = nummer % 2 == 0, AutoUpdate = nummer % 3 == 0, Status = SvnStatus.UpToDate });
+        fenster.Coordinator.Save(); await RenderAsync();
+        Assert(liste.Items.Count == 1000 && Descendants(liste).OfType<ListViewItem>().Count() < 1000,
+            "Lange Repository-Liste verwendet weiterhin virtualisierte Zeilen");
+        foreach (int position in new[] { 0, 200, 800, 999, 0 })
+        {
+            liste.ScrollIntoView(eintraege[position], ScrollIntoViewAlignment.Leading);
+            await RenderAsync();
+            var schalter = Descendants(liste).OfType<CheckBox>().Where(element => element.IsLoaded && element.DataContext is SvnItem).ToArray();
+            Assert(schalter.Length >= 2, "Repository-Zeilen enthalten nach dem Scrollen beide Schalter: " + position);
+            if (position is 0 or 999) await CaptureAsync(fenster.RootElement, "repository-schalter-" + position);
+            foreach (var element in schalter)
+            {
+                var eintrag = (SvnItem)element.DataContext;
+                bool erwartet = AutomationProperties.GetAutomationId(element) == "MonitorToggle" ? eintrag.Enabled : eintrag.AutoUpdate;
+                Assert(element.IsChecked == erwartet, "Repository-Schalter behält seinen booleschen Wert nach dem Scrollen");
+                var symbol = Descendants(element).OfType<IconElement>().First();
+                if (erwartet && arguments.Contains("--negative-checkbox-state")) ((FontIcon)symbol).Glyph = "\uE9AE";
+                // RenderTargetBitmap erfasst die Symbolgeometrie ohne die Opazität ihrer Wurzel und ihrer Vorfahren.
+                // Die effektive Deckkraft bezieht deshalb den tatsächlichen Schaltzustand in den Bildvergleich ein.
+                double deckkraft = 1;
+                for (DependencyObject? vorfahr = symbol; vorfahr is not null; vorfahr = VisualTreeHelper.GetParent(vorfahr))
+                {
+                    if (vorfahr is UIElement ansicht) deckkraft *= ansicht.Visibility == Visibility.Visible ? ansicht.Opacity : 0;
+                    if (ReferenceEquals(vorfahr, element)) break;
+                }
+                var bild = new RenderTargetBitmap(); await bild.RenderAsync(symbol);
+                var puffer = await bild.GetPixelsAsync();
+                byte[] pixel = new byte[puffer.Length];
+                using (var leser = DataReader.FromBuffer(puffer)) leser.ReadBytes(pixel);
+                var zeilen = Enumerable.Range(0, bild.PixelHeight).Where(zeile =>
+                    Enumerable.Range(0, bild.PixelWidth).Any(spalte => pixel[(zeile * bild.PixelWidth + spalte) * 4 + 3] * deckkraft > 32)).ToArray();
+                int hoehe = zeilen.Length == 0 ? 0 : zeilen[^1] - zeilen[0] + 1;
+                Console.WriteLine($"Schaltersymbol: {AutomationProperties.GetAutomationId(element)}, Wert={erwartet}, Höhe={hoehe}, Position={position}");
+                Assert(erwartet ? hoehe >= 5 : hoehe == 0, "Repository-Schalter zeigt einen Haken oder ein leeres Kästchen statt eines Minuszeichens");
+            }
+        }
+        eintraege.Clear(); fenster.Coordinator.Save();
     }
 
     /// <summary>Prüft aktive Statusprioritäten und ignorierte deaktivierte Einträge am tatsächlichen Fenster-HICON und gemeinsamen Tray-Symbol.</summary>

@@ -1,5 +1,17 @@
 # Umsetzungsstand und Nachweise
 
+## Darstellung der Repository-Schalter
+
+Die beiden Repository-Schalter verwenden eine auf die Liste begrenzte Checkbox-Vorlage mit statischem Haken. Aktivierte Schalter zeigen einen Haken, ausgeschaltete ein leeres Kästchen. Die Vorlage verwendet die vorhandenen Checkbox-Systemfarben für Normalzustand, Mauszeiger, Drücken und deaktivierte Bedienung. Die native Checkbox mit ihrer booleschen Bindung, Automation und Fokusdarstellung bleibt erhalten.
+
+Die Symbolgeometrie wird mit `RenderTargetBitmap` geprüft; dessen fehlende Übernahme der Opazität des erfassten Wurzelelements wird über die effektive Deckkraft bis zur Checkbox berücksichtigt. Die Aufnahme der Gesamtansicht ergänzt diese Messung. Eine reine Kontrolle von `IsChecked` oder `AnimatedIcon.State` beweist kein richtig gezeichnetes Symbol. Microsoft beschreibt einen ähnlichen Fehler animierter Checkboxen beim Scrollen virtualisierter Listen in [WinUI-Issue 11585](https://github.com/microsoft/microsoft-ui-xaml/issues/11585).
+
+Die Benutzervorschau liegt unter `artifacts/statusicons-3107/checkbox-preview.png`. Die gerenderten Ansichten in Standardschrift, mit 24 Punkt und im dunklen Theme wurden angesehen. Die Veröffentlichung der vorgesehenen Version 3.1.0.8 wartet auf die Benutzerfreigabe der Darstellung. Der Release-Lauf zum bestehenden Tag `v3.1.0.7` wurde abgebrochen; die neueste stabile Veröffentlichung bleibt 3.1.0.6.
+
+`product-win-x64.log` bestätigt für Standardschrift, 12 Punkt, 24 Punkt und dunkles Theme 1155, 1031, 875 und 1139 erfolgreiche Prüfungen sowie 637 Tastaturprüfungen. `product-win-x86.log` bestätigt entsprechend 1139, 1031, 875 und 1139 Prüfungen sowie 649 Tastaturprüfungen. Beide gepflegten GUI-Prüfläufe erkennen jeweils 21 Gegenproben. Bei der Checkbox-Gegenprobe bleibt der Schaltwert wahr, während das eingesetzte Minuszeichen nur eine Bildzeile belegt und als fehlerhaft erkannt wird. Die regulären Haken belegen sieben Bildzeilen. `product-results.json` hält die Ergebnisse kompakt fest. Beide lokalen Pakete enthalten laut Buildprüfung die Datei- und Produktversion 3.1.0.8; sie dienen als isolierte Eingaben der GUI-Updateprüfungen.
+
+Nach dem Ende sämtlicher eigener Testprozesse wurden Build-, Publish-, Test-, Entpack- und Paketbäume sowie die temporäre Release-Arbeitskopie und Prüfskripte entfernt. Die lokalen Pakete waren Eingaben der GUI-Prüfung; der Release-Workflow baut seine Veröffentlichungspakete aus dem freigegebenen Commit. Erhalten bleiben kompakte Prüflogs, Ergebnisdateien und die einzelne Benutzervorschau sowie zwei kleine Nachweise des Gesamtstatussymbols. Die entfernten Bäume sind aus dem Quellstand erneut erzeugbar.
+
 ## Gesamtstatus aktivierter Repositories
 
 `StatusIcons.Update` berücksichtigt ausschließlich aktivierte Repositories. Fenster, Taskleiste und Tray verwenden dasselbe Gesamtsymbol. Deaktivierte Einträge behalten ihren gespeicherten Prüfstatus; beim erneuten Aktivieren wird dieser wieder berücksichtigt. Ohne aktivierte Einträge bleibt das Symbol grau.
@@ -176,7 +188,7 @@ Der Benutzer erlaubte anschließend eine Wiederholung und kündigte an, Maus und
 
 ## Technischer und gestalterischer Stand
 
-- WinUI 3, Windows App SDK 2.6.5, portable Einzel-EXE für x64/x86 und Produktversionsangaben 3.1.0.0. Die Veröffentlichung ist beauftragt; ihr tatsächlicher Stand wird gesondert nachgewiesen.
+- WinUI 3, Windows App SDK 2.6.5, portable Einzel-EXE für x64/x86 und Produktversionsangaben 3.1.0.8. Die Veröffentlichung ist beauftragt und wartet auf die Freigabe der Checkbox-Vorschau; ihr tatsächlicher Stand wird gesondert nachgewiesen.
 - Vorhandene SVN-, INI-, Reservierungs- und Updaterlogik wird gemeinsam verwendet. Die Ablaufsteuerung und Benachrichtigungskontexte sind vom Fenster getrennt.
 - Listenbereich ohne zusätzliche Überschrift, mit integrierter Menü- und Symbolleiste, gleichgewichteten Aktionen, kompakten Spalten und semantischen Statuskennzeichnungen. Repository-Zeilen haben 32 DIPs Mindesthöhe und wachsen bei größerer Schrift mit. Trennlinien liegen innerhalb der Zeilen. Die Checkboxen behalten mindestens 28 DIPs Höhe. „Ordner hinzufügen“ erhält denselben neutralen Stil wie die übrigen Aktionen. Einstellungen sind fachlich gruppiert; Sprache und Schrift bleiben konfigurierbar.
 - Fenster-, Taskleisten- und Tray-Symbol teilen die vorhandenen Ressourcen. Aktivierte Repositories bestimmen die Priorität: Fehler vor eingehenden Änderungen, dann unbekannt, danach synchronisiert; lokale Bearbeitung allein bleibt grün. Deaktivierte Einträge beeinflussen das Gesamtsymbol nicht. Leere Listen und ausschließlich deaktivierte Einträge zeigen Grau.
@@ -242,5 +254,5 @@ Der [Merge- und Releaseablauf](04-merge-und-release.md) dokumentiert Voraussetzu
 - Die Tray-Suche verwendet die native Zuordnung über eigenes HWND und Symbol-ID. Der hintere Pfadmarker kann bei langen Tooltiptexten durch die Windows-Begrenzung fehlen. Kompilierung und Ablehnung eines unbekannten Symbols sind geprüft; im weiteren sichtbaren Lauf schlägt auch die positive Zuordnung fehl. Kein fremdes Tray-Symbol darf ersatzweise angeklickt werden.
 - Das Aktivierungsszenario verwendet denselben ausgewählten Listeneintrag wie die bestandene Eingabetastenprüfung. Statuswechsel und erneute Meldungserzeugung bestehen im Lauf ohne parallele Benutzereingaben. Der tatsächliche Shell-Meldungsklick nach Prozessende besitzt weiterhin keinen Nachweis. Für den OLE-Drop ist noch nicht belegt, ob die Testquelle tatsächlich den Ziehvorgang begonnen hat; daher keine unbelegte Änderung am Produkt-Drophandler.
 - Ein sauberer Windows-Rechner ohne vorinstallierte Laufzeiten steht nicht zur Verfügung. Die Prüfung eigener Laufzeitmodule ersetzt diesen Nachweis nicht.
-- Checkbox-Aufnahmen über `RenderTargetBitmap` zeigen Striche. `checkbox-states-counterprobe.log` bestätigt den passenden booleschen Wert und SDK-Zustand sowie eine erkannte Gegenprobe mit `NormalIndeterminate`. Die tatsächliche Bildschirmaufnahme `reviewed-valid/native-shell/5b695b542a484951af339f1cd49949c5/keyboard-start.png` zeigt korrekten Haken und leere Checkbox; sie wurde angesehen.
+- Die Repository-Schalter verwenden statische Haken. Die Scroll-Prüfung kontrolliert boolesche Werte und die sichtbare Symbolgeometrie in einer Liste mit 1.000 Einträgen. Die Gegenprobe ersetzt bei unverändertem Schaltwert einen Haken durch ein Minuszeichen. Eine Kontrolle des SDK-Symbolzustands allein reicht als Darstellungsnachweis nicht aus.
 - Native Import-/Exportauswahl und Rückfrage, tatsächliches Öffnen im Explorer sowie weitere Eingabewege sind gemäß Paritätsmatrix zu ergänzen. Import-/Exportkern und zwischenzeitlich entfernte Einträge besitzen eigene Regressionstests. Keine Zeile gilt ohne eigenen Nachweis als erfüllt.

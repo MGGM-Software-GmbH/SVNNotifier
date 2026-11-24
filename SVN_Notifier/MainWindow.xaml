@@ -4,6 +4,95 @@
     xmlns:local="using:CHD.SVN_Notifier">
     <Grid x:Name="Root" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Padding="20,4,20,12" RowSpacing="12">
         <Grid.Resources>
+            <!-- Die Repository-Schalter zeichnen ihren booleschen Zustand ohne Composition-Animation. -->
+            <Style x:Key="RepositorySchalter" TargetType="CheckBox" BasedOn="{StaticResource DefaultCheckBoxStyle}">
+                <Setter Property="IsThreeState" Value="False" />
+                <Setter Property="MinWidth" Value="28" />
+                <Setter Property="MinHeight" Value="28" />
+                <Setter Property="FocusVisualMargin" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CheckBox">
+                            <Grid Background="Transparent">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CombinedStates">
+                                        <VisualState x:Name="UncheckedNormal">
+                                            <VisualState.Setters>
+                                                <Setter Target="Rahmen.Background" Value="{ThemeResource CheckBoxCheckBackgroundFillUnchecked}" />
+                                                <Setter Target="Rahmen.BorderBrush" Value="{ThemeResource CheckBoxCheckBackgroundStrokeUnchecked}" />
+                                                <Setter Target="Haken.Foreground" Value="{ThemeResource CheckBoxCheckGlyphForegroundUnchecked}" />
+                                                <Setter Target="Haken.Opacity" Value="0" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="UncheckedPointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="Rahmen.Background" Value="{ThemeResource CheckBoxCheckBackgroundFillUncheckedPointerOver}" />
+                                                <Setter Target="Rahmen.BorderBrush" Value="{ThemeResource CheckBoxCheckBackgroundStrokeUncheckedPointerOver}" />
+                                                <Setter Target="Haken.Foreground" Value="{ThemeResource CheckBoxCheckGlyphForegroundUncheckedPointerOver}" />
+                                                <Setter Target="Haken.Opacity" Value="0" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="UncheckedPressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="Rahmen.Background" Value="{ThemeResource CheckBoxCheckBackgroundFillUncheckedPressed}" />
+                                                <Setter Target="Rahmen.BorderBrush" Value="{ThemeResource CheckBoxCheckBackgroundStrokeUncheckedPressed}" />
+                                                <Setter Target="Haken.Foreground" Value="{ThemeResource CheckBoxCheckGlyphForegroundUncheckedPressed}" />
+                                                <Setter Target="Haken.Opacity" Value="0" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="UncheckedDisabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="Rahmen.Background" Value="{ThemeResource CheckBoxCheckBackgroundFillUncheckedDisabled}" />
+                                                <Setter Target="Rahmen.BorderBrush" Value="{ThemeResource CheckBoxCheckBackgroundStrokeUncheckedDisabled}" />
+                                                <Setter Target="Haken.Foreground" Value="{ThemeResource CheckBoxCheckGlyphForegroundUncheckedDisabled}" />
+                                                <Setter Target="Haken.Opacity" Value="0" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedNormal">
+                                            <VisualState.Setters>
+                                                <Setter Target="Rahmen.Background" Value="{ThemeResource CheckBoxCheckBackgroundFillChecked}" />
+                                                <Setter Target="Rahmen.BorderBrush" Value="{ThemeResource CheckBoxCheckBackgroundStrokeChecked}" />
+                                                <Setter Target="Haken.Foreground" Value="{ThemeResource CheckBoxCheckGlyphForegroundChecked}" />
+                                                <Setter Target="Haken.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedPointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="Rahmen.Background" Value="{ThemeResource CheckBoxCheckBackgroundFillCheckedPointerOver}" />
+                                                <Setter Target="Rahmen.BorderBrush" Value="{ThemeResource CheckBoxCheckBackgroundStrokeCheckedPointerOver}" />
+                                                <Setter Target="Haken.Foreground" Value="{ThemeResource CheckBoxCheckGlyphForegroundCheckedPointerOver}" />
+                                                <Setter Target="Haken.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedPressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="Rahmen.Background" Value="{ThemeResource CheckBoxCheckBackgroundFillCheckedPressed}" />
+                                                <Setter Target="Rahmen.BorderBrush" Value="{ThemeResource CheckBoxCheckBackgroundStrokeCheckedPressed}" />
+                                                <Setter Target="Haken.Foreground" Value="{ThemeResource CheckBoxCheckGlyphForegroundCheckedPressed}" />
+                                                <Setter Target="Haken.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedDisabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="Rahmen.Background" Value="{ThemeResource CheckBoxCheckBackgroundFillCheckedDisabled}" />
+                                                <Setter Target="Rahmen.BorderBrush" Value="{ThemeResource CheckBoxCheckBackgroundStrokeCheckedDisabled}" />
+                                                <Setter Target="Haken.Foreground" Value="{ThemeResource CheckBoxCheckGlyphForegroundCheckedDisabled}" />
+                                                <Setter Target="Haken.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <Border x:Name="Rahmen" Width="20" Height="20" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    Background="{ThemeResource CheckBoxCheckBackgroundFillUnchecked}" BorderBrush="{ThemeResource CheckBoxCheckBackgroundStrokeUnchecked}"
+                                    BorderThickness="1" CornerRadius="{TemplateBinding CornerRadius}">
+                                    <FontIcon x:Name="Haken" Glyph="&#xE73E;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12"
+                                        Foreground="{ThemeResource CheckBoxCheckGlyphForegroundChecked}" Opacity="0" IsHitTestVisible="False" />
+                                </Border>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
             <local:StatusTextConverter x:Key="StatusText" />
             <local:StatusIconConverter x:Key="StatusIcon" />
         </Grid.Resources>
@@ -48,10 +137,10 @@
                                 <ColumnDefinition Width="80" /><ColumnDefinition Width="28" /><ColumnDefinition Width="160" />
                                 <ColumnDefinition Width="*" /><ColumnDefinition Width="110" />
                             </Grid.ColumnDefinitions>
-                            <CheckBox MinHeight="28" Margin="0,2" IsChecked="{Binding Enabled, Mode=TwoWay}" Click="RepositoryToggle_Click" AutomationProperties.AutomationId="MonitorToggle" />
+                            <CheckBox Style="{StaticResource RepositorySchalter}" MinHeight="28" Margin="0,2" IsChecked="{Binding Enabled, Mode=TwoWay}" Click="RepositoryToggle_Click" AutomationProperties.AutomationId="MonitorToggle" />
                             <local:RepositoryStatusView Grid.Column="1" Grid.ColumnSpan="2" Margin="0,2" Status="{Binding DisplayIconStatus}" Text="{Binding DisplayStatus}" />
                             <TextBlock Grid.Column="3" Margin="0,2" Text="{Binding VisiblePath}" ToolTipService.ToolTip="{Binding Path}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="Medium" />
-                            <CheckBox Grid.Column="4" MinHeight="28" Margin="0,2" IsChecked="{Binding AutoUpdate, Mode=TwoWay}" Click="RepositoryToggle_Click" AutomationProperties.AutomationId="AutoUpdateToggle" />
+                            <CheckBox Style="{StaticResource RepositorySchalter}" Grid.Column="4" MinHeight="28" Margin="0,2" IsChecked="{Binding AutoUpdate, Mode=TwoWay}" Click="RepositoryToggle_Click" AutomationProperties.AutomationId="AutoUpdateToggle" />
                             <Border Grid.ColumnSpan="5" Height="1" VerticalAlignment="Bottom" Background="{ThemeResource DividerStrokeColorDefaultBrush}" IsHitTestVisible="False" />
                         </Grid>
                     </DataTemplate>

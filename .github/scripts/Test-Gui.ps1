@@ -38,7 +38,7 @@ foreach ($font in @('default', 'large', 'maximum', 'dark')) {
 # Direkte Windows-Nachrichten bleiben auf das eigene fokussierte Testfenster beschränkt.
 Invoke-QuietConsole $executablePath (Join-Path $resultsPath 'keyboard') --diagnose-keyboard
 if ($LASTEXITCODE -ne 0) { throw "Eingabetasten-Prüfung fehlgeschlagen: $RuntimeIdentifier" }
-$counterexamples = @('missing-command', 'save-option', 'button-size', 'cleanup-command', 'cleanup-click', 'font-size', 'heading', 'command-alignment', 'roundtrip', 'session-end', 'properties-cancel', 'remove-binding', 'orphan-properties', 'doubleclick-gate', 'doubleclick-route', 'notification-option', 'row-density', 'row-divider', 'window-icon', 'error-log')
+$counterexamples = @('missing-command', 'save-option', 'button-size', 'cleanup-command', 'cleanup-click', 'font-size', 'heading', 'command-alignment', 'roundtrip', 'session-end', 'properties-cancel', 'remove-binding', 'orphan-properties', 'doubleclick-gate', 'doubleclick-route', 'notification-option', 'row-density', 'row-divider', 'window-icon', 'error-log', 'checkbox-state')
 if ($IncludeShellSettings) { $counterexamples += @('settings-cancel','settings-effect') }
 foreach ($scenario in $counterexamples) {
     $testPath = Join-Path $resultsPath $scenario
@@ -72,6 +72,7 @@ foreach ($scenario in $counterexamples) {
         'row-divider' { '*Dezente Repository-Trennlinie bleibt innerhalb der kompakten Zeile*' }
         'window-icon' { '*Natives Fenstersymbol folgt dem Gesamtstatus*' }
         'error-log' { '*Mehrzeiliges Fehlerprotokoll zeigt sämtliche Zeitstempel, Pfade und Ursachen*' }
+        'checkbox-state' { '*Repository-Schalter zeigt einen Haken oder ein leeres Kästchen statt eines Minuszeichens*' }
     }
     if ($process.ExitCode -eq 0 -or (Get-Content -LiteralPath $errorPath -Raw -Encoding UTF8) -notlike $expected) { throw "GUI-Gegenprobe hat den Fehler nicht erkannt: $scenario" }
     Write-Host "GUI-Gegenprobe erkannt: $RuntimeIdentifier, $scenario"
