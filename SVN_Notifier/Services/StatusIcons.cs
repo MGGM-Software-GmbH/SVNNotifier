@@ -22,10 +22,10 @@ internal sealed class StatusIcons : IDisposable
         catch { Dispose(); throw; }
     }
 
-    /// <summary>Bewahrt die Priorität der WinForms-Ausgabe, einschließlich deaktivierter Einträge und kombinierter Zustände.</summary>
+    /// <summary>Bestimmt den Gesamtstatus ausschließlich aus aktivierten Einträgen; ohne aktive Prüfung bleibt das Symbol grau.</summary>
     internal void Update(AppWindow window, IEnumerable<SvnItem> folders)
     {
-        var items = folders.ToArray();
+        var items = folders.Where(item => item.Enabled).ToArray();
         string next = items.Any(item => item.Status == SvnStatus.Error) ? "Error"
             : items.Any(ApplicationCoordinator.NeedsUpdate) ? "NeedUpdate"
             : items.Any(item => item.Status == SvnStatus.Unknown) ? "Unknown"

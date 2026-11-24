@@ -4,7 +4,12 @@ Small and portable application which notifies you about other people's commits t
 
 ## Version 3.x (MGGM-Software GmbH)
 
-**SVN Notifier 3.1.0.6** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+**SVN Notifier 3.1.0.7** wird von [MGGM-Software GmbH](https://github.com/MGGM-Software-GmbH) gepflegt und erweitert.
+
+### Neu in v3.1.0.7
+
+- Deaktivierte Repositories beeinflussen das gemeinsame Fenster-, Taskleisten- und Tray-Symbol nicht mehr. Sind alle aktiven Repositories aktuell, bleibt das Symbol grün, auch wenn ein deaktivierter Eintrag zuletzt Updatebedarf oder einen Fehler gemeldet hat.
+- Ohne aktivierte Repositories erscheint das Symbol grau. Der gespeicherte Repository-Status bleibt beim Deaktivieren erhalten und wird nach dem erneuten Aktivieren wieder berücksichtigt.
 
 ### Neu in v3.1.0.6
 

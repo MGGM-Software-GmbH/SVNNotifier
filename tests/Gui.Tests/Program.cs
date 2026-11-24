@@ -940,32 +940,44 @@ internal static class Program
         }
     }
 
-    /// <summary>Prüft die Statuspriorität am tatsächlichen Fenster-HICON und am gemeinsam verwendeten Tray-Symbol.</summary>
+    /// <summary>Prüft aktive Statusprioritäten und ignorierte deaktivierte Einträge am tatsächlichen Fenster-HICON und gemeinsamen Tray-Symbol.</summary>
     private static async Task CheckWindowIconsAsync(MainWindow main)
     {
         var icons = Field<StatusIcons>(main, "statusIcons");
         var resources = Field<Dictionary<string, IntPtr>>(icons, "icons");
-        var cases = new (string Name, SvnStatus[] Statuses, bool Enabled, string Resource)[]
+        var cases = new (string Name, (SvnStatus Status, bool Enabled)[] Eintraege, string Resource)[]
         {
-            ("empty", [], true, "Unknown"),
-            ("green", [SvnStatus.UpToDate], true, "UpToDate"),
-            ("modified", [SvnStatus.UpToDate_Modified], true, "UpToDate"),
-            ("yellow", [SvnStatus.NeedUpdate], true, "NeedUpdate"),
-            ("yellow-modified", [SvnStatus.NeedUpdate_Modified], true, "NeedUpdate"),
-            ("gray", [SvnStatus.Unknown], true, "Unknown"),
-            ("red", [SvnStatus.Error], true, "Error"),
-            ("unknown-priority", [SvnStatus.UpToDate, SvnStatus.Unknown], true, "Unknown"),
-            ("incoming-priority", [SvnStatus.UpToDate, SvnStatus.Unknown, SvnStatus.NeedUpdate], true, "NeedUpdate"),
-            ("error-priority", [SvnStatus.UpToDate, SvnStatus.NeedUpdate_Modified, SvnStatus.Unknown, SvnStatus.Error], true, "Error"),
-            ("disabled-error", [SvnStatus.Error], false, "Error"),
-            ("green-again", [SvnStatus.UpToDate], true, "UpToDate"),
-            ("empty-again", [], true, "Unknown")
+            ("empty", [], "Unknown"),
+            ("green", [(SvnStatus.UpToDate, true)], "UpToDate"),
+            ("modified", [(SvnStatus.UpToDate_Modified, true)], "UpToDate"),
+            ("yellow", [(SvnStatus.NeedUpdate, true)], "NeedUpdate"),
+            ("yellow-modified", [(SvnStatus.NeedUpdate_Modified, true)], "NeedUpdate"),
+            ("gray", [(SvnStatus.Unknown, true)], "Unknown"),
+            ("red", [(SvnStatus.Error, true)], "Error"),
+            ("unknown-priority", [(SvnStatus.UpToDate, true), (SvnStatus.Unknown, true)], "Unknown"),
+            ("incoming-priority", [(SvnStatus.UpToDate, true), (SvnStatus.Unknown, true), (SvnStatus.NeedUpdate, true)], "NeedUpdate"),
+            ("error-priority", [(SvnStatus.UpToDate, true), (SvnStatus.NeedUpdate_Modified, true), (SvnStatus.Unknown, true), (SvnStatus.Error, true)], "Error"),
+            ("green-disabled-incoming", [(SvnStatus.UpToDate, true), (SvnStatus.NeedUpdate, false)], "UpToDate"),
+            ("green-disabled-incoming-modified", [(SvnStatus.UpToDate, true), (SvnStatus.NeedUpdate_Modified, false)], "UpToDate"),
+            ("green-disabled-error", [(SvnStatus.UpToDate, true), (SvnStatus.Error, false)], "UpToDate"),
+            ("green-disabled-unknown", [(SvnStatus.UpToDate, true), (SvnStatus.Unknown, false)], "UpToDate"),
+            ("yellow-disabled-error", [(SvnStatus.NeedUpdate, true), (SvnStatus.Error, false)], "NeedUpdate"),
+            ("gray-disabled-error", [(SvnStatus.Unknown, true), (SvnStatus.Error, false)], "Unknown"),
+            ("disabled-error", [(SvnStatus.Error, false)], "Unknown"),
+            ("disabled-incoming", [(SvnStatus.NeedUpdate, false)], "Unknown"),
+            ("disabled-incoming-modified", [(SvnStatus.NeedUpdate_Modified, false)], "Unknown"),
+            ("disabled-green", [(SvnStatus.UpToDate, false)], "Unknown"),
+            ("disabled-modified", [(SvnStatus.UpToDate_Modified, false)], "Unknown"),
+            ("disabled-unknown", [(SvnStatus.Unknown, false)], "Unknown"),
+            ("all-disabled", [(SvnStatus.UpToDate, false), (SvnStatus.NeedUpdate, false), (SvnStatus.Error, false)], "Unknown"),
+            ("green-again", [(SvnStatus.UpToDate, true)], "UpToDate"),
+            ("empty-again", [], "Unknown")
         };
         foreach (var sample in cases)
         {
             main.Coordinator.Folders.Clear();
-            foreach (SvnStatus status in sample.Statuses)
-                main.Coordinator.Folders.Add(new SvnItem(Path.Combine(output, "Icon " + status), PathType.Directory) { Status = status, Enabled = sample.Enabled });
+            foreach (var eintrag in sample.Eintraege)
+                main.Coordinator.Folders.Add(new SvnItem(Path.Combine(output, "Icon " + eintrag.Status), PathType.Directory) { Status = eintrag.Status, Enabled = eintrag.Enabled });
             main.Coordinator.Save(); await RenderAsync();
             if (arguments.Contains("--negative-window-icon"))
                 main.AppWindow.SetIcon(Microsoft.UI.Win32Interop.GetIconIdFromIcon(resources["Unknown"]));
@@ -984,6 +996,19 @@ internal static class Program
                 var png = new byte[(int)stream.Size]; reader.ReadBytes(png);
                 File.WriteAllBytes(Path.Combine(output, "window-icon-" + sample.Name + ".png"), png);
             }
+        }
+        var wechselnderEintrag = new SvnItem(Path.Combine(output, "Icon Aktivierungswechsel"), PathType.Directory) { Status = SvnStatus.NeedUpdate };
+        main.Coordinator.Folders.Add(new SvnItem(Path.Combine(output, "Icon Aktiv bleibt grün"), PathType.Directory) { Status = SvnStatus.UpToDate });
+        main.Coordinator.Folders.Add(wechselnderEintrag);
+        foreach (bool aktiviert in new[] { true, false, true })
+        {
+            wechselnderEintrag.Enabled = aktiviert;
+            main.Coordinator.Save(); await RenderAsync();
+            string ressourcenname = aktiviert ? "NeedUpdate" : "UpToDate";
+            IntPtr fenstersymbol = WindowIconProbe.SendMessage(main.Handle, 0x7f, new IntPtr(1), IntPtr.Zero);
+            Assert(WindowIconProbe.Pixels(fenstersymbol).SequenceEqual(WindowIconProbe.Pixels(resources[ressourcenname])) && icons.Current == resources[ressourcenname],
+                "Fenster und Tray übernehmen den Aktivierungswechsel bei unverändertem Repository-Status: " + aktiviert);
+            Assert(wechselnderEintrag.Status == SvnStatus.NeedUpdate, "Deaktivieren erhält den gespeicherten Repository-Status");
         }
         main.Coordinator.Folders.Clear(); main.Coordinator.Save();
     }
